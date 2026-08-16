@@ -1,6 +1,9 @@
 [![Build Status](https://travis-ci.com/bugy/script-server.svg?branch=master&status=passed)](https://travis-ci.com/bugy/script-server) [![Gitter](https://badges.gitter.im/script-server/community.svg)](https://gitter.im/script-server/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
 
 # script-server
+
+> This is nodecentral's fork of [bugy/script-server](https://github.com/bugy/script-server).
+
 Script-server is a Web UI for scripts.  
 
 As an administrator, you add your existing scripts into Script server and other users would be able to execute them via a web interface.
