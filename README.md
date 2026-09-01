@@ -2,7 +2,19 @@
 
 # script-server
 
-> This is nodecentral's fork of [bugy/script-server](https://github.com/bugy/script-server).
+## About this repository
+
+This repository is a fork / local copy of [bugy/script-server](https://github.com/bugy/script-server), the
+original Script Server project and its author. It exists to build a tailored, self-contained version of
+Script Server for our own use — in particular a custom Docker image (see [`tools/Dockerfile`](tools/Dockerfile))
+with extra runtime prerequisites baked in (OCR, PDF/document tooling, browser automation, finance-quote
+lookups, etc.) so scripts that depend on them work out of the box.
+
+Except where noted, the documentation below is inherited from the upstream project and describes
+Script Server itself rather than anything specific to this fork. For the original project, official
+releases, issue tracker, and community support, see [bugy/script-server](https://github.com/bugy/script-server).
+
+---
 
 Script-server is a Web UI for scripts.  
 
@@ -61,8 +73,11 @@ Internet connection is **not** needed. All the files are loaded from the server.
 (For detailed steps on linux with virtualenv, please see [Installation guide](https://github.com/bugy/script-server/wiki/Installing-on-virtualenv-(linux)))
 
 ##### As a docker container
-Please find pre-built images here: https://hub.docker.com/r/bugy/script-server/tags  
+Upstream pre-built images: https://hub.docker.com/r/bugy/script-server/tags  
 For the usage please check [this ticket](https://github.com/bugy/script-server/issues/171#issuecomment-461620836)
+
+> This fork builds its own image from [`tools/Dockerfile`](tools/Dockerfile) with additional prerequisites
+> installed (see that file for the current package/library list). It is not yet published to Docker Hub.
 
 ### For development
 1. Clone/download the repository
