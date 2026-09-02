@@ -79,15 +79,26 @@ For the usage please check [this ticket](https://github.com/bugy/script-server/i
 > This fork builds its own image from [`tools/Dockerfile`](tools/Dockerfile) with additional prerequisites
 > installed (see that file for the current package/library list). It is not yet published to Docker Hub.
 >
-> To build and run it locally (e.g. on a NAS with Docker installed): clone this repo, then from the repo
-> root run:
+> To build and run it locally (e.g. on a NAS with Docker installed): download/clone this repo, then from
+> the repo root run:
 > ```
 > docker compose up -d --build
 > ```
 > This uses [`docker-compose.yml`](docker-compose.yml), which builds the image from `tools/Dockerfile` and
-> persists `conf/` and `logs/` on the host so your configuration and logs survive container restarts/rebuilds.
-> Add further volume mounts for wherever your own scripts live, and reference those container paths in your
-> runner configs.
+> bind-mounts four host folders so they survive container restarts/rebuilds:
+> - `conf/` — server config and runner definitions (`conf/runners/*.json`)
+> - `scripts/` — the scripts your runners execute, including `scripts/shared/` for helper scripts used by
+>   dynamic dropdowns
+> - `data/` — persistent storage for files your scripts read/write
+> - `logs/` — server and per-execution logs
+>
+> Three working examples ship in `conf/runners/` + `scripts/` out of the box: **Hello World** (basic
+> parameters), **File Info** (native file browser over `data/`), and **Disk Usage** (a dropdown populated
+> live by a helper script). Use them as templates for your own.
+>
+> If you downloaded this as a ZIP rather than `git clone`d it, the execute bit on `scripts/*.sh` is not
+> preserved — `docker-compose.yml`'s entrypoint runs `chmod -R +x /app/scripts` on every container start to
+> fix this automatically.
 
 ### For development
 1. Clone/download the repository

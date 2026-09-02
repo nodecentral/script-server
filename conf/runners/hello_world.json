@@ -1,0 +1,28 @@
+{
+  "_version": "1.0.0",
+  "name": "Hello World",
+  "description": "Starter example: greets a name using a text field and a dropdown.",
+  "script_path": "hello_world.sh",
+  "working_directory": "/app/scripts",
+  "parameters": [
+    {
+      "name": "name",
+      "param": "--name",
+      "description": "Who to greet",
+      "default": "World"
+    },
+    {
+      "name": "greeting",
+      "param": "--greeting",
+      "type": "list",
+      "description": "Greeting style",
+      "values": ["hello", "hi", "hey"],
+      "values_ui_mapping": {
+        "hello": "Hello (formal)",
+        "hi": "Hi (casual)",
+        "hey": "Hey (friendly)"
+      },
+      "default": "hello"
+    }
+  ]
+}

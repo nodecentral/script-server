@@ -1,0 +1,19 @@
+{
+  "_version": "1.0.0",
+  "name": "Disk Usage",
+  "description": "Reports space usage for a mount point, picked from a live-generated dropdown.",
+  "script_path": "disk_usage.sh",
+  "working_directory": "/app/scripts",
+  "parameters": [
+    {
+      "name": "mount",
+      "param": "--mount",
+      "type": "list",
+      "description": "Mount point to inspect",
+      "values": {
+        "script": "/app/scripts/shared/list_mounts.sh",
+        "shell": true
+      }
+    }
+  ]
+}

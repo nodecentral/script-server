@@ -1,0 +1,19 @@
+{
+  "_version": "1.0.0",
+  "name": "File Info",
+  "description": "Reports size, type and checksum for a file under /app/data.",
+  "script_path": "file_info.sh",
+  "working_directory": "/app/scripts",
+  "parameters": [
+    {
+      "name": "file",
+      "param": "--file",
+      "type": "server_file",
+      "file_dir": "/app/data",
+      "file_recursive": true,
+      "file_type": "file",
+      "required": true,
+      "description": "Pick a file under /app/data"
+    }
+  ]
+}

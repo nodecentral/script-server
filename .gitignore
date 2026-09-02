@@ -62,7 +62,6 @@ target/
 #Ipython Notebook
 .ipynb_checkpoints
 
-conf/runners
 conf/theme
 conf/conf.json
 conf/.htpasswd
