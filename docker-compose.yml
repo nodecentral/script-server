@@ -1,0 +1,17 @@
+services:
+  script-server:
+    build:
+      context: .
+      dockerfile: tools/Dockerfile
+    image: script-server:local
+    container_name: script-server
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./conf:/app/conf
+      - ./logs:/app/logs
+      # Mount the folder(s) containing the scripts you want to run through
+      # script-server, then point your runner configs (conf/runners/*.json)
+      # at the paths as seen inside the container, e.g.:
+      # - /volume1/scripts:/scripts

@@ -78,6 +78,16 @@ For the usage please check [this ticket](https://github.com/bugy/script-server/i
 
 > This fork builds its own image from [`tools/Dockerfile`](tools/Dockerfile) with additional prerequisites
 > installed (see that file for the current package/library list). It is not yet published to Docker Hub.
+>
+> To build and run it locally (e.g. on a NAS with Docker installed): clone this repo, then from the repo
+> root run:
+> ```
+> docker compose up -d --build
+> ```
+> This uses [`docker-compose.yml`](docker-compose.yml), which builds the image from `tools/Dockerfile` and
+> persists `conf/` and `logs/` on the host so your configuration and logs survive container restarts/rebuilds.
+> Add further volume mounts for wherever your own scripts live, and reference those container paths in your
+> runner configs.
 
 ### For development
 1. Clone/download the repository
