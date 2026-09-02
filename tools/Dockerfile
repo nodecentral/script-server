@@ -1,3 +1,16 @@
+# ---- Stage 1: build the web frontend ----
+FROM node:20-slim AS web-builder
+
+ENV NODE_OPTIONS=--openssl-legacy-provider
+WORKDIR /src/web-src
+
+COPY web-src/package.json web-src/package-lock.json ./
+RUN npm ci
+
+COPY web-src/ ./
+RUN npm run build
+
+# ---- Stage 2: runtime image ----
 FROM python:3.9-slim
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -61,9 +74,16 @@ RUN pip install --no-cache-dir \
     && playwright install-deps chromium \
     && playwright install chromium
 
-COPY build/script-server /app
 WORKDIR /app
+
+COPY launcher.py requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
+
+COPY src ./src
+COPY conf/logging.json ./conf/logging.json
+COPY --from=web-builder /src/web ./web
+
+RUN mkdir -p conf/runners
 
 EXPOSE 5000
 CMD [ "python3", "launcher.py" ]
