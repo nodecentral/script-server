@@ -1,0 +1,47 @@
+{
+  "_version": "1.0.0",
+  "name": "Import from Gitea",
+  "group": "Admin",
+  "description": "Clones a Gitea repo (scripts/ + conf/runners/ layout) and imports its scripts/runners into this instance. Dry-run unless 'apply' is checked.",
+  "script_path": "import_from_gitea.sh",
+  "working_directory": "/app/scripts",
+  "parameters": [
+    {
+      "name": "gitea_url",
+      "param": "--url",
+      "required": true,
+      "description": "Gitea base URL, e.g. http://192.168.1.50:3000"
+    },
+    {
+      "name": "owner",
+      "param": "--owner",
+      "required": true,
+      "description": "Repo owner/organisation"
+    },
+    {
+      "name": "repo",
+      "param": "--repo",
+      "required": true,
+      "description": "Repo name"
+    },
+    {
+      "name": "branch",
+      "param": "--branch",
+      "description": "Branch to import from",
+      "default": "main"
+    },
+    {
+      "name": "token",
+      "description": "Gitea access token (only needed for private repos)",
+      "secure": true,
+      "pass_as": "env_variable",
+      "env_var": "GITEA_TOKEN"
+    },
+    {
+      "name": "apply",
+      "param": "--apply",
+      "no_value": true,
+      "description": "Actually copy files (otherwise dry-run only, listing what would be imported)"
+    }
+  ]
+}
