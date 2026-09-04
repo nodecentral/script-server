@@ -11,8 +11,13 @@ services:
     # (or greys out) anything that isn't executable. Fix it on every
     # container start, after the bind mounts below are in place.
     entrypoint: ["/bin/sh", "-c", "chmod -R +x /app/scripts 2>/dev/null; exec python3 launcher.py"]
-    ports:
-      - "5000:5000"
+    # Host networking so nmap/arp-scan (used by the Network Scanner runner) can
+    # actually see the real LAN, instead of just Docker's internal bridge
+    # network. Trade-off: the container shares the host's network stack
+    # directly - there's no isolation, and no port mapping to configure
+    # (the app listens on port 5000 on the NAS itself). Only supported on
+    # Linux Docker hosts (which QNAP/Container Station is).
+    network_mode: host
     volumes:
       - ./conf:/app/conf
       - ./logs:/app/logs

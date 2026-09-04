@@ -104,12 +104,20 @@ For the usage please check [this ticket](https://github.com/bugy/script-server/i
 > - **Disk Usage Chart** — interactive Plotly chart of used/free space per mount
 > - **Terminal Colors** / **Progress Demo** — ANSI colour and live-progress output, written in Lua
 > - **Confirm Gate (template)** — a reusable typed-confirmation safety gate for destructive scripts
+> - **Network Scanner** — multi-method LAN discovery (nmap/arp-scan/ARP cache)
 >
 > Use them as templates for your own.
 >
 > If you downloaded this as a ZIP rather than `git clone`d it, the execute bit on `scripts/*.sh` is not
 > preserved — `docker-compose.yml`'s entrypoint runs `chmod -R +x /app/scripts` on every container start to
 > fix this automatically.
+>
+> `docker-compose.yml` runs the container with `network_mode: host` (Linux Docker hosts only, which
+> Container Station is) so the Network Scanner runner can see your real LAN rather than just Docker's
+> internal bridge network. This means the container shares the NAS's network stack directly — no port
+> mapping to configure, and no isolation from the host network. If you'd rather keep the container isolated,
+> remove that line and switch back to a `ports: ["5000:5000"]` mapping — the Network Scanner just won't find
+> real devices in that case.
 
 ### For development
 1. Clone/download the repository

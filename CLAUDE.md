@@ -400,6 +400,22 @@ so scripts are portable across environments.
 
 -----
 
+## Network Scanning Scripts Need Host Networking
+
+A script that uses `nmap`, `arp-scan`, or reads the ARP cache to discover
+*real* LAN devices will silently find nothing (or only Docker-internal
+addresses) unless the container runs with `network_mode: host` in
+`docker-compose.yml`. A normal bridge-networked container only ever sees
+Docker's own virtual network, never the physical LAN.
+
+Trade-off: `network_mode: host` removes network isolation for the **whole**
+container, not just the one script, and makes the `ports:` mapping
+meaningless (the app just binds directly to the host's port). It's a
+Linux-only Docker feature. Weigh this against the isolation you're giving
+up before turning it on just for one scanning script.
+
+-----
+
 ## Storage
 
 - Persistent storage base: `/app/data`
