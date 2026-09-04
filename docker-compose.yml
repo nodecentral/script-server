@@ -10,7 +10,7 @@ services:
     # execute bit on scripts/*.sh, and script-server silently fails to run
     # (or greys out) anything that isn't executable. Fix it on every
     # container start, after the bind mounts below are in place.
-    entrypoint: ["/bin/sh", "-c", "chmod -R +x /app/scripts && exec python3 launcher.py"]
+    entrypoint: ["/bin/sh", "-c", "chmod -R +x /app/scripts 2>/dev/null; exec python3 launcher.py"]
     ports:
       - "5000:5000"
     volumes:
