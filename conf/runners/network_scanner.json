@@ -1,0 +1,52 @@
+{
+  "_version": "1.0.0",
+  "name": "Network Scanner",
+  "group": "Admin",
+  "description": "Multi-method LAN scanner (nmap ping, arp-scan, service detection, ARP cache). REQUIRES docker-compose.yml to set network_mode: host - otherwise it only sees Docker's internal bridge network, not your LAN.",
+  "script_path": "network_scanner.lua",
+  "working_directory": "/app/scripts",
+  "parameters": [
+    {
+      "name": "subnet",
+      "param": "--subnet",
+      "required": true,
+      "description": "Subnet to scan, e.g. 192.168.1.0/24"
+    },
+    {
+      "name": "scan_nmap_ping",
+      "no_value": true,
+      "default": true,
+      "description": "Nmap ping scan (fast discovery)"
+    },
+    {
+      "name": "scan_arp_scan",
+      "no_value": true,
+      "default": true,
+      "description": "ARP scan (needs arp-scan; gets MAC/vendor)"
+    },
+    {
+      "name": "scan_service_detection",
+      "no_value": true,
+      "default": false,
+      "description": "Nmap service/port detection (slower, more intrusive)"
+    },
+    {
+      "name": "scan_arp_cache",
+      "no_value": true,
+      "default": true,
+      "description": "Check local ARP cache"
+    },
+    {
+      "name": "verbose",
+      "no_value": true,
+      "default": true,
+      "description": "Show which method(s) detected each device"
+    },
+    {
+      "name": "export_csv",
+      "no_value": true,
+      "default": false,
+      "description": "Also save results as CSV under /app/data/network_scans"
+    }
+  ]
+}
