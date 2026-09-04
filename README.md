@@ -92,9 +92,11 @@ For the usage please check [this ticket](https://github.com/bugy/script-server/i
 > - `data/` — persistent storage for files your scripts read/write
 > - `logs/` — server and per-execution logs
 >
-> Three working examples ship in `conf/runners/` + `scripts/` out of the box: **Hello World** (basic
-> parameters), **File Info** (native file browser over `data/`), and **Disk Usage** (a dropdown populated
-> live by a helper script). Use them as templates for your own.
+> Four working examples ship in `conf/runners/` + `scripts/` out of the box, grouped under **Admin** in the
+> UI: **Hello World** (basic parameters), **File Info** (native file browser over `data/`), **Disk Usage**
+> (confirms the bind mounts above are actually connected, then shows a tree view of a picked path), and
+> **Import from Gitea** (pulls scripts/runners from a Gitea repo using the same layout into this instance —
+> dry-run by default, `--apply` to write). Use them as templates for your own.
 >
 > If you downloaded this as a ZIP rather than `git clone`d it, the execute bit on `scripts/*.sh` is not
 > preserved — `docker-compose.yml`'s entrypoint runs `chmod -R +x /app/scripts` on every container start to

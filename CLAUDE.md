@@ -1,7 +1,7 @@
 # Script-Server.md — Platform Context
 
-Version: 1.4.0
-Last updated: 2026-06-01
+Version: 1.5.0
+Last updated: 2026-09-04
 
 ## Platform Overview
 
@@ -49,12 +49,14 @@ Script-Server will silently fail to run any `.sh` file without the execute bit.
 For values scripts this means the dropdown is **greyed out with no error shown**.
 
 **Fix at the Docker level** — add to your `docker-compose.yml` so permissions
-are set automatically on every container start:
+are set automatically on every container start. Use `;` (or `2>/dev/null;`),
+**not** `&&`, between the chmod and the app launch — see the QNAP note below
+for why a failing chmod must never block the container from starting:
 
 ```yaml
 services:
   script-server:
-    entrypoint: ["/bin/sh", "-c", "chmod -R +x /app/scripts && exec python /app/server.py"]
+    entrypoint: ["/bin/sh", "-c", "chmod -R +x /app/scripts 2>/dev/null; exec python /app/server.py"]
 ```
 
 **Manual fix** (after copying files into a running container):
@@ -64,6 +66,31 @@ chmod +x /app/scripts/shared/my_helper.sh
 ```
 
 Never assume execute permissions survive a file copy into a Docker volume.
+
+### QNAP: `chmod` inside a container can fail with "Bad address" (EFAULT)
+
+Confirmed on a real QNAP NAS (Container Station): running `chmod` from *inside*
+a container against a bind-mounted host folder can fail with
+`chmod: changing permissions of 'X': Bad address`, even though the exact same
+`chmod` command run natively on the NAS shell (outside Docker, directly via
+SSH) on the same files succeeds without issue. This looks like a QNAP
+bind-mount-specific quirk, not a general filesystem/ACL problem — test by
+running the chmod natively first; if that works, the container-side chmod is
+the only thing affected.
+
+Consequences and fix:
+- If your entrypoint uses `chmod ... && exec ...`, a failing chmod means the
+  app **never starts at all** — always make the chmod best-effort (`;` or
+  `2>/dev/null;`, not `&&`) so a permissions hiccup degrades to "scripts
+  might not be executable yet" instead of "container won't boot."
+- After extracting a ZIP download on the NAS (which doesn't preserve the
+  execute bit), run `chmod +x scripts/*.sh scripts/**/*.sh` once, natively,
+  directly over SSH — before relying on the container to fix it for you.
+- When a script needs to verify a bind mount is genuinely connected (as
+  opposed to just an empty directory created inside the image), check for a
+  file that only ever arrives via that mount and is never baked into the
+  image — don't rely on `df`/`mount` output alone, since bind-mount visibility
+  there varies by host and storage driver.
 
 -----
 
