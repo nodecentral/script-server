@@ -1,0 +1,22 @@
+{
+  "_version": "1.0.0",
+  "name": "Download Image",
+  "group": "Admin",
+  "description": "Downloads an image from a URL into /app/data and displays it inline.",
+  "script_path": "download_image.py",
+  "working_directory": "/app/scripts",
+  "output_files": [
+    {
+      "type": "inline-image",
+      "path": "##any_path#"
+    }
+  ],
+  "parameters": [
+    {
+      "name": "url",
+      "param": "--url",
+      "description": "Image URL to download",
+      "default": "https://cataas.com/cat"
+    }
+  ]
+}

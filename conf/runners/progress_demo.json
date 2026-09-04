@@ -1,0 +1,28 @@
+{
+  "_version": "1.0.0",
+  "name": "Progress Demo",
+  "group": "Admin",
+  "description": "Live-updating progress bar demonstrating streamed terminal output and carriage-return handling.",
+  "script_path": "progress_demo.lua",
+  "working_directory": "/app/scripts",
+  "parameters": [
+    {
+      "name": "steps",
+      "param": "--steps",
+      "type": "int",
+      "description": "Number of steps",
+      "default": "20",
+      "min": 1,
+      "max": 200
+    },
+    {
+      "name": "delay_ms",
+      "param": "--delay-ms",
+      "type": "int",
+      "description": "Delay between steps (ms)",
+      "default": "150",
+      "min": 0,
+      "max": 2000
+    }
+  ]
+}

@@ -78,6 +78,7 @@ RUN pip install --no-cache-dir \
       paddlepaddle \
       paddleocr \
       playwright \
+      plotly \
     && playwright install-deps chromium \
     && playwright install chromium
 

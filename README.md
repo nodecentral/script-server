@@ -92,11 +92,20 @@ For the usage please check [this ticket](https://github.com/bugy/script-server/i
 > - `data/` — persistent storage for files your scripts read/write
 > - `logs/` — server and per-execution logs
 >
-> Four working examples ship in `conf/runners/` + `scripts/` out of the box, grouped under **Admin** in the
-> UI: **Hello World** (basic parameters), **File Info** (native file browser over `data/`), **Disk Usage**
-> (confirms the bind mounts above are actually connected, then shows a tree view of a picked path), and
-> **Import from Gitea** (pulls scripts/runners from a Gitea repo using the same layout into this instance —
-> dry-run by default, `--apply` to write). Use them as templates for your own.
+> Nine working examples ship in `conf/runners/` + `scripts/` out of the box, all grouped under **Admin** in
+> the UI:
+> - **Hello World** — basic parameters
+> - **File Info** — native file browser over `data/`
+> - **Disk Usage** — confirms the bind mounts above are actually connected, then shows a tree view of a
+>   picked path
+> - **Import from Gitea** — pulls scripts/runners from a Gitea repo using the same layout into this
+>   instance (dry-run by default, `--apply` to write)
+> - **Download Image** — fetches a URL into `data/` and displays it inline
+> - **Disk Usage Chart** — interactive Plotly chart of used/free space per mount
+> - **Terminal Colors** / **Progress Demo** — ANSI colour and live-progress output, written in Lua
+> - **Confirm Gate (template)** — a reusable typed-confirmation safety gate for destructive scripts
+>
+> Use them as templates for your own.
 >
 > If you downloaded this as a ZIP rather than `git clone`d it, the execute bit on `scripts/*.sh` is not
 > preserved — `docker-compose.yml`'s entrypoint runs `chmod -R +x /app/scripts` on every container start to

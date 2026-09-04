@@ -1,0 +1,12 @@
+{
+  "_version": "1.0.0",
+  "name": "Confirm Gate (template)",
+  "group": "Admin",
+  "description": "Reusable typed-confirmation safety-gate template for destructive/impactful admin scripts.",
+  "script_path": "confirm_gate.lua",
+  "working_directory": "/app/scripts",
+  "preload_script": {
+    "script": "echo 'This is a <b>confirmation-gate</b> template. Copy scripts/confirm_gate.lua as a starting point for any script where you want to require typed confirmation first.'",
+    "output_format": "html"
+  }
+}

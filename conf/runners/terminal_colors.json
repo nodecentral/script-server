@@ -1,0 +1,8 @@
+{
+  "_version": "1.0.0",
+  "name": "Terminal Colors",
+  "group": "Admin",
+  "description": "Demonstrates ANSI colour/style codes supported by the terminal output format.",
+  "script_path": "terminal_colors.lua",
+  "working_directory": "/app/scripts"
+}

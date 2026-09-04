@@ -1,0 +1,9 @@
+{
+  "_version": "1.0.0",
+  "name": "Disk Usage Chart",
+  "group": "Admin",
+  "description": "Interactive Plotly bar chart of used/free space for /app and its bind-mounted subfolders.",
+  "script_path": "disk_usage_chart.py",
+  "working_directory": "/app/scripts",
+  "output_format": "html_iframe"
+}
