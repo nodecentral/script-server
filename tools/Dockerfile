@@ -38,9 +38,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       iproute2 \
       inotify-tools \
       ffmpeg \
-      wkhtmltopdf \
       poppler-utils \
-      websocat \
       tesseract-ocr \
       tesseract-ocr-eng \
       libgl1 \
@@ -56,6 +54,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       libfinance-quote-perl \
       libfinance-quotehist-perl \
     && rm -rf /var/lib/apt/lists/*
+
+# websocat isn't packaged for Debian at all - install the static binary directly.
+# NOTE: wkhtmltopdf was dropped - Debian removed it from the archive (unmaintained
+# upstream). If you need it, install the standalone package from
+# https://github.com/wkhtmltopdf/packaging/releases instead (a .deb download + dpkg
+# install, since apt can no longer resolve it).
+RUN curl -fsSL -o /usr/local/bin/websocat \
+      https://github.com/vi/websocat/releases/download/v1.14.1/websocat.x86_64-unknown-linux-musl \
+    && chmod +x /usr/local/bin/websocat
 
 # Python packages used by scripts (spreadsheet/PDF handling, OCR, browser automation),
 # installed before the app code is copied so they cache independently of app changes.
