@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Name: import_from_gitea.py
-# Version: 2.0.0
+# Version: 2.1.0
 # Description: Clones a Gitea repo (expected to use the same scripts/ +
 #              conf/runners/ layout as this instance) and mirrors its
 #              scripts/ and conf/runners/ contents into /app/scripts and
@@ -114,8 +114,13 @@ def clone_repo(gitea_url, owner, repo, branch, token, clone_dir):
 
     if result.returncode != 0:
         print(result.stderr, file=sys.stderr)
-        print('Clone failed - check the URL, branch, credentials, and that this Gitea '
-              'instance is reachable from the container.', file=sys.stderr)
+        if 'could not read Username' in result.stderr or 'Authentication failed' in result.stderr:
+            print('This repo needs a Gitea access token - fill in the "token" field '
+                  '(Gitea > Settings > Applications > Generate New Token, needs read '
+                  'access to the repo).', file=sys.stderr)
+        else:
+            print('Clone failed - check the URL, branch, credentials, and that this Gitea '
+                  'instance is reachable from the container.', file=sys.stderr)
         sys.exit(1)
 
 
