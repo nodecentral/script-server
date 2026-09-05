@@ -1,5 +1,5 @@
 {
-  "_version": "1.1.0",
+  "_version": "1.2.0",
   "name": "Network Device Inventory",
   "group": "Admin",
   "description": "Shows the persistent network device inventory: label, vendor, last IP, hostname, first/last seen.",
