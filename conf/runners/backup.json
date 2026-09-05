@@ -1,0 +1,18 @@
+{
+  "_version": "1.0.0",
+  "name": "Backup",
+  "group": "Admin",
+  "description": "Backs up conf/ and scripts/ (and optionally data/) into a downloadable tarball under /app/data/backups.",
+  "script_path": "backup.sh",
+  "working_directory": "/app/scripts",
+  "output_files": ["##any_path#"],
+  "parameters": [
+    {
+      "name": "include_data",
+      "param": "--include-data",
+      "no_value": true,
+      "default": false,
+      "description": "Also include /app/data (can be large - downloaded images, scan results, etc.)"
+    }
+  ]
+}

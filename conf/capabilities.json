@@ -1,0 +1,82 @@
+{
+  "_version": "1.0.0",
+  "description": "Manifest of what's baked into the Docker image (tools/Dockerfile) vs available to install on demand via the Install Package runner. Runtime installs are ephemeral - lost on container rebuild/recreation unless also added to tools/Dockerfile.",
+  "preinstalled": {
+    "apt": [
+      {"name": "build-essential", "description": "gcc/make etc. - compiling native extensions"},
+      {"name": "autoconf", "description": "Build toolchain"},
+      {"name": "rustc", "description": "Rust compiler"},
+      {"name": "cargo", "description": "Rust package manager"},
+      {"name": "ca-certificates", "description": "TLS root certificates"},
+      {"name": "openssl", "description": "TLS/crypto CLI"},
+      {"name": "curl", "description": "HTTP client"},
+      {"name": "wget", "description": "HTTP/FTP downloader"},
+      {"name": "git", "description": "Version control"},
+      {"name": "tree", "description": "Directory tree viewer"},
+      {"name": "file", "description": "File type detection"},
+      {"name": "dialog", "description": "Terminal UI widgets"},
+      {"name": "iputils-ping", "description": "ping"},
+      {"name": "nmap", "description": "Network scanner"},
+      {"name": "arp-scan", "description": "ARP-based LAN discovery"},
+      {"name": "net-tools", "description": "ifconfig, arp, netstat, etc."},
+      {"name": "iproute2", "description": "ip command"},
+      {"name": "inotify-tools", "description": "Filesystem change notifications"},
+      {"name": "ffmpeg", "description": "Audio/video processing"},
+      {"name": "poppler-utils", "description": "PDF utilities (pdftotext, pdftoppm, etc.)"},
+      {"name": "tesseract-ocr", "description": "OCR engine"},
+      {"name": "tesseract-ocr-eng", "description": "Tesseract English language data"},
+      {"name": "libgl1", "description": "OpenGL runtime (needed by some Python image libs)"},
+      {"name": "libreadline-dev", "description": "Readline headers"},
+      {"name": "libsqlite3-dev", "description": "SQLite headers"},
+      {"name": "sqlite3", "description": "SQLite CLI"},
+      {"name": "libssl-dev", "description": "OpenSSL headers"},
+      {"name": "librsvg2-bin", "description": "SVG rendering (rsvg-convert)"},
+      {"name": "lua5.1", "description": "Lua interpreter"},
+      {"name": "luarocks", "description": "Lua package manager"},
+      {"name": "lua-sec", "description": "Lua TLS/SSL support"},
+      {"name": "lua-socket", "description": "Lua networking library"},
+      {"name": "libfinance-quote-perl", "description": "Perl finance-quote lookups"},
+      {"name": "libfinance-quotehist-perl", "description": "Perl historical finance-quote lookups"}
+    ],
+    "pip": [
+      {"name": "openpyxl", "description": "Excel spreadsheet read/write"},
+      {"name": "requests", "description": "HTTP client library"},
+      {"name": "pandas", "description": "Data analysis"},
+      {"name": "pdfplumber", "description": "PDF text/table extraction"},
+      {"name": "pymupdf", "description": "PDF rendering/parsing"},
+      {"name": "pdf2image", "description": "Render PDF pages to images"},
+      {"name": "pillow", "description": "Image processing"},
+      {"name": "pytesseract", "description": "Python wrapper for Tesseract OCR"},
+      {"name": "paddlepaddle", "description": "ML framework (for paddleocr)"},
+      {"name": "paddleocr", "description": "OCR toolkit"},
+      {"name": "playwright", "description": "Browser automation"},
+      {"name": "plotly", "description": "Interactive charts"}
+    ],
+    "other": [
+      {"name": "websocat", "version": "1.14.1", "description": "WebSocket CLI - static binary, not an apt package"},
+      {"name": "chromium (via Playwright)", "description": "Headless browser for playwright"}
+    ]
+  },
+  "optional": {
+    "apt": [
+      {"name": "imagemagick", "description": "Image manipulation CLI (convert / mogrify / etc.)"},
+      {"name": "jq", "description": "JSON processor for shell scripts"},
+      {"name": "rsync", "description": "Fast file sync/copy"},
+      {"name": "htop", "description": "Interactive process viewer"},
+      {"name": "ncdu", "description": "Interactive disk usage analyzer"},
+      {"name": "mtr", "description": "Network diagnostics (traceroute + ping)"},
+      {"name": "whois", "description": "WHOIS domain/IP lookups"},
+      {"name": "dnsutils", "description": "dig/nslookup DNS tools"},
+      {"name": "libimage-exiftool-perl", "description": "Read/write file metadata (exiftool)"},
+      {"name": "pandoc", "description": "Universal document format converter"},
+      {"name": "unzip", "description": "Extract .zip archives"},
+      {"name": "zip", "description": "Create .zip archives"}
+    ],
+    "pip": [
+      {"name": "psutil", "description": "System/process monitoring"},
+      {"name": "pyyaml", "description": "YAML parsing"},
+      {"name": "qrcode", "description": "Generate QR codes"},
+      {"name": "python-docx", "description": "Read/write Word documents"}
+    ]
+  }
+}

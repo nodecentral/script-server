@@ -1,0 +1,9 @@
+{
+  "_version": "1.0.0",
+  "name": "View Capabilities",
+  "group": "Admin",
+  "description": "Shows what's baked into the image, what's available to install, and what's been installed at runtime this session.",
+  "script_path": "view_capabilities.py",
+  "working_directory": "/app/scripts",
+  "output_format": "html"
+}

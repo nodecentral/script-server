@@ -1,0 +1,23 @@
+{
+  "_version": "1.0.0",
+  "name": "Install Package",
+  "group": "Admin",
+  "description": "Installs optional packages (apt/pip) into the running container. EPHEMERAL - lost on container rebuild/recreation unless also added to tools/Dockerfile. See View Capabilities for what's already installed.",
+  "script_path": "install_package.py",
+  "working_directory": "/app/scripts",
+  "parameters": [
+    {
+      "name": "packages",
+      "param": "--packages",
+      "required": true,
+      "type": "multiselect",
+      "multiselect_argument_type": "single_argument",
+      "separator": ";",
+      "description": "Package(s) to install",
+      "values": {
+        "script": "/app/scripts/shared/list_optional_packages.py",
+        "shell": true
+      }
+    }
+  ]
+}

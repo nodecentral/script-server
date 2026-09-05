@@ -1,0 +1,47 @@
+{
+  "_version": "1.0.0",
+  "name": "Send Notification",
+  "group": "Admin",
+  "description": "Sends a push notification via Pushover or Prowl. Built from each service's public API docs but not verified against a live account - test with your own credentials first.",
+  "script_path": "notify.py",
+  "working_directory": "/app/scripts",
+  "parameters": [
+    {
+      "name": "service",
+      "param": "--service",
+      "type": "list",
+      "values": ["pushover", "prowl"],
+      "values_ui_mapping": {
+        "pushover": "Pushover",
+        "prowl": "Prowl"
+      },
+      "default": "pushover",
+      "description": "Notification service"
+    },
+    {
+      "name": "token",
+      "param": "--token",
+      "required": true,
+      "secure": true,
+      "description": "Pushover: app token. Prowl: API key."
+    },
+    {
+      "name": "user_key",
+      "param": "--user-key",
+      "secure": true,
+      "description": "Pushover only: your user key. Leave blank for Prowl."
+    },
+    {
+      "name": "title",
+      "param": "--title",
+      "default": "Script-Server",
+      "description": "Notification title"
+    },
+    {
+      "name": "message",
+      "param": "--message",
+      "required": true,
+      "description": "Notification message"
+    }
+  ]
+}

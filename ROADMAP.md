@@ -23,6 +23,18 @@ change is in this repo:
   Device, View Inventory
 - Persistent MAC-keyed device inventory pattern (collector + editor + viewer over a JSON store)
 - `network_mode: host` + `cap_add: [NET_RAW, NET_ADMIN]` for real LAN scanning
+- **Backups** — `backup.sh`: tars `conf/` + `scripts/` (+ optional `data/`) to a downloadable
+  tarball under `/app/data/backups`, correctly excluding its own backups folder from the archive.
+- **Notifications** — `notify.py`: Pushover/Prowl via their public HTTP APIs. Field names/POST
+  structure verified against a local mock server; **actual delivery not verified** (no live
+  Pushover/Prowl credentials available) - confirm on first real run.
+- **Package/capability library (runtime-install only)** — `conf/capabilities.json` manifest
+  (preinstalled vs optional apt/pip packages) + `install_package.py` (installs selected extras via
+  apt/pip, records to `/app/data/installed_extras.json`) + `view_capabilities.py` (shows
+  preinstalled / available / runtime-installed status). Verified with real installs (`jq`, `psutil`,
+  etc.), not just argument parsing. **Scope cut from the original idea**: this only covers the
+  ephemeral runtime-install half - it does *not* regenerate `tools/Dockerfile` to bake a choice in
+  permanently. That's still open, see Planned below.
 
 ## In Progress
 
@@ -30,26 +42,18 @@ change is in this repo:
 
 ## Planned
 
-1. **Package/capability library** — *Admin script + Dockerfile*. A manifest (JSON) listing what's
-   baked into the image (with versions) plus optional extras (imagemagick, etc.) not installed by
-   default. An "Install Package" runner installs from the same manifest at runtime (ephemeral until
-   rebuild) and can regenerate `tools/Dockerfile`'s package list so the same choice can be baked in
-   permanently. Ties into the Runner-Generator and Persistent State patterns already in `CLAUDE.md`.
+1. **Bake runtime-installed packages into the image permanently** — *Admin script + Dockerfile*.
+   The install-at-runtime half is done (see Done above); this closes the loop so a package chosen
+   via Install Package can also be added to `tools/Dockerfile` and rebuilt in, rather than staying
+   ephemeral. Runner-Generator-shaped: read `installed_extras.json`, patch the Dockerfile's package
+   list, prompt for a rebuild.
 
-2. **Notifications (Pushover/Prowl)** — *Admin script*. A reusable "Send Notification" script
-   (secure API token param, calls Pushover/Prowl's HTTP API directly) other scripts can invoke —
-   e.g. Network Scanner pinging you when a new device appears. Not touching core `alerts_service.py`
-   (its fixed `{title, message}` JSON payload doesn't match either API's expected fields anyway).
-
-3. **Backups** — *Admin script*. Archives `conf/`, `scripts/`, and optionally `data/` into a
-   timestamped tarball, offered as a download via `output_files`. Low effort, no open questions.
-
-4. **Scheduling** — *Config/verification*. Already a built-in script-server feature
+2. **Scheduling** — *Config/verification*. Already a built-in script-server feature
    (`src/scheduling/`, `SchedulePanel.vue`). Needs verifying it works cleanly with our runner
    parameter types (e.g. dynamic dropdowns re-resolving at scheduled run time) and documenting the
    workflow — not built from scratch.
 
-5. **System-following theme** — *Config only*. Author `conf/theme/theme.css` using
+3. **System-following theme** — *Config only*. Author `conf/theme/theme.css` using
    `@media (prefers-color-scheme: dark)` — script-server already serves this file if present. Zero
    code changes for automatic light/dark; a manual in-UI toggle would be a Core change on top of this.
 
