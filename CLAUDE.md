@@ -1,7 +1,7 @@
 # Script-Server.md — Platform Context
 
-Version: 1.5.0
-Last updated: 2026-09-04
+Version: 1.6.0
+Last updated: 2026-09-05
 
 ## Platform Overview
 
@@ -422,6 +422,56 @@ up before turning it on just for one scanning script.
 - Never hardcode paths
 - Outputs under `/app/data/<job_name>/`
 - Use env vars for any path that might differ between environments
+
+-----
+
+## Persistent State Across Runs (Inventories / Registries)
+
+A script can build up state *across* runs instead of just reporting a point-in-time
+snapshot — e.g. a device inventory, a backup registry, a list of processed jobs.
+The pattern is the same regardless of domain:
+
+1. **A collector script** gathers current data and upserts it into a JSON file
+   under `/app/data`, keyed by a **stable identifier** — something that won't
+   change between runs (MAC address for devices, not IP; a filename hash for
+   backups, not a timestamp; a serial number, not a display name). Preserve any
+   fields a human has already customized (e.g. a label) rather than overwriting
+   them each run.
+2. **An editor script** lets a human customize one entry — pick it from a
+   dynamic dropdown (see Dynamic Dropdown Values via Helper Scripts) sourced
+   from the same JSON file, then update just the field(s) being changed.
+3. **A viewer script** renders the whole store as a table, typically via
+   `output_format: html`.
+
+```
+scripts/
+  collector.py              # gathers data, merges into the store
+  editor.py                 # updates one entry, picked from a dropdown
+  viewer.py                 # renders the store as a table
+  shared/
+    list_store_entries.py   # dropdown helper: reads the store, prints one line per entry
+```
+
+### Lua has no JSON library by default
+
+Lua 5.1 (as installed via `apt install lua5.1`) ships with no JSON support. Don't
+hand-roll a JSON encoder/decoder in Lua for this. Two options:
+
+- Write the store read/write logic in Python (stdlib `json` module) as a small
+  shared helper, and have a Lua collector script call it via `os.execute`/
+  `io.popen` with the scan results passed as a temp file. This is the simpler,
+  lower-risk option and works fine even when the rest of the script is Lua.
+  Verified this way: an `nmap`/`arp-scan` device scanner written in Lua calls a
+  Python `merge_inventory.py` to update `/app/data/network_inventory.json`.
+- Or install a Lua JSON library (e.g. `lua-cjson` via luarocks) if you want to
+  keep everything in Lua.
+
+### Escape user-supplied text before rendering as HTML
+
+If an editor script lets a human type free text (a label, a note) and a viewer
+renders it with `output_format: html` or `html_iframe`, escape that text before
+embedding it (Python: `html.escape()`). `html` format sanitizes scripts/CSS
+links, but don't rely on that alone — escape at the point you build the markup.
 
 -----
 
