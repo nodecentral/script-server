@@ -1,19 +1,18 @@
 #!/usr/bin/env python3
 # Name: import_from_gitea.py
-# Version: 2.1.0
-# Description: Clones a Gitea repo (expected to use the same scripts/ +
-#              conf/runners/ layout as this instance) and mirrors its
-#              scripts/ and conf/runners/ contents into /app/scripts and
-#              /app/conf/runners: existing files are overwritten with the
-#              latest version, and files that were imported from this same
-#              source before but no longer exist upstream are removed - so
-#              a rename/delete in Gitea is reflected here too. Only files
-#              this exact source previously placed are ever candidates for
-#              removal (tracked in /app/data/gitea_import_state.json) -
-#              nothing else under scripts/ or conf/runners/ is touched.
-#              Dry-run by default - pass --apply to actually write files.
-#              Run standalone (./import_from_gitea.py --apply) or from
-#              Script-Server.
+# Version: 2.2.0
+# Description: Clones a Gitea repo (expected to have its own top-level
+#              scripts/ and runners/ folders) and mirrors scripts/ into
+#              /app/scripts and runners/ into /app/conf/runners: existing
+#              files are overwritten with the latest version, and files
+#              that were imported from this same source before but no
+#              longer exist upstream are removed - so a rename/delete in
+#              Gitea is reflected here too. Only files this exact source
+#              previously placed are ever candidates for removal (tracked
+#              in /app/data/gitea_import_state.json) - nothing else under
+#              scripts/ or conf/runners/ is touched. Dry-run by default -
+#              pass --apply to actually write files. Run standalone
+#              (./import_from_gitea.py --apply) or from Script-Server.
 
 import argparse
 import json
@@ -170,7 +169,7 @@ def main():
 
     source_key = f'{gitea_url}|{args.owner}|{args.repo}'
     state = load_state()
-    previous = state.get(source_key, {'scripts': [], 'conf/runners': []})
+    previous = state.get(source_key, {'scripts': [], 'runners': []})
 
     with tempfile.TemporaryDirectory() as clone_dir:
         clone_repo(gitea_url, args.owner, args.repo, args.branch, token, clone_dir)
@@ -180,15 +179,15 @@ def main():
             os.path.join(clone_dir, 'scripts'), '/app/scripts', 'scripts/',
             args.apply, previous.get('scripts', []))
         runners_files = sync_category(
-            os.path.join(clone_dir, 'conf/runners'), '/app/conf/runners', 'conf/runners/',
-            args.apply, previous.get('conf/runners', []))
+            os.path.join(clone_dir, 'runners'), '/app/conf/runners', 'runners/',
+            args.apply, previous.get('runners', []))
 
     if args.apply:
         print('Fixing execute permissions on imported scripts...')
         fix_permissions()
         print()
 
-        state[source_key] = {'scripts': scripts_files, 'conf/runners': runners_files}
+        state[source_key] = {'scripts': scripts_files, 'runners': runners_files}
         save_state(state)
 
         print('Done. Refresh the browser to see new/updated/removed scripts - Script-Server')
