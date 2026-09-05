@@ -1,5 +1,5 @@
 {
-  "_version": "2.0.0",
+  "_version": "2.1.0",
   "name": "Import from Gitea",
   "group": "Admin",
   "description": "Mirrors a Gitea repo's scripts/ + conf/runners/ into this instance. Overwrites existing files with the latest version, and REMOVES files that this same source previously imported but no longer has upstream (e.g. you deleted/renamed a script in Gitea) - only files previously imported from this exact url+owner+repo are ever candidates for removal, nothing else under scripts/ or conf/runners/ is touched. Dry-run by default (lists what would change, writes nothing) - check 'apply' to actually sync. Private repo: set a Gitea access token in the 'token' field.",
@@ -26,10 +26,19 @@
       "required": true,
       "type": "list",
       "description": "Repo name",
-      "values": ["ss_music_file_management", "ss_movies_file_management"],
+      "values": [
+        "ss_music_file_management",
+        "ss_movie_file_management",
+        "ss_photo_file_management",
+        "ss_finance_management",
+        "ss_health_management"
+      ],
       "values_ui_mapping": {
         "ss_music_file_management": "ss_music_file_management (Music)",
-        "ss_movies_file_management": "ss_movies_file_management (Movies)"
+        "ss_movie_file_management": "ss_movie_file_management (Movies)",
+        "ss_photo_file_management": "ss_photo_file_management (Photos)",
+        "ss_finance_management": "ss_finance_management (Finance)",
+        "ss_health_management": "ss_health_management (Health)"
       },
       "default": "ss_music_file_management"
     },
