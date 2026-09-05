@@ -1,8 +1,8 @@
 {
-  "_version": "1.0.0",
+  "_version": "1.1.0",
   "name": "Network Scanner",
   "group": "Admin",
-  "description": "Multi-method LAN scanner (nmap ping, arp-scan, service detection, ARP cache). REQUIRES docker-compose.yml to set network_mode: host - otherwise it only sees Docker's internal bridge network, not your LAN.",
+  "description": "Multi-method LAN scanner (nmap ping, arp-scan, service detection, ARP cache).\nRequirements (already satisfied in this image/compose file): docker-compose.yml must set network_mode: host - otherwise this only sees Docker's internal bridge network, not your LAN. nmap and arp-scan must be installed (they are, via tools/Dockerfile).\nSubnet must be in CIDR notation, e.g. 192.168.102.0/24 - a bare IP like 192.168.102.1 only scans that one host, not the whole range.",
   "script_path": "network_scanner.lua",
   "working_directory": "/app/scripts",
   "parameters": [
@@ -10,7 +10,8 @@
       "name": "subnet",
       "param": "--subnet",
       "required": true,
-      "description": "Subnet to scan, e.g. 192.168.1.0/24"
+      "description": "Subnet to scan in CIDR notation, e.g. 192.168.102.0/24",
+      "default": "192.168.102.0/24"
     },
     {
       "name": "scan_nmap_ping",

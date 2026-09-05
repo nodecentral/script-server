@@ -1,6 +1,6 @@
 #!/usr/bin/env lua5.1
 -- Name: network_scanner.lua
--- Version: 1.0.0
+-- Version: 1.1.0
 -- Description: Multi-method LAN scanner - nmap ping scan, arp-scan, nmap
 --              service detection, and the local ARP cache - with a small
 --              built-in OUI vendor lookup. REQUIRES the container to run
@@ -359,7 +359,10 @@ if enable_arp_cache then
                 ip, mac = line:match("([%d.]+)%s+[%w]+%s+([%x:]+)")
             end
 
-            if ip and mac then
+            -- Require a clean IPv4 dotted-quad: ip neigh show also lists IPv6
+            -- neighbors (fe80::..., multicast, etc.), and the loose regexes
+            -- above can occasionally grab a partial match out of those lines.
+            if ip and mac and ip:match("^%d+%.%d+%.%d+%.%d+$") then
                 cache_count = cache_count + 1
                 devices[ip] = devices[ip] or {}
                 devices[ip].ip = ip
@@ -431,6 +434,11 @@ end
 table.sort(sorted_ips, function(a, b)
     local a_parts = {a:match("(%d+)%.(%d+)%.(%d+)%.(%d+)")}
     local b_parts = {b:match("(%d+)%.(%d+)%.(%d+)%.(%d+)")}
+    -- Fall back to plain string comparison if either side isn't a clean
+    -- IPv4 dotted-quad, so a stray value can never crash the sort.
+    if (#a_parts < 4) or (#b_parts < 4) then
+        return a < b
+    end
     for i2 = 1, 4 do
         if tonumber(a_parts[i2]) ~= tonumber(b_parts[i2]) then
             return tonumber(a_parts[i2]) < tonumber(b_parts[i2])
