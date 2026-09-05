@@ -18,6 +18,14 @@ services:
     # (the app listens on port 5000 on the NAS itself). Only supported on
     # Linux Docker hosts (which QNAP/Container Station is).
     network_mode: host
+    # Raw-socket privileges so nmap/arp-scan can actually send/receive ARP
+    # frames and resolve MAC addresses on active scans - Docker's default
+    # capability set doesn't include these even for a container running as
+    # root. Narrower than network_mode: host: just these two privileges,
+    # not full container isolation removal.
+    cap_add:
+      - NET_RAW
+      - NET_ADMIN
     volumes:
       - ./conf:/app/conf
       - ./logs:/app/logs

@@ -1,0 +1,27 @@
+{
+  "_version": "1.0.0",
+  "name": "Label Device",
+  "group": "Admin",
+  "description": "Sets a custom label (e.g. \"Chris' iPhone\", \"QNAP NAS Living Room\") on a device in the network inventory. Run Network Scanner at least once first so devices exist to label.",
+  "script_path": "label_device.py",
+  "working_directory": "/app/scripts",
+  "parameters": [
+    {
+      "name": "device",
+      "param": "--device",
+      "required": true,
+      "type": "list",
+      "description": "Device to label",
+      "values": {
+        "script": "/app/scripts/shared/list_inventory.py",
+        "shell": true
+      }
+    },
+    {
+      "name": "label",
+      "param": "--label",
+      "required": true,
+      "description": "Label to assign"
+    }
+  ]
+}

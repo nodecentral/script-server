@@ -1,0 +1,9 @@
+{
+  "_version": "1.0.0",
+  "name": "View Inventory",
+  "group": "Admin",
+  "description": "Shows the persistent network device inventory: label, vendor, last IP, hostname, first/last seen.",
+  "script_path": "view_inventory.py",
+  "working_directory": "/app/scripts",
+  "output_format": "html"
+}

@@ -104,7 +104,10 @@ For the usage please check [this ticket](https://github.com/bugy/script-server/i
 > - **Disk Usage Chart** — interactive Plotly chart of used/free space per mount
 > - **Terminal Colors** / **Progress Demo** — ANSI colour and live-progress output, written in Lua
 > - **Confirm Gate (template)** — a reusable typed-confirmation safety gate for destructive scripts
-> - **Network Scanner** — multi-method LAN discovery (nmap/arp-scan/ARP cache)
+> - **Network Scanner** — multi-method LAN discovery (nmap/arp-scan/ARP cache), updates a persistent
+>   MAC-keyed device inventory on every run
+> - **Label Device** / **View Inventory** — name devices in that inventory (e.g. "Chris' iPhone", "QNAP NAS
+>   Living Room") and browse it as a table
 >
 > Use them as templates for your own.
 >
@@ -114,10 +117,12 @@ For the usage please check [this ticket](https://github.com/bugy/script-server/i
 >
 > `docker-compose.yml` runs the container with `network_mode: host` (Linux Docker hosts only, which
 > Container Station is) so the Network Scanner runner can see your real LAN rather than just Docker's
-> internal bridge network. This means the container shares the NAS's network stack directly — no port
-> mapping to configure, and no isolation from the host network. If you'd rather keep the container isolated,
-> remove that line and switch back to a `ports: ["5000:5000"]` mapping — the Network Scanner just won't find
-> real devices in that case.
+> internal bridge network, plus `cap_add: [NET_RAW, NET_ADMIN]` so nmap/arp-scan can resolve MAC addresses
+> on active scans (Docker's default capabilities don't include these even for a container running as root).
+> This means the container shares the NAS's network stack directly — no port mapping to configure, and no
+> isolation from the host network. If you'd rather keep the container isolated, remove `network_mode: host`
+> and `cap_add`, and switch back to a `ports: ["5000:5000"]` mapping — the Network Scanner just won't find
+> real devices or resolve fresh MAC addresses in that case.
 
 ### For development
 1. Clone/download the repository

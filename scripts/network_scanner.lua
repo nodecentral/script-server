@@ -1,13 +1,16 @@
 #!/usr/bin/env lua5.1
 -- Name: network_scanner.lua
--- Version: 1.1.0
+-- Version: 1.2.0
 -- Description: Multi-method LAN scanner - nmap ping scan, arp-scan, nmap
 --              service detection, and the local ARP cache - with a small
 --              built-in OUI vendor lookup. REQUIRES the container to run
 --              with network_mode: host (see docker-compose.yml); otherwise
 --              it only sees Docker's internal bridge network, not your LAN.
---              Run standalone (./network_scanner.lua --subnet 192.168.1.0/24)
---              or from Script-Server.
+--              Also merges results into the persistent device inventory
+--              (/app/data/network_inventory.json, see label_device.py and
+--              view_inventory.py) unless disabled. Run standalone
+--              (./network_scanner.lua --subnet 192.168.1.0/24) or from
+--              Script-Server.
 
 local function getenv_bool(name, default)
   local v = os.getenv(name)
@@ -24,6 +27,7 @@ local enable_arp_scan = getenv_bool('PARAM_SCAN_ARP_SCAN', true)
 local enable_service_scan = getenv_bool('PARAM_SCAN_SERVICE_DETECTION', false)
 local enable_arp_cache = getenv_bool('PARAM_SCAN_ARP_CACHE', true)
 local export_csv = getenv_bool('PARAM_EXPORT_CSV', false)
+local update_inventory = getenv_bool('PARAM_UPDATE_INVENTORY', true)
 
 local i = 1
 while i <= #arg do
@@ -44,6 +48,8 @@ while i <= #arg do
     enable_arp_cache = false; i = i + 1
   elseif a == '--export-csv' then
     export_csv = true; i = i + 1
+  elseif a == '--no-update-inventory' then
+    update_inventory = false; i = i + 1
   else
     i = i + 1
   end
@@ -484,24 +490,45 @@ end
 print(colors.bold .. "Total devices found: " .. device_count .. colors.reset)
 print(colors.cyan .. "==========================" .. colors.reset)
 
+local function write_csv(path)
+    local csv_file = io.open(path, "w")
+    if not csv_file then
+        return false
+    end
+    csv_file:write("IP,MAC,Hostname,Vendor,Services\n")
+    for _, ip in ipairs(sorted_ips) do
+        local device = devices[ip]
+        local mac = device.mac or ""
+        local hostname = device.hostname or ""
+        local vendor = device.arp_vendor or identify_vendor(device.mac)
+        local services = device.services and table.concat(device.services, "; ") or ""
+        csv_file:write(string.format("%s,%s,%s,%s,%s\n", ip, mac, hostname, vendor, services))
+    end
+    csv_file:close()
+    return true
+end
+
 if export_csv then
     local out_dir = "/app/data/network_scans"
     os.execute("mkdir -p " .. out_dir)
     local csv_path = out_dir .. "/scan_" .. os.time() .. ".csv"
-    local csv_file = io.open(csv_path, "w")
-    if csv_file then
-        csv_file:write("IP,MAC,Hostname,Vendor,Services\n")
-        for _, ip in ipairs(sorted_ips) do
-            local device = devices[ip]
-            local mac = device.mac or ""
-            local hostname = device.hostname or ""
-            local vendor = device.arp_vendor or identify_vendor(device.mac)
-            local services = device.services and table.concat(device.services, "; ") or ""
-            csv_file:write(string.format("%s,%s,%s,%s,%s\n", ip, mac, hostname, vendor, services))
-        end
-        csv_file:close()
+    if write_csv(csv_path) then
         print(colors.green .. "\n✓ Results exported to " .. csv_path .. colors.reset)
     else
         print(colors.red .. "\n✗ Failed to write CSV to " .. csv_path .. colors.reset)
+    end
+end
+
+if update_inventory then
+    local tmp_csv = "/tmp/network_scan_" .. os.time() .. ".csv"
+    if write_csv(tmp_csv) then
+        local merge_output = run_command("python3 /app/scripts/shared/merge_inventory.py " .. tmp_csv)
+        os.remove(tmp_csv)
+        print("")
+        if merge_output then
+            io.write(merge_output)
+        end
+    else
+        print(colors.red .. "\n✗ Failed to prepare inventory update" .. colors.reset)
     end
 end
