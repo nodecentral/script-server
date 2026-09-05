@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Name: view_inventory.py
-# Version: 1.0.0
+# Version: 1.1.0
 # Description: Renders the persistent /app/data/network_inventory.json as
 #              an HTML table (label, vendor, last-seen IP, first/last
 #              seen). Rendered with output_format html (sanitised). Run

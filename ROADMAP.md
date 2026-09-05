@@ -19,8 +19,8 @@ change is in this repo:
 
 - Self-contained multi-stage Docker build + `docker-compose.yml` for NAS deployment
 - 13 example "Admin" runners: Hello World, File Info, Disk Usage, Import from Gitea, Terminal
-  Colors, Progress Demo, Confirm Gate, Download Image, Disk Usage Chart, Network Scanner, Label
-  Device, View Inventory
+  Colors, Progress Demo, Confirm Gate, Download Image, Disk Usage Chart, Network Scanner, Network
+  Device Labelling, Network Device Inventory
 - Persistent MAC-keyed device inventory pattern (collector + editor + viewer over a JSON store)
 - `network_mode: host` + `cap_add: [NET_RAW, NET_ADMIN]` for real LAN scanning
 - **Backups** — `backup.sh`: tars `conf/` + `scripts/` (+ optional `data/`) to a downloadable
@@ -65,10 +65,23 @@ change is in this repo:
   model before writing code.
 - **Form-first UI, terminal minimized** — *partly already possible* by designing runners around
   rich parameter forms (chained dropdowns, `server_file`, `html`/`html_iframe` output) rather than
-  raw terminal text — Label Device/Network Scanner already lean this way. *Fully* hiding the
-  terminal/log panel is a **Core change** to `web-src/` (e.g. `script-view.vue`).
+  raw terminal text — Network Device Labelling/Network Scanner already lean this way. *Fully*
+  hiding the terminal/log panel is a **Core change** to `web-src/` (e.g. `script-view.vue`).
 - **Auto-hide left sidebar** — *Core change* to `AppLayout.vue`/`MainAppSidebar.vue`. Contained in
   scope, but still frontend source, not just a runner.
+- **Nested script groups (multi-level hierarchy)** — *Core change*. Confirmed in the actual code,
+  not assumed: `"group"` on a runner is a single flat string, `ScriptListGroup.vue` renders
+  `group.scripts` as a flat list with no recursion into child groups, and folder-based grouping
+  (`group_by_folders`) collapses any nested subfolder path down to just the top-level folder name
+  (`src/model/script_config.py`'s `read_short` walks up to the outermost segment only). So today
+  there is genuinely one level of grouping, and the only way to cluster related scripts inside a
+  group is naming them to sort adjacently (confirmed scripts sort alphabetically by name within a
+  group - `web-src/src/main-app/store/scripts.js`). That's the workaround already in use: renaming
+  Label Device / View Inventory to **Network Device Labelling** / **Network Device Inventory** so
+  they sort next to **Network Scanner** instead of appearing unrelated. Real nested groups (e.g.
+  Network > Scanner / Labelling / Inventory, collapsible per level) would need both a backend model
+  change (group as a path, not a single string) and a frontend change (`ScriptListGroup.vue`
+  recursing into child groups) - a genuine Core change, not a config tweak.
 
 -----
 

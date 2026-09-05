@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Name: label_device.py
-# Version: 1.0.0
+# Version: 1.0.1
 # Description: Sets a custom label (e.g. "Chris' iPhone") on a device in
 #              the persistent /app/data/network_inventory.json, picked from
 #              a dropdown populated live by scripts/shared/list_inventory.py.

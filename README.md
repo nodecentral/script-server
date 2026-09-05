@@ -106,8 +106,9 @@ For the usage please check [this ticket](https://github.com/bugy/script-server/i
 > - **Confirm Gate (template)** — a reusable typed-confirmation safety gate for destructive scripts
 > - **Network Scanner** — multi-method LAN discovery (nmap/arp-scan/ARP cache), updates a persistent
 >   MAC-keyed device inventory on every run
-> - **Label Device** / **View Inventory** — name devices in that inventory (e.g. "Chris' iPhone", "QNAP NAS
->   Living Room") and browse it as a table
+> - **Network Device Labelling** — name devices in that inventory (e.g. "Chris' iPhone", "QNAP NAS
+>   Living Room")
+> - **Network Device Inventory** — browse the labelled inventory as a table (`html_iframe`)
 >
 > Use them as templates for your own.
 >

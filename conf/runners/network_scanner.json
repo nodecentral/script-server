@@ -1,8 +1,8 @@
 {
-  "_version": "1.2.0",
+  "_version": "1.2.1",
   "name": "Network Scanner",
   "group": "Admin",
-  "description": "Multi-method LAN scanner (nmap ping, arp-scan, service detection, ARP cache).\nRequirements (already satisfied in this image/compose file): docker-compose.yml must set network_mode: host and cap_add: [NET_RAW, NET_ADMIN] - otherwise this only sees Docker's internal bridge network and can't resolve fresh MAC addresses (only what's already in the ARP cache). nmap and arp-scan must be installed (they are, via tools/Dockerfile).\nSubnet must be in CIDR notation, e.g. 192.168.102.0/24 - a bare IP like 192.168.102.1 only scans that one host, not the whole range.\nEach run updates the persistent device inventory (/app/data/network_inventory.json) - use Label Device to name devices and View Inventory to browse it.",
+  "description": "Multi-method LAN scanner (nmap ping, arp-scan, service detection, ARP cache).\nRequirements (already satisfied in this image/compose file): docker-compose.yml must set network_mode: host and cap_add: [NET_RAW, NET_ADMIN] - otherwise this only sees Docker's internal bridge network and can't resolve fresh MAC addresses (only what's already in the ARP cache). nmap and arp-scan must be installed (they are, via tools/Dockerfile).\nSubnet must be in CIDR notation, e.g. 192.168.102.0/24 - a bare IP like 192.168.102.1 only scans that one host, not the whole range.\nEach run updates the persistent device inventory (/app/data/network_inventory.json) - use Network Device Labelling to name devices and Network Device Inventory to browse it.",
   "script_path": "network_scanner.lua",
   "working_directory": "/app/scripts",
   "parameters": [
