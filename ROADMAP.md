@@ -41,7 +41,17 @@ change is in this repo:
   proving out the `scripts/preload/<name>` convention documented in `CLAUDE.md`.
 - **Core change: fix Copy/Download for `html_iframe` output** — first real edit to script-server's
   own frontend source (`web-src/`), not just an Admin script. Full root-cause + fix details logged
-  in `CLAUDE.md` under "Core Changes (Fork Divergence from Upstream)".
+  in `CLAUDE.md` under "Core Changes (Fork Divergence from Upstream)". **Verified on the real NAS
+  instance**: Download on MOTD's `html_iframe` output now saves a genuine, reopenable `.html` file
+  (confirmed by inspecting the actual downloaded file), not an empty/plain-text one.
+- **Fix `motd.py` false-positive missing-script reports for relative `working_directory`** —
+  Gitea-imported runners (e.g. the Music group) use a relative `working_directory` (`"scripts"`)
+  rather than this repo's own `"/app/scripts"` convention, which `motd.py`'s existence check
+  resolved against its own process cwd instead of Script-Server's actual root, wrongly flagging
+  real, runnable scripts as missing. Fixed by resolving relative `working_directory` (and preload
+  paths) against `/app`. **Verified on the real NAS instance**: after the fix, the Script Ingredients
+  Check correctly reports "24 runner(s) across 2 group(s). All script/preload files present." for
+  the actual Music-group runners imported from `ss_music_file_management`.
 
 ## In Progress
 
@@ -94,12 +104,18 @@ change is in this repo:
 
 ## Notes on Core changes
 
-The first real Core change has now shipped: a fix for the log panel's Copy/Download buttons doing
-nothing on `html_iframe` output (found while testing MOTD). Full write-up — root cause, exact files
-changed, and why — lives in `CLAUDE.md` under "Core Changes (Fork Divergence from Upstream)", which
-is now the standing place to log any future edit to script-server's own `src`/`web-src` source, so
-these don't get lost on a `git pull`/rebase from upstream `bugy/script-server` and so it's clear a
-full image rebuild (not just a scripts/conf file copy) is needed to pick them up.
+The first real Core change has now shipped and been **verified on the real NAS instance**: a fix for
+the log panel's Copy/Download buttons doing nothing on `html_iframe` output (found while testing
+MOTD). Full write-up — root cause, exact files changed, and why — lives in `CLAUDE.md` under "Core
+Changes (Fork Divergence from Upstream)", which is now the standing place to log any future edit to
+script-server's own `src`/`web-src` source, so these don't get lost on a `git pull`/rebase from
+upstream `bugy/script-server` and so it's clear a full image rebuild (not just a scripts/conf file
+copy) is needed to pick them up.
+
+That same MOTD testing surfaced and led to fixing a second, unrelated bug (an Admin script, not a
+Core change): `motd.py` was resolving a relative `working_directory` against its own process cwd
+instead of Script-Server's actual root, wrongly flagging real Gitea-imported scripts as missing.
+Also verified fixed on the real NAS instance.
 
 The "Core change" backlog items above (nested groups, hide-terminal, auto-hide sidebar) are the
 next candidates. Since Playwright + Chromium are already baked into the Docker image (and available
