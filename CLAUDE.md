@@ -1,6 +1,6 @@
 # Script-Server.md — Platform Context
 
-Version: 1.7.0
+Version: 1.8.0
 Last updated: 2026-09-06
 
 ## Platform Overview
@@ -516,6 +516,26 @@ would otherwise bloat the `description` field.
 - **Failure is visible, not silent.** A non-zero exit raises an exception,
   shown as an error where the banner would be — write it as carefully as any
   other script.
+
+### Avoid a separate helper file when the main script can do double duty
+
+Since `script` is just a command string, the path of least resistance is to
+create a whole new file in `scripts/shared/` for it — but that gives one
+runner two script files with unrelated names, breaking the Matched Pair
+convention's naming alignment (see Self-Learning example: an earlier
+`preload_script` pointed at `check_jq_preload.sh` while the main script was
+`preload_demo.py` — two unrelated names for one runner). Prefer, in order:
+
+1. **Inline** for anything trivial (`"script": "echo '...'"`).
+2. **The main script itself, with a flag**, when the preload content overlaps
+   with what the main script already computes:
+   ```json
+   "preload_script": { "script": "/app/scripts/motd.py --html", "output_format": "html" }
+   ```
+   One file, no naming mismatch, no duplicated logic.
+3. Only reach for a genuinely separate file when the preload check is truly
+   unrelated to the main script's own logic — and if so, name it to align
+   with the main script (a shared prefix), not a generic helper name.
 
 -----
 
