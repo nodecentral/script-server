@@ -117,6 +117,17 @@ change is in this repo:
   collapse-on-outside-click, pinned open) since no live backend was available in this environment
   to run the real app end-to-end. **Needs a live-browser check on the real NAS instance** before
   being considered fully verified - a static mock can't catch genuine Vue/router integration bugs.
+- **Fix invalid Material Icons names breaking the sidebar header** — exactly the live-browser bug
+  the entry above was waiting on, reported on the real NAS instance: `push_pin` and
+  `keyboard_double_arrow_left` don't exist in this project's bundled icon font (predates Google's
+  newer Material Symbols set), silently consuming real width in the header row without ever
+  showing visibly broken text, squeezing the server name down to one letter and displacing the
+  admin/GitHub link. Confirmed directly against the installed font's codepoints file, not assumed.
+  Fixed with `lock_open`/`lock` (confirmed valid and correctly-sized via a real-font Playwright
+  render) plus defensive fixed-size CSS on the toggle button so a bad icon name degrades small
+  instead of blowing out the row again. Verified no other invalid icon name exists anywhere else
+  in the codebase via a one-line cross-check against the codepoints file (documented in
+  `CLAUDE.md`, reusable for any future icon addition).
 
 ## In Progress
 

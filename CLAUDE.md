@@ -1,6 +1,6 @@
 # Script-Server.md — Platform Context
 
-Version: 1.15.0
+Version: 1.16.0
 Last updated: 2026-09-06
 
 ## Platform Overview
@@ -842,6 +842,62 @@ wouldn't show up in a static mock.
 
 **Deploying this fix:** same as above — Vue frontend source changed, so
 `docker compose up -d --build` is required, not just a file copy.
+
+### 2026-09-06 — Sidebar rail follow-up: invalid Material Icons names broke the header layout
+
+**Symptom, confirmed on the real NAS instance** (exactly the live-browser
+check the entry above asked for): the server name in the sidebar header
+was squeezed down to its first visible letter, and the admin settings cog
+appeared to have been "replaced" by the GitHub link.
+
+**Root cause:** the two new icon names used for the pin/auto-hide toggle -
+`push_pin` and `keyboard_double_arrow_left` - do **not exist** in this
+project's bundled icon font (`material-design-icons@3.0.1`, the classic
+932-icon set predating Google's newer Material Symbols, where both of
+these names were later added). Confirmed directly against the installed
+package's `iconfont/codepoints` file, not assumed. Effect in a real
+browser: Material Icons is a ligature font — you write the icon's plain
+English name as literal text and the font's own OpenType ligature table
+substitutes it for a glyph; there's no CSS `content:` fallback involved.
+`push_pin` matched no ligature at all and rendered fully invisible
+(no glyphs exist for plain ASCII letters in an icon-only font, no
+fallback font was specified). `keyboard_double_arrow_left` partially
+matched — the font substituted just the `keyboard` prefix into an
+unrelated keyboard glyph, then rendered the remaining ~18 characters as
+invisible-but-still-space-reserving `.notdef` glyphs. Both cases silently
+consumed real horizontal width in the header row without showing any
+visibly broken text to hint at the cause - it just looked like everything
+else got squeezed for no visible reason, including pushing the
+admin/GitHub link link partially out of its usual space.
+
+**Lesson for future icon choices:** always confirm a `material-icons`
+name against this project's actual bundled font before using it -
+`grep <name> web-src/node_modules/material-design-icons/iconfont/codepoints`
+after `npm install` in `web-src/`, or cross-check every icon name already
+used in `web-src/src` against that file in one pass:
+```bash
+comm -23 \
+  <(grep -rohE 'class="material-icons[^"]*">[a-z_]+' web-src/src --include=*.vue | sed -E 's/.*>//' | sort -u) \
+  <(cut -f1 -d' ' web-src/node_modules/material-design-icons/iconfont/codepoints | sort -u)
+```
+An empty result means every icon name in use is valid. A name existing in
+newer Google documentation/Material Symbols is not sufficient proof it
+exists in *this* older bundled set.
+
+**Fix:** swapped to `lock_open`/`lock` (confirmed present in the
+codepoints file, and confirmed rendering as correctly-sized real glyphs
+against the actual bundled font file via a Playwright screenshot) for the
+same pin/auto-hide toggle. Also hardened `.pin-toggle-button` in
+`MainAppSidebar.vue` with a fixed 24x24 box and `overflow: hidden` so a
+bad icon name in the future degrades to a small blank square instead of
+blowing out the whole header row's width again.
+
+**Verified:** ran the cross-check command above against every icon name
+in `web-src/src` post-fix - no other invalid names found anywhere in the
+codebase. Re-rendered the actual header markup against the real bundled
+font file via Playwright, confirming the server name now truncates
+reasonably (e.g. "My Home N...") rather than collapsing to one letter,
+with both icons rendering as small, correctly-sized glyphs.
 
 -----
 

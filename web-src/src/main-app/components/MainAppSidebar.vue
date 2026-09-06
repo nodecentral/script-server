@@ -23,10 +23,10 @@
         <div class="header-link">
           <a v-if="railMode" class="pin-toggle-button" title="Pin sidebar open"
              @click="$emit('toggle-rail-mode')">
-            <i class="material-icons">push_pin</i>
+            <i class="material-icons">lock_open</i>
           </a>
           <a v-else class="pin-toggle-button" title="Auto-hide sidebar" @click="$emit('toggle-rail-mode')">
-            <i class="material-icons">keyboard_double_arrow_left</i>
+            <i class="material-icons">lock</i>
           </a>
           <a v-if="adminUser" class="primary-color-text" href="admin.html">
             <i class="material-icons">settings</i>
@@ -177,6 +177,20 @@ export default {
 
 .pin-toggle-button {
   color: var(--font-color-medium);
+  flex-shrink: 0;
+
+  /* Defensive sizing: an unrecognised material-icons ligature name renders as raw fallback text
+     instead of a glyph and can otherwise blow out this whole header row's width (this exact bug
+     shipped once already - keyboard_double_arrow_left/push_pin aren't in this project's bundled
+     icon font version). Clip and fix the size so a bad icon name degrades to a small blank box
+     instead of pushing the server name out of view. */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 .pin-toggle-button:hover {
