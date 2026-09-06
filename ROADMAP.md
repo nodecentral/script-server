@@ -79,6 +79,17 @@ change is in this repo:
   in the run output for transparency. Documented as the reference pattern for any future
   multi-value-per-category case in `CLAUDE.md`. Verified end-to-end in the dev sandbox: all five
   resolution paths (none/one/many stored, explicit override, unknown key) behave correctly.
+- **Secrets Manager UX fix: real confusion, real cause** — a user picked a known-but-unset
+  suggested entry (e.g. Prowl's `TOKEN`) straight from the dropdown and still felt like they had to
+  fill in a separate "new category" field, since it was sitting right there on the form. Root cause
+  confirmed against the actual script-server source: this version has no conditional field
+  visibility, so `new_category`/`new_key` always showed regardless of what was picked in `entry`.
+  Fixed within that real constraint rather than assuming a feature that doesn't exist: merged
+  `new_category`/`new_key` into one `new_entry` field (`category/KEY`), and changed the sentinel
+  itself from `-- new entry --` to `+ CREATE NEW ENTRY (fill in New Entry field below:
+  category/KEY)` so the instruction lives in the option you actually see, not a separate field
+  description easy to skip past. Verified end-to-end: picking a suggested entry directly (leaving
+  New Entry blank) resolves correctly, exactly reproducing and then fixing the reported scenario.
 - **Fix `motd.py` false-positive missing-script reports for relative `working_directory`** —
   Gitea-imported runners (e.g. the Music group) use a relative `working_directory` (`"scripts"`)
   rather than this repo's own `"/app/scripts"` convention, which `motd.py`'s existence check

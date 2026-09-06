@@ -36,7 +36,11 @@ import time
 
 STORE_PATH = '/app/data/secrets.json'
 
-NEW_ENTRY_SENTINEL = '-- new entry --'
+# Deliberately loud and self-explanatory, not just "-- new entry --": Script-Server has no way to
+# hide the New Entry field unless this exact sentinel is picked, so the dropdown option itself has
+# to carry the instruction ("fill in New Entry below") rather than relying on a field description
+# the user may not read.
+NEW_ENTRY_SENTINEL = '+ CREATE NEW ENTRY (fill in New Entry field below: category/KEY)'
 
 # Integrations this fork already has (or expects to have) a consuming script for, so Secrets
 # Manager's dropdown and Secrets Viewer can surface them BEFORE a value is ever set - catching a
@@ -162,9 +166,9 @@ def _cmd_list_categories(_args):
 def _cmd_dropdown_entries(_args):
     print(NEW_ENTRY_SENTINEL)
     for category, key, updated_at, _length in list_entries_metadata():
-        print(f'{category} | {key} | last set {updated_at}')
+        print(f'{category} | {key} | ✓ set - last updated {updated_at}')
     for category, key, description in list_known_placeholders():
-        print(f'{category} | {key} | not set yet - {description}')
+        print(f'{category} | {key} | ○ not set yet - {description}')
 
 
 def _cmd_dropdown_category(args):

@@ -1,16 +1,19 @@
 #!/usr/bin/env python3
 # Name: secrets_manager.py
-# Version: 1.0.0
+# Version: 1.1.0
 # Description: Sets, updates, or deletes an entry in the categorized secrets
 #              store (/app/data/secrets.json via scripts/shared/secrets_store.py)
 #              - e.g. category "finance" holding FINNHUB_API_KEY, category
-#              "paperless" holding TOKEN. Pick an existing entry from the
-#              dropdown (populated live by secrets_store.py) or choose
-#              "-- new entry --" and type a new category/key. Values are never
-#              echoed back - only a character count confirms what was set.
-#              Run standalone (./secrets_manager.py --entry "-- new entry --"
-#              --new_category finance --new_key API_KEY --value secret123)
-#              or from Script-Server.
+#              "paperless" holding TOKEN. Pick an existing or suggested entry
+#              from the dropdown (populated live by secrets_store.py) - that
+#              alone is enough, category/key come from the selection itself.
+#              Only pick "+ CREATE NEW ENTRY" and fill in New Entry
+#              (category/KEY) when neither an existing nor a suggested entry
+#              fits. Values are never echoed back - only a character count
+#              confirms what was set. Run standalone
+#              (./secrets_manager.py --entry "+ CREATE NEW ENTRY ..."
+#              --new_entry finance/API_KEY --value secret123) or from
+#              Script-Server.
 
 import argparse
 import os
@@ -20,13 +23,18 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'sha
 from secrets_store import NEW_ENTRY_SENTINEL, delete_secret, set_secret  # noqa: E402
 
 
-def parse_entry(entry, new_category, new_key):
+def parse_entry(entry, new_entry):
     if entry == NEW_ENTRY_SENTINEL:
-        category = (new_category or '').strip()
-        key = (new_key or '').strip()
+        raw = (new_entry or '').strip()
+        if '/' not in raw:
+            print(f'New Entry must be in the form category/KEY (e.g. finance/FINNHUB_API_KEY) - '
+                  f'got {raw!r}', file=sys.stderr)
+            sys.exit(1)
+        category, _, key = raw.partition('/')
+        category, key = category.strip(), key.strip()
         if not category or not key:
-            print('Choose "-- new entry --" only together with both a new category and a new key.',
-                  file=sys.stderr)
+            print('New Entry must include both a category and a key, '
+                  'e.g. finance/FINNHUB_API_KEY.', file=sys.stderr)
             sys.exit(1)
         return category, key
 
@@ -40,8 +48,7 @@ def parse_entry(entry, new_category, new_key):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--entry', default=os.environ.get('PARAM_ENTRY', ''))
-    parser.add_argument('--new_category', default=os.environ.get('PARAM_NEW_CATEGORY', ''))
-    parser.add_argument('--new_key', default=os.environ.get('PARAM_NEW_KEY', ''))
+    parser.add_argument('--new_entry', default=os.environ.get('PARAM_NEW_ENTRY', ''))
     parser.add_argument('--action', default=os.environ.get('PARAM_ACTION', 'set'))
     parser.add_argument('--value', default=os.environ.get('PARAM_VALUE', ''))
     args = parser.parse_args()
@@ -50,7 +57,7 @@ def main():
         print('No entry selected', file=sys.stderr)
         sys.exit(1)
 
-    category, key = parse_entry(args.entry, args.new_category, args.new_key)
+    category, key = parse_entry(args.entry, args.new_entry)
 
     if args.action == 'delete':
         if delete_secret(category, key):

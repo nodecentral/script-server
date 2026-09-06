@@ -1,6 +1,6 @@
 # Script-Server.md — Platform Context
 
-Version: 1.13.0
+Version: 1.14.0
 Last updated: 2026-09-06
 
 ## Platform Overview
@@ -429,6 +429,20 @@ Managed via two runners in `conf/runners/` (`secrets_manager.py` /
   no script in this pattern ever echoes a stored value back — only a
   character count confirms what was set, so nothing sensitive shows up in
   run history.
+
+  Script-Server has no conditional field visibility — every parameter shows
+  on the form regardless of what's picked elsewhere, so a second "only used
+  if you picked X" field reads as a required next step even when it isn't.
+  Real confusion hit this exact spot: a user picked a suggested entry
+  straight from the dropdown (which already carries its own category/key)
+  and still felt obligated to fill in the separate new-entry fields sitting
+  right there on the form. Fixes that don't require conditional visibility
+  (which this version of script-server doesn't have): merge what would be
+  multiple "only if creating new" fields into as few fields as possible (one
+  `new_entry` field taking `category/KEY`, not two), and make the sentinel
+  option itself carry the instruction (`+ CREATE NEW ENTRY (fill in New
+  Entry field below: category/KEY)`) rather than relying on a separate
+  field's description that's easy to skip past.
 - **Secrets Viewer** — read-only, `output_format html_iframe`, themed like
   Network Device Inventory. Shows category/key/last-set only, never any part
   of the actual value.
