@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Name: install_package.py
-# Version: 1.0.0
+# Version: 1.1.0
 # Description: Installs one or more optional packages (from
 #              conf/capabilities.json) into the running container via apt
 #              or pip. This is EPHEMERAL - lost when the container is
@@ -61,11 +61,11 @@ def main():
     apt_names = []
     pip_names = []
     for selection in selections:
-        type_and_name = selection.split('|')[0].strip()
-        if ':' not in type_and_name:
+        parts = [p.strip() for p in selection.split('|')]
+        if len(parts) < 3:
             print(f'Skipping unrecognized selection: {selection}', file=sys.stderr)
             continue
-        pkg_type, name = type_and_name.split(':', 1)
+        name, pkg_type = parts[0], parts[2].lower()
         if pkg_type == 'apt':
             apt_names.append(name)
         elif pkg_type == 'pip':

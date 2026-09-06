@@ -1,5 +1,5 @@
 {
-  "_version": "1.0.0",
+  "_version": "1.1.0",
   "name": "Install Package",
   "group": "Admin",
   "description": "Installs optional packages (apt/pip) into the running container. EPHEMERAL - lost on container rebuild/recreation unless also added to tools/Dockerfile. See View Capabilities for what's already installed.",
