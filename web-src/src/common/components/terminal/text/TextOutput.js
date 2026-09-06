@@ -20,4 +20,8 @@ export class TextOutput {
     setInlineImage(outputPath, downloadUrl) {
         console.log('WARNING! inline images are not supported for text output')
     }
+
+    getText() {
+        return this.element.textContent || ''
+    }
 }

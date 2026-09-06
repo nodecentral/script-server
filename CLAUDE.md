@@ -1,6 +1,6 @@
 # Script-Server.md — Platform Context
 
-Version: 1.9.1
+Version: 1.10.0
 Last updated: 2026-09-06
 
 ## Platform Overview
@@ -576,6 +576,70 @@ CSS spinners never self-terminate. Pattern for live progress feedback:
 **Note on iOS/iPadOS:** `html_iframe` output renders correctly on desktop.
 On iOS/iPadOS, avoid copy-pasting code from rendered HTML output — use
 `terminal` format or plain code blocks for anything the user needs to copy.
+
+**Copy/Download buttons now work for `html_iframe`** (fixed in this fork,
+see Core Changes below). Copy extracts the visible text of the rendered
+iframe; Download saves the actual rendered HTML document (`.html`), not a
+`.txt` file — reopening it in a browser looks the same as the on-screen
+output.
+
+-----
+
+## Core Changes (Fork Divergence from Upstream)
+
+Almost everything in this repo is "Admin scripts" — runner JSON + a
+standalone script under `scripts/`, added without touching script-server's
+own source. That's the default, low-risk way to extend this platform (see
+`ROADMAP.md`'s effort classes). Occasionally a real bug lives in
+script-server's own frontend/backend (`src/`, `web-src/`) and can only be
+fixed there. Those are logged here — each entry says exactly what changed,
+in which files, and why — because they're easy to lose track of on a
+`git pull`/rebase from upstream `bugy/script-server`, and a full Docker
+image rebuild (not just a scripts/conf file copy) is required to pick them
+up.
+
+### 2026-09-06 — Copy/Download buttons did nothing for `html_iframe` output
+
+**Symptom:** running any script with `"output_format": "html_iframe"`
+(e.g. MOTD's Script Ingredients Check), the log panel's Copy and Download
+buttons produced nothing — no clipboard content, no file, no error.
+
+**Root cause:** `HtmlIFrameOutput.js`'s `.element` is the outer `<iframe>`
+tag. The rendered content actually lives in the iframe's own
+`contentDocument`, a separate DOM document. `downloadLog()` read
+`element.innerText`/`.textContent` directly off the `<iframe>` tag (always
+empty for an iframe), and `copyLogToClipboard()`'s underlying
+`Range.selectNodeContents()`/`window.getSelection()` calls used the *main
+page's* `document`/`window`, which can't select across into a same-origin
+iframe's separate document either.
+
+**Fix:**
+- `web-src/src/common/utils/common.js` — `readUserVisibleText(elem)` (now
+  exported) resolves the document/window from `elem.ownerDocument`/
+  `defaultView` instead of the global `document`/`window`, so it works
+  correctly for elements inside an iframe. `copyToClipboard()` was
+  simplified to take a plain string instead of a DOM element — extraction
+  is now each Output class's job (see below), not the clipboard utility's.
+- Every Output class (`TerminalOutput.js`, `TextOutput.js`, `HtmlOutput.js`,
+  `HtmlIFrameOutput.js`) gained a `getText()` method returning its visible
+  text — for `HtmlIFrameOutput` this reads from `contentDocument.body`.
+- `HtmlIFrameOutput.js` additionally gained `getHtml()`, returning
+  `contentDocument.documentElement.outerHTML` — the full rendered document.
+- `web-src/src/common/components/log_panel.vue` — `copyLogToClipboard()`
+  now calls `this.output.getText()` and passes the string to
+  `copyToClipboard()`. `downloadLog()` uses `getHtml()` when the current
+  Output class provides one (i.e. only for `html_iframe`), saving a real
+  `.html` file; otherwise it falls back to `getText()` and saves `.txt`,
+  matching prior behaviour for `terminal`/`text`/`html`.
+
+**Result:** Copy still extracts plain text for every format, unchanged for
+`terminal`/`text`/`html`. Download now saves a genuine, reopenable `.html`
+file for `html_iframe` scripts instead of an empty/plain-text one.
+
+**Deploying this fix:** since it changes compiled Vue frontend source
+(`web-src/`), a file copy + `chmod` is not enough — the Docker image must
+be rebuilt (`docker compose up -d --build`) so `npm run build` recompiles
+`web-src/` into `web/`.
 
 -----
 

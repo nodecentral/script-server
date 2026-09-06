@@ -1,6 +1,6 @@
 import {TerminalModel} from '@/common/components/terminal/ansi/terminal_model'
 import {Terminal} from '@/common/components/terminal/ansi/terminal_view'
-import {addClass} from '@/common/utils/common'
+import {addClass, readUserVisibleText} from '@/common/utils/common'
 
 export class TerminalOutput {
     constructor() {
@@ -26,5 +26,9 @@ export class TerminalOutput {
 
     setInlineImage(output_path, download_url) {
         this.terminalModel.setInlineImage(output_path, download_url)
+    }
+
+    getText() {
+        return readUserVisibleText(this.element)
     }
 }

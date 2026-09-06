@@ -124,16 +124,25 @@ export default {
     },
 
     copyLogToClipboard: function () {
-      copyToClipboard(this.output.element);
+      copyToClipboard(this.output.getText());
+
+      // for mobiles, we need to scroll down to make URL bar disappear
+      this.output.element.scrollIntoView();
     },
 
     downloadLog: function () {
-      const content = this.output.element.innerText || this.output.element.textContent || '';
-      const blob = new Blob([content], { type: 'text/plain' });
+      // html_iframe output has a real rendered HTML document behind it - offer that instead of
+      // plain text, so the downloaded file reopens looking the same as what was shown on screen
+      const hasHtml = typeof this.output.getHtml === 'function';
+      const content = hasHtml ? this.output.getHtml() : this.output.getText();
+      const mimeType = hasHtml ? 'text/html' : 'text/plain';
+      const filename = hasHtml ? 'log-output.html' : 'log-output.txt';
+
+      const blob = new Blob([content], { type: mimeType });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'log-output.txt';
+      a.download = filename;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);

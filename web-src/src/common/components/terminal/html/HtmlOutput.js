@@ -1,4 +1,4 @@
-import {addClass, destroyChildren} from '@/common/utils/common'
+import {addClass, destroyChildren, readUserVisibleText} from '@/common/utils/common'
 import DOMPurify from 'dompurify'
 
 export class HtmlOutput {
@@ -29,5 +29,9 @@ export class HtmlOutput {
 
     setInlineImage(outputPath, downloadUrl) {
         console.log('WARNING! inline images are not supported for html output')
+    }
+
+    getText() {
+        return readUserVisibleText(this.element)
     }
 }

@@ -559,9 +559,14 @@ export function deepCloneObject(obj) {
 // Reads the text, which user sees
 // Default innerText doesn't work (on Chrome/Firefox), because <br/> is treated as double new-line
 // So the idea is just select text and copy it
-function readUserVisibleText(elem) {
-    const selection = window.getSelection();
-    const range = document.createRange();
+// Uses elem's own document/window (rather than the global ones) so this also works for elements
+// living inside a same-origin iframe (e.g. html_iframe script output), whose content is a separate document
+export function readUserVisibleText(elem) {
+    const elemDocument = elem.ownerDocument || document;
+    const elemWindow = elemDocument.defaultView || window;
+
+    const selection = elemWindow.getSelection();
+    const range = elemDocument.createRange();
     range.selectNodeContents(elem);
     selection.removeAllRanges();
     selection.addRange(range);
@@ -570,35 +575,26 @@ function readUserVisibleText(elem) {
     return selectionString;
 }
 
-export function copyToClipboard(elem) {
+// Copies a plain-text string to the clipboard. Callers are expected to have already
+// extracted the text they want copied (e.g. via an Output class's getText()).
+export function copyToClipboard(text) {
     // if new Clipboard API is available, just use it
     if (navigator.clipboard) {
-        const selectionString = readUserVisibleText(elem);
-        navigator.clipboard.writeText(selectionString);
+        navigator.clipboard.writeText(text);
         return;
     }
 
     const targetId = '_hiddenCopyText_';
-    const isInput = elem.tagName === 'INPUT' || elem.tagName === 'TEXTAREA';
-
-    let origSelectionStart, origSelectionEnd;
-    let target;
-    if (isInput) {
-        target = elem;
-        origSelectionStart = elem.selectionStart;
-        origSelectionEnd = elem.selectionEnd;
-    } else {
-        target = document.getElementById(targetId);
-        if (!target) {
-            target = document.createElement('textarea');
-            target.style.position = 'absolute';
-            target.style.left = '9999px';
-            target.style.top = '0';
-            target.id = targetId;
-            document.body.appendChild(target);
-        }
-        target.value = readUserVisibleText(elem);
+    let target = document.getElementById(targetId);
+    if (!target) {
+        target = document.createElement('textarea');
+        target.style.position = 'absolute';
+        target.style.left = '9999px';
+        target.style.top = '0';
+        target.id = targetId;
+        document.body.appendChild(target);
     }
+    target.value = text;
 
     const currentFocus = document.activeElement;
     target.focus();
@@ -614,16 +610,8 @@ export function copyToClipboard(elem) {
         currentFocus.focus();
     }
 
-    if (isInput) {
-        elem.setSelectionRange(origSelectionStart, origSelectionEnd);
-    } else {
-        target.textContent = '';
-    }
-
+    target.textContent = '';
     document.body.removeChild(target);
-
-    // for mobiles, we need to scroll down to make URL bar disappear
-    elem.scrollIntoView();
 }
 
 export function uuidv4() {

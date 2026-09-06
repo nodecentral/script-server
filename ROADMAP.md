@@ -35,6 +35,13 @@ change is in this repo:
   etc.), not just argument parsing. **Scope cut from the original idea**: this only covers the
   ephemeral runtime-install half - it does *not* regenerate `tools/Dockerfile` to bake a choice in
   permanently. That's still open, see Planned below.
+- **Script Ingredients Check / MOTD** — `scripts/motd.py` audits every runner under
+  `conf/runners/` for missing script/preload files, rendered as a themed collapsible HTML table;
+  `scripts/preload/motd.py` is a genuinely separate preload script showing live system stats,
+  proving out the `scripts/preload/<name>` convention documented in `CLAUDE.md`.
+- **Core change: fix Copy/Download for `html_iframe` output** — first real edit to script-server's
+  own frontend source (`web-src/`), not just an Admin script. Full root-cause + fix details logged
+  in `CLAUDE.md` under "Core Changes (Fork Divergence from Upstream)".
 
 ## In Progress
 
@@ -87,9 +94,14 @@ change is in this repo:
 
 ## Notes on Core changes
 
-Everything shipped in this fork so far has been runner JSON + standalone scripts — zero edits to
-script-server's own Python/Vue source. The two "Core change" items above (#2 hide-terminal, #4
-auto-hide sidebar) would be the first departure from that. Since Playwright + Chromium are already
-baked into the Docker image (and available in the dev sandbox), frontend changes can actually be
-visually verified with screenshots before shipping, rather than shipped untested — worth doing
-before touching `web-src/` for real.
+The first real Core change has now shipped: a fix for the log panel's Copy/Download buttons doing
+nothing on `html_iframe` output (found while testing MOTD). Full write-up — root cause, exact files
+changed, and why — lives in `CLAUDE.md` under "Core Changes (Fork Divergence from Upstream)", which
+is now the standing place to log any future edit to script-server's own `src`/`web-src` source, so
+these don't get lost on a `git pull`/rebase from upstream `bugy/script-server` and so it's clear a
+full image rebuild (not just a scripts/conf file copy) is needed to pick them up.
+
+The "Core change" backlog items above (nested groups, hide-terminal, auto-hide sidebar) are the
+next candidates. Since Playwright + Chromium are already baked into the Docker image (and available
+in the dev sandbox), frontend changes can actually be visually verified with screenshots before
+shipping, rather than shipped untested — worth doing before touching `web-src/` for real.
