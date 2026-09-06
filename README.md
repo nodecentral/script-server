@@ -104,8 +104,8 @@ For the usage please check [this ticket](https://github.com/bugy/script-server/i
 > - **Disk Usage Chart** — interactive Plotly chart of used/free space per mount
 > - **Terminal Colors** / **Progress Demo** — ANSI colour and live-progress output, written in Lua
 > - **Confirm Gate (template)** — a reusable typed-confirmation safety gate for destructive scripts
-> - **Preload Script Demo** — shows the `preload_script` runner feature (an info banner shown before
->   the form, from a separate helper script)
+> - **MOTD** — Message-of-the-Day style status dashboard (system stats + bind mounts, script/runner
+>   counts, network inventory, installed extras), shown as a `preload_script` banner before the form
 > - **Network Scanner** — multi-method LAN discovery (nmap/arp-scan/ARP cache), updates a persistent
 >   MAC-keyed device inventory on every run
 > - **Network Device Labelling** — name devices in that inventory (e.g. "Chris' iPhone", "QNAP NAS

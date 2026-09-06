@@ -1,0 +1,12 @@
+{
+  "_version": "1.0.0",
+  "name": "MOTD",
+  "group": "Admin",
+  "description": "Message-of-the-Day style status summary (system stats + this app's own state: bind mounts, scripts/runners count, network inventory, installed extras), shown as a banner via preload_script before you even click Run. Demonstrates preload_script: the same script (motd.py) renders HTML for the banner (--html) and a classic ANSI terminal MOTD when actually run.",
+  "script_path": "motd.py",
+  "working_directory": "/app/scripts",
+  "preload_script": {
+    "script": "/app/scripts/motd.py --html",
+    "output_format": "html"
+  }
+}
