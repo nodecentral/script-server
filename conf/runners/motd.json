@@ -1,12 +1,13 @@
 {
-  "_version": "1.0.0",
+  "_version": "2.0.0",
   "name": "MOTD",
   "group": "Admin",
-  "description": "Message-of-the-Day style status summary (system stats + this app's own state: bind mounts, scripts/runners count, network inventory, installed extras), shown as a banner via preload_script before you even click Run. Demonstrates preload_script: the same script (motd.py) renders HTML for the banner (--html) and a classic ANSI terminal MOTD when actually run.",
+  "description": "Script-Server MOTD. The banner (before you click Run) shows live system stats via scripts/preload/motd.py - a genuinely separate file from the main script, per CLAUDE.md's preload_script guidance. Running it performs a Script Ingredients Check: every runner under conf/runners/, grouped and collapsible, confirming its script and preload files actually exist on disk.",
   "script_path": "motd.py",
   "working_directory": "/app/scripts",
+  "output_format": "html_iframe",
   "preload_script": {
-    "script": "/app/scripts/motd.py --html",
+    "script": "/app/scripts/preload/motd.py",
     "output_format": "html"
   }
 }

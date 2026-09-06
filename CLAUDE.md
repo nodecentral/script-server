@@ -1,6 +1,6 @@
 # Script-Server.md — Platform Context
 
-Version: 1.9.0
+Version: 1.9.1
 Last updated: 2026-09-06
 
 ## Platform Overview
@@ -549,6 +549,13 @@ is actually for:
    (`scripts/preload/network_scanner.sh` for `scripts/network_scanner.lua` +
    `conf/runners/network_scanner.json`) keeps all three files aligned by name
    despite living in different folders.
+
+Real example in this repo: `scripts/preload/motd.py` (live system stats banner)
+and `scripts/motd.py` (a "Script Ingredients Check" auditing every runner for
+missing script/preload files, grouped and collapsible via `<details>`) are
+deliberately different scripts, not a self-referential flag toggle — the
+preload's job here is genuinely different content, matching case 3 above,
+not case 2.
 
 -----
 
