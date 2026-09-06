@@ -1,5 +1,5 @@
 {
-  "_version": "2.0.0",
+  "_version": "2.0.1",
   "name": "MOTD",
   "group": "Admin",
   "description": "Script-Server MOTD. The banner (before you click Run) shows live system stats via scripts/preload/motd.py - a genuinely separate file from the main script, per CLAUDE.md's preload_script guidance. Running it performs a Script Ingredients Check: every runner under conf/runners/, grouped and collapsible, confirming its script and preload files actually exist on disk.",

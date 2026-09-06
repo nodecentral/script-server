@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Name: motd.py
-# Version: 2.0.0
+# Version: 2.0.1
 # Description: Script Ingredients Check - audits every runner under
 #              conf/runners/, grouped by their "group" field, confirming
 #              each one's script_path and preload_script (if any) actually
@@ -16,6 +16,12 @@ import json
 import os
 
 RUNNERS_DIR = '/app/conf/runners'
+
+# Script-Server's own root inside this image - a relative working_directory (e.g. "scripts",
+# as opposed to this repo's own convention of always using "/app/scripts") is resolved by
+# Script-Server against this directory, not against whatever cwd this audit script happens to
+# be running from - so the same base must be used here to get an accurate existence check.
+SERVER_ROOT = '/app'
 
 STYLE = """
 <style>
@@ -124,10 +130,11 @@ def resolve_main_script(config):
     working_directory = config.get('working_directory', '')
     if os.path.isabs(script_path):
         full_path = script_path
-    elif working_directory:
-        full_path = os.path.join(working_directory, script_path)
     else:
-        full_path = script_path
+        base_dir = working_directory or SERVER_ROOT
+        if not os.path.isabs(base_dir):
+            base_dir = os.path.join(SERVER_ROOT, base_dir)
+        full_path = os.path.join(base_dir, script_path)
 
     return script_path, os.path.isfile(full_path)
 
@@ -144,7 +151,8 @@ def resolve_preload(config):
     if not looks_like_file:
         return '(inline command)', None
 
-    return os.path.basename(first_token), os.path.isfile(first_token)
+    full_path = first_token if os.path.isabs(first_token) else os.path.join(SERVER_ROOT, first_token)
+    return os.path.basename(first_token), os.path.isfile(full_path)
 
 
 def build_report():
