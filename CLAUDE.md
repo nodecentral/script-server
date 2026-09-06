@@ -1,6 +1,6 @@
 # Script-Server.md — Platform Context
 
-Version: 1.12.0
+Version: 1.13.0
 Last updated: 2026-09-06
 
 ## Platform Overview
@@ -470,6 +470,36 @@ private Gitea repo (see Import from Gitea) are the case that bites here:
 their source isn't visible from outside the NAS, so confirm the exact
 `os.environ.get(...)` / `get_secret(...)` calls in the real script — by
 reading it directly or grepping the imported copy under `/app/scripts` —
+
+### Letting a runner pick among several stored tokens in one category
+
+Some categories legitimately hold more than one value under different key
+names — e.g. `gitea` might need a different access token per repo, not one
+token for everything. For that case, use `secrets_store.py`'s
+`dropdown-category <category>` subcommand (distinct from `dropdown-entries`,
+which lists across *all* categories for Secrets Manager) as a second
+dropdown's `values.script`, alongside `list_category_keys(category)` for
+resolving the pick in the consuming script:
+
+```json
+{
+  "name": "token_key",
+  "param": "--token-key",
+  "type": "list",
+  "values": { "script": "/app/scripts/shared/secrets_store.py dropdown-category gitea" }
+}
+```
+
+The dropdown always includes `secrets_store.AUTO_SENTINEL` as its first
+value, meaning "don't force a specific one." Resolve it as: an explicit
+manual value (if the runner also has one, e.g. Import from Gitea's `token`
+field) always wins; otherwise if exactly one key is stored under that
+category, auto-select it silently; if more than one is stored, require an
+explicit pick (`token_key` not equal to `AUTO_SENTINEL`) and fail loudly
+rather than guessing which one applies — see `import_from_gitea.py`'s
+`resolve_gitea_token()` for the reference implementation. Log which source
+was used (`"gitea.MUSIC_REPO (Secrets Store)"`, `"the manually entered token
+field"`, etc.) so a run's own output explains itself — never log the value.
 before adding it to `KNOWN_INTEGRATIONS` or setting a value for it.
 
 **Consuming a secret from a Python script:**

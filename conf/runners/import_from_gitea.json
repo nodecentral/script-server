@@ -1,8 +1,8 @@
 {
-  "_version": "2.2.0",
+  "_version": "2.3.0",
   "name": "Import from Gitea",
   "group": "Admin",
-  "description": "Mirrors a Gitea repo's top-level scripts/ + runners/ folders into this instance (scripts/ -> /app/scripts, runners/ -> /app/conf/runners). Overwrites existing files with the latest version, and REMOVES files that this same source previously imported but no longer has upstream (e.g. you deleted/renamed a script in Gitea) - only files previously imported from this exact url+owner+repo are ever candidates for removal, nothing else under scripts/ or conf/runners/ is touched. Dry-run by default (lists what would change, writes nothing) - check 'apply' to actually sync. Private repo: set a Gitea access token in the 'token' field (Gitea > Settings > Applications > Generate New Token).",
+  "description": "Mirrors a Gitea repo's top-level scripts/ + runners/ folders into this instance (scripts/ -> /app/scripts, runners/ -> /app/conf/runners). Overwrites existing files with the latest version, and REMOVES files that this same source previously imported but no longer has upstream (e.g. you deleted/renamed a script in Gitea) - only files previously imported from this exact url+owner+repo are ever candidates for removal, nothing else under scripts/ or conf/runners/ is touched. Dry-run by default (lists what would change, writes nothing) - check 'apply' to actually sync. Private repo: either fill in the 'token' field directly, or store one or more tokens under the 'gitea' category via Secrets Manager and pick one with 'Gitea Token' below - if only one is stored it's used automatically.",
   "script_path": "import_from_gitea.py",
   "working_directory": "/app/scripts",
   "parameters": [
@@ -50,10 +50,19 @@
     },
     {
       "name": "token",
-      "description": "Gitea access token (only needed for private repos)",
+      "description": "Manual Gitea access token (only needed for private repos). Overrides the Secrets Store dropdown below if filled in.",
       "secure": true,
       "pass_as": "env_variable",
       "env_var": "GITEA_TOKEN"
+    },
+    {
+      "name": "token_key",
+      "param": "--token-key",
+      "description": "Stored Gitea token to use instead of the manual field above (only needed when more than one is stored under the 'gitea' category)",
+      "type": "list",
+      "values": {
+        "script": "/app/scripts/shared/secrets_store.py dropdown-category gitea"
+      }
     },
     {
       "name": "apply",

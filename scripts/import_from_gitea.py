@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Name: import_from_gitea.py
-# Version: 2.2.0
+# Version: 2.3.0
 # Description: Clones a Gitea repo (expected to have its own top-level
 #              scripts/ and runners/ folders) and mirrors scripts/ into
 #              /app/scripts and runners/ into /app/conf/runners: existing
@@ -13,6 +13,14 @@
 #              scripts/ or conf/runners/ is touched. Dry-run by default -
 #              pass --apply to actually write files. Run standalone
 #              (./import_from_gitea.py --apply) or from Script-Server.
+#
+#              Gitea token resolution: an explicit "token" field always wins.
+#              Otherwise this looks at the "gitea" category in the Secrets
+#              Store (scripts/shared/secrets_store.py) - if exactly one token
+#              is stored there it's used automatically, if there's more than
+#              one the "Gitea Token" dropdown must pick which one (different
+#              repos can need different tokens), and if none are stored the
+#              repo is assumed to be public.
 
 import argparse
 import json
@@ -21,6 +29,9 @@ import shutil
 import subprocess
 import sys
 import tempfile
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'shared'))
+from secrets_store import AUTO_SENTINEL, get_secret, list_category_keys  # noqa: E402
 
 STATE_PATH = '/app/data/gitea_import_state.json'
 
@@ -123,6 +134,35 @@ def clone_repo(gitea_url, owner, repo, branch, token, clone_dir):
         sys.exit(1)
 
 
+def resolve_gitea_token(explicit_token, token_key):
+    """Returns (token, source_description) - source_description is for logging only,
+    never the token value itself."""
+    if explicit_token:
+        return explicit_token, 'the manually entered token field'
+
+    stored = list_category_keys('gitea')
+
+    if token_key and token_key != AUTO_SENTINEL:
+        value = get_secret('gitea', token_key)
+        if value is None:
+            print(f'No stored Gitea token found for gitea.{token_key} - check Secrets Manager.',
+                  file=sys.stderr)
+            sys.exit(1)
+        return value, f'gitea.{token_key} (Secrets Store)'
+
+    if len(stored) == 1:
+        key = stored[0][0]
+        return get_secret('gitea', key), f'gitea.{key} (Secrets Store, auto-selected - only one stored)'
+
+    if len(stored) > 1:
+        stored_names = ', '.join(f'gitea.{key}' for key, _ in stored)
+        print(f'Multiple Gitea tokens are stored ({stored_names}) - pick one from the '
+              '"Gitea Token" dropdown, or fill in the manual token field directly.', file=sys.stderr)
+        sys.exit(1)
+
+    return '', 'none (public repo assumed)'
+
+
 def fix_permissions():
     fixed_any = False
     failed = False
@@ -149,17 +189,20 @@ def main():
     parser.add_argument('--owner', default=os.environ.get('PARAM_OWNER', 'claude'))
     parser.add_argument('--repo', default=os.environ.get('PARAM_REPO', 'ss_music_file_management'))
     parser.add_argument('--branch', default=os.environ.get('PARAM_BRANCH', 'main'))
+    parser.add_argument('--token-key', default=os.environ.get('PARAM_TOKEN_KEY', ''))
     parser.add_argument('--apply', action='store_true', default=os.environ.get('PARAM_APPLY') == 'true')
     args = parser.parse_args()
 
     gitea_url = args.url.rstrip('/')
-    token = os.environ.get('GITEA_TOKEN', '')
+    explicit_token = os.environ.get('GITEA_TOKEN', '')
+    token, token_source = resolve_gitea_token(explicit_token, args.token_key)
 
     if not gitea_url or not args.owner or not args.repo:
         print('Missing required parameter(s): url, owner and repo are all required', file=sys.stderr)
         sys.exit(1)
 
     log_debug(f'url={gitea_url} owner={args.owner} repo={args.repo} branch={args.branch} apply={args.apply}')
+    print(f'Gitea token: {token_source}')
 
     if args.apply:
         print('Mode: APPLY (files will be written/removed)')

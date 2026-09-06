@@ -68,6 +68,17 @@ change is in this repo:
   end-to-end in the dev sandbox: dropdown/placeholder-list transitions correctly as entries are
   set, and `notify.py`'s credential resolution (store fallback, CLI override, clean failure with
   neither) all confirmed with the real functions monkeypatched out to avoid live network calls.
+- **Multi-token support for Import from Gitea** — a `gitea` category was added to
+  `KNOWN_INTEGRATIONS` (default key `TOKEN`), and a new `secrets_store.py dropdown-category
+  <category>` subcommand lets a runner offer a second dropdown scoped to just one category (for
+  when, unlike most categories, more than one differently-named key legitimately coexists there -
+  e.g. a different Gitea token per repo). `import_from_gitea.py`'s `resolve_gitea_token()`: an
+  explicit manual token always wins; with nothing stored, assumes a public repo; with exactly one
+  stored token, auto-selects it silently; with more than one, refuses to guess and requires an
+  explicit pick from the new "Gitea Token" dropdown. The chosen source (never the value) is printed
+  in the run output for transparency. Documented as the reference pattern for any future
+  multi-value-per-category case in `CLAUDE.md`. Verified end-to-end in the dev sandbox: all five
+  resolution paths (none/one/many stored, explicit override, unknown key) behave correctly.
 - **Fix `motd.py` false-positive missing-script reports for relative `working_directory`** —
   Gitea-imported runners (e.g. the Music group) use a relative `working_directory` (`"scripts"`)
   rather than this repo's own `"/app/scripts"` convention, which `motd.py`'s existence check

@@ -22,9 +22,12 @@
 # rest. See CLAUDE.md's Secrets Store section before treating this as a
 # vault for anything more sensitive than a home-lab API key/token.
 #
-# This module is also used directly as a dynamic dropdown's values.script
-# (see conf/runners/secrets_manager.json) via the `dropdown-entries`
-# subcommand.
+# This module is also used directly as a dynamic dropdown's values.script:
+# - `dropdown-entries` for Secrets Manager (conf/runners/secrets_manager.json)
+# - `dropdown-category <category>` for a runner that needs to let the user
+#   pick among several stored tokens in one category, e.g. Import from Gitea
+#   picking which stored "gitea" token to use when more than one exists
+#   (see conf/runners/import_from_gitea.json)
 
 import json
 import os
@@ -45,7 +48,15 @@ KNOWN_INTEGRATIONS = [
     ('prowl', 'TOKEN', 'Prowl API key - used by Send Notification'),
     ('paperless', 'URL', 'Paperless-ngx base URL, e.g. http://192.168.1.x:8010 - placeholder, no consuming script yet'),
     ('paperless', 'TOKEN', 'Paperless-ngx API token (Settings > API Tokens) - placeholder, no consuming script yet'),
+    ('gitea', 'TOKEN', 'Default Gitea access token - used by Import from Gitea (Gitea > Settings > '
+                        'Applications > Generate New Token). Add more named keys under the gitea '
+                        'category via Secrets Manager if different repos need different tokens.'),
 ]
+
+# Sentinel for a dropdown scoped to one category (see list_category_keys/dropdown-category) -
+# means "don't pick a specific stored token, let the caller decide" (e.g. Import from Gitea falls
+# back to a manually entered token, or auto-selects if exactly one is stored under that category).
+AUTO_SENTINEL = '-- auto (manual token field, or the only stored one) --'
 
 
 def load_store():
@@ -101,6 +112,15 @@ def list_categories():
     return sorted(load_store().keys())
 
 
+def list_category_keys(category):
+    """Returns (key, updated_at) tuples for all keys currently set under one category."""
+    entries = load_store().get(category, {})
+    return sorted(
+        [(key, entry.get('updated_at', '')) for key, entry in entries.items()],
+        key=lambda e: e[0].lower(),
+    )
+
+
 def list_known_placeholders():
     """Known integrations (see KNOWN_INTEGRATIONS) that don't have a value set yet -
     (category, key, description) tuples."""
@@ -147,6 +167,16 @@ def _cmd_dropdown_entries(_args):
         print(f'{category} | {key} | not set yet - {description}')
 
 
+def _cmd_dropdown_category(args):
+    if len(args) != 1:
+        print('Usage: secrets_store.py dropdown-category <category>', file=sys.stderr)
+        sys.exit(1)
+    category = args[0]
+    print(AUTO_SENTINEL)
+    for key, updated_at in list_category_keys(category):
+        print(f'{key} | last set {updated_at}')
+
+
 def main():
     if len(sys.argv) < 2:
         print('Usage: secrets_store.py <get|list-categories|dropdown-entries> [args...]', file=sys.stderr)
@@ -157,6 +187,7 @@ def main():
         'get': _cmd_get,
         'list-categories': _cmd_list_categories,
         'dropdown-entries': _cmd_dropdown_entries,
+        'dropdown-category': _cmd_dropdown_category,
     }
     if command not in commands:
         print(f'Unknown command: {command}', file=sys.stderr)
