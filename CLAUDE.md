@@ -1,7 +1,7 @@
 # Script-Server.md — Platform Context
 
-Version: 1.6.0
-Last updated: 2026-09-05
+Version: 1.7.0
+Last updated: 2026-09-06
 
 ## Platform Overview
 
@@ -472,6 +472,50 @@ If an editor script lets a human type free text (a label, a note) and a viewer
 renders it with `output_format: html` or `html_iframe`, escape that text before
 embedding it (Python: `html.escape()`). `html` format sanitizes scripts/CSS
 links, but don't rely on that alone — escape at the point you build the markup.
+
+-----
+
+## Preload Scripts — Info Banner Before the Form
+
+A runner can show a banner ABOVE the parameter form, populated by running a
+separate command/script the moment the page opens — before any parameter is
+set or Run is clicked. Good for precondition checks, warnings, or context that
+would otherwise bloat the `description` field.
+
+```json
+{
+  "preload_script": {
+    "script": "/app/scripts/shared/check_something.sh",
+    "output_format": "html"
+  }
+}
+```
+
+- `script` — a command string, executed directly (see below). Can be inline
+  (`"echo '...'"`) or a path to a separate file, exactly like a dynamic
+  dropdown's `values.script`.
+- `output_format` — same options as a script's own output (`terminal`, `html`,
+  `html_iframe`), independent of the main script's format.
+
+### Critical differences from a dynamic dropdown's `values.script`
+
+- **No `shell` option exists.** Only `script` and `output_format` are read —
+  it always executes directly (no shell), never via `shell: true`. Pipes,
+  `&&`, `$VAR` expansion, etc. won't work in the command string directly. If
+  you need real shell behavior, invoke `bash -c "your pipeline here"` as the
+  command itself (this exact pattern is used in script-server's own test
+  suite).
+- **No stdin.** A preload script cannot read input, so it can't implement
+  anything interactive — that has to live in the main script itself (see
+  "Runnable standalone from terminal AND inside Script-Server" above: a
+  confirmation prompt needs to work even when there's no preload banner at
+  all, i.e. run standalone from a terminal).
+- **Purely informational, never blocking.** It cannot prevent the main script
+  from running. If a precondition actually matters, the main script must
+  re-check it itself rather than trusting the banner.
+- **Failure is visible, not silent.** A non-zero exit raises an exception,
+  shown as an error where the banner would be — write it as carefully as any
+  other script.
 
 -----
 

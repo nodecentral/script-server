@@ -1,0 +1,12 @@
+{
+  "_version": "1.0.0",
+  "name": "Preload Script Demo",
+  "group": "Admin",
+  "description": "Demonstrates the preload_script runner feature: scripts/shared/check_jq_preload.sh runs automatically when this page opens (before Run is clicked) and shows whether jq is installed. The main script re-checks for itself and works either way - preload_script is informational only, it can't block execution.",
+  "script_path": "preload_demo.py",
+  "working_directory": "/app/scripts",
+  "preload_script": {
+    "script": "/app/scripts/shared/check_jq_preload.sh",
+    "output_format": "html"
+  }
+}
