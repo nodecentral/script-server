@@ -105,6 +105,18 @@ change is in this repo:
   paths) against `/app`. **Verified on the real NAS instance**: after the fix, the Script Ingredients
   Check correctly reports "24 runner(s) across 2 group(s). All script/preload files present." for
   the actual Music-group runners imported from `ss_music_file_management`.
+- **Core change: slim auto-hide sidebar rail (desktop)** — closes the "Auto-hide left sidebar"
+  Ideas/Backlog item below. `AppLayout.vue`/`MainAppSidebar.vue`/`MainApp.vue`: a persistent 56px
+  rail (single toggle icon) replaces the fixed 300px sidebar by default above the mobile
+  breakpoint, expanding to a temporary overlay on click and snapping back on navigation or a
+  click outside - reusing the collapse mechanism that already existed for mobile rather than
+  building a new one. A pin toggle reverts to the original always-docked behaviour, remembered in
+  `localStorage`. Full root-cause-free design writeup in `CLAUDE.md`'s Core Changes section.
+  **Verified**: `vue-cli-service build` compiles cleanly; the exact CSS/JS state logic was checked
+  visually via a standalone Playwright-driven mock (all four states: collapsed, expanded overlay,
+  collapse-on-outside-click, pinned open) since no live backend was available in this environment
+  to run the real app end-to-end. **Needs a live-browser check on the real NAS instance** before
+  being considered fully verified - a static mock can't catch genuine Vue/router integration bugs.
 
 ## In Progress
 
@@ -140,8 +152,6 @@ change is in this repo:
   rich parameter forms (chained dropdowns, `server_file`, `html`/`html_iframe` output) rather than
   raw terminal text — Network Device Labelling/Network Scanner already lean this way. *Fully*
   hiding the terminal/log panel is a **Core change** to `web-src/` (e.g. `script-view.vue`).
-- **Auto-hide left sidebar** — *Core change* to `AppLayout.vue`/`MainAppSidebar.vue`. Contained in
-  scope, but still frontend source, not just a runner.
 - **Nested script groups (multi-level hierarchy)** — *Core change*. Confirmed in the actual code,
   not assumed: `"group"` on a runner is a single flat string, `ScriptListGroup.vue` renders
   `group.scripts` as a flat list with no recursion into child groups, and folder-based grouping

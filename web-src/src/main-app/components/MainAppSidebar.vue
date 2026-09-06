@@ -1,45 +1,60 @@
 <template>
   <div class="main-app-sidebar">
-    <div class="list-header">
-      <router-link :class="{
-                    'header-gt-15-chars' : serverName && serverName.length >= 15,
-                   'header-gt-18-chars' : serverName && serverName.length >= 18,
-                   'header-gt-21-chars' : serverName && serverName.length >= 21
-      }" :title="versionString"
-                   class="header server-header"
-                   to="/">
-        {{ serverName || 'Script server' }}
-      </router-link>
-
-      <SearchPanel v-model="searchText"/>
-
-      <div class="header-link">
-        <a v-if="adminUser" class="primary-color-text" href="admin.html">
-          <i class="material-icons">settings</i>
-        </a>
-        <a v-else href="https://github.com/bugy/script-server" target="_blank">
-          <svg aria-hidden="true" class="svg-icon github-icon" height="20px" viewBox="0 0 16 16" width="20px">
-            <path
-                d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
-          </svg>
-        </a>
-      </div>
-    </div>
-
-    <ScriptsList :search-text="searchText"/>
-
-    <router-link
-        class="waves-effect btn-flat bottom-panel primary-color-text history-button"
-        to='/history'>
-      History
-    </router-link>
-
-    <div v-if="authEnabled" class="logout-panel bottom-panel">
-      <span>{{ username }}</span>
-      <a class="btn-icon-flat waves-effect logout-button waves-circle" @click="logout">
-        <i class="material-icons primary-color-text">power_settings_new</i>
+    <div v-if="railCollapsed" class="rail-strip">
+      <a class="btn-flat rail-toggle-button" title="Expand sidebar" @click="$emit('toggle-expand')">
+        <i class="material-icons">menu</i>
       </a>
     </div>
+
+    <template v-else>
+      <div class="list-header">
+        <router-link :class="{
+                      'header-gt-15-chars' : serverName && serverName.length >= 15,
+                     'header-gt-18-chars' : serverName && serverName.length >= 18,
+                     'header-gt-21-chars' : serverName && serverName.length >= 21
+        }" :title="versionString"
+                     class="header server-header"
+                     to="/">
+          {{ serverName || 'Script server' }}
+        </router-link>
+
+        <SearchPanel v-model="searchText"/>
+
+        <div class="header-link">
+          <a v-if="railMode" class="pin-toggle-button" title="Pin sidebar open"
+             @click="$emit('toggle-rail-mode')">
+            <i class="material-icons">push_pin</i>
+          </a>
+          <a v-else class="pin-toggle-button" title="Auto-hide sidebar" @click="$emit('toggle-rail-mode')">
+            <i class="material-icons">keyboard_double_arrow_left</i>
+          </a>
+          <a v-if="adminUser" class="primary-color-text" href="admin.html">
+            <i class="material-icons">settings</i>
+          </a>
+          <a v-else href="https://github.com/bugy/script-server" target="_blank">
+            <svg aria-hidden="true" class="svg-icon github-icon" height="20px" viewBox="0 0 16 16" width="20px">
+              <path
+                  d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+            </svg>
+          </a>
+        </div>
+      </div>
+
+      <ScriptsList :search-text="searchText"/>
+
+      <router-link
+          class="waves-effect btn-flat bottom-panel primary-color-text history-button"
+          to='/history'>
+        History
+      </router-link>
+
+      <div v-if="authEnabled" class="logout-panel bottom-panel">
+        <span>{{ username }}</span>
+        <a class="btn-icon-flat waves-effect logout-button waves-circle" @click="logout">
+          <i class="material-icons primary-color-text">power_settings_new</i>
+        </a>
+      </div>
+    </template>
   </div>
 </template>
 
@@ -53,6 +68,20 @@ export default {
   components: {
     SearchPanel,
     ScriptsList
+  },
+  props: {
+    // Desktop-only "slim rail" state, passed down from AppLayout's scoped sidebar slot. When
+    // true, render just the toggle button - not a squeezed copy of the full list.
+    railCollapsed: {
+      type: Boolean,
+      default: false
+    },
+    // Whether rail mode is the user's current preference at all (independent of whether it's
+    // collapsed or temporarily expanded right now) - drives which pin-toggle icon/tooltip shows.
+    railMode: {
+      type: Boolean,
+      default: false
+    }
   },
 
   data() {
@@ -144,6 +173,36 @@ export default {
 
 .header-link .svg-icon path {
   fill: var(--primary-color)
+}
+
+.pin-toggle-button {
+  color: var(--font-color-medium);
+}
+
+.pin-toggle-button:hover {
+  color: var(--font-color-main);
+}
+
+.rail-strip {
+  height: 100%;
+  width: 56px;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.rail-toggle-button {
+  margin-top: 12px;
+  width: 40px;
+  height: 40px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 50%;
+  color: var(--font-color-main);
 }
 
 .history-button {

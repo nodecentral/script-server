@@ -1,8 +1,9 @@
 <template xmlns:v-slot="http://www.w3.org/1999/XSL/Transform">
   <div id="main-app">
     <AppLayout ref="appLayout" :loading="pageLoading">
-      <template v-slot:sidebar>
-        <MainAppSidebar/>
+      <template v-slot:sidebar="{ railCollapsed, railMode, onToggleExpand, onToggleRailMode }">
+        <MainAppSidebar :rail-collapsed="railCollapsed" :rail-mode="railMode"
+                         @toggle-expand="onToggleExpand" @toggle-rail-mode="onToggleRailMode"/>
       </template>
       <template v-slot:header>
         <router-view name="header"/>

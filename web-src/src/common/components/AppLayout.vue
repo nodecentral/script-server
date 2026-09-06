@@ -1,7 +1,9 @@
 <template>
   <div class="app-layout">
-    <div ref="appSidebar" :class="{collapsed: !showSidebar}" class="app-sidebar shadow-8dp">
-      <slot name="sidebar"/>
+    <div ref="appSidebar" :class="sidebarClasses" class="app-sidebar shadow-8dp">
+      <slot name="sidebar" :railCollapsed="isRailCollapsed" :railMode="railMode"
+            :onToggleExpand="() => setSidebarVisibility(!showSidebar)"
+            :onToggleRailMode="toggleRailMode"/>
     </div>
     <div class="app-content">
       <div ref="contentHeader"
@@ -18,13 +20,16 @@
         <slot name="content"/>
       </div>
     </div>
-    <div v-show="showSidebar" class="sidenav-overlay" @click="setSidebarVisibility(false)"></div>
+    <div :class="{'rail-overlay': isRailOverlay}" v-show="showSidebar" class="sidenav-overlay"
+         @click="setSidebarVisibility(false)"></div>
   </div>
 </template>
 
 <script>
 
 import {hasClass, isNull} from '@/common/utils/common';
+
+const RAIL_MODE_STORAGE_KEY = 'sidebarRailMode';
 
 export default {
   name: 'AppLayout',
@@ -35,7 +40,32 @@ export default {
     return {
       narrowView: false,
       showSidebar: false,
-      hasHeader: false
+      hasHeader: false,
+      // Desktop-only "slim rail" preference (mobile always fully hides/overlays regardless of
+      // this, there's no room for a persistent rail on a narrow screen). Defaults to on - the
+      // whole point of this feature is to give scripts more horizontal room by default - and is
+      // remembered across reloads so a user who prefers the classic always-open sidebar can turn
+      // it off once and keep that choice.
+      railMode: localStorage.getItem(RAIL_MODE_STORAGE_KEY) !== 'false'
+    }
+  },
+  computed: {
+    // Rail mode only applies on desktop - on a narrow viewport there's no spare width for a
+    // persistent icon strip, so it falls back to the pre-existing mobile fully-hidden behaviour.
+    isRailCollapsed() {
+      return !this.narrowView && this.railMode && !this.showSidebar;
+    },
+    isRailOverlay() {
+      return !this.narrowView && this.railMode && this.showSidebar;
+    },
+    sidebarClasses() {
+      if (this.narrowView) {
+        return {collapsed: !this.showSidebar};
+      }
+      if (this.railMode) {
+        return this.showSidebar ? {'rail-expanded': true} : {'rail-collapsed': true};
+      }
+      return {};
     }
   },
   mounted() {
@@ -60,6 +90,13 @@ export default {
   methods: {
     setSidebarVisibility(visible) {
       this.showSidebar = visible;
+    },
+    toggleRailMode() {
+      this.railMode = !this.railMode;
+      localStorage.setItem(RAIL_MODE_STORAGE_KEY, String(this.railMode));
+      // Pinning open (turning rail mode off) should leave the sidebar visible; turning rail mode
+      // back on should snap straight back to the slim rail rather than staying expanded.
+      this.showSidebar = !this.railMode;
     }
   }
 }
@@ -124,6 +161,29 @@ function updatedStylesBasedOnContent(contentHeader, contentPanel, appLayout) {
   border-right: 1px solid var(--separator-color);
 }
 
+/* Desktop "slim rail" mode - a persistent narrow strip in normal document flow (NOT an overlay,
+   unlike the mobile .collapsed state below which removes the sidebar from flow entirely) so the
+   content area gets the freed-up width without any hidden/inaccessible navigation. */
+.app-sidebar.rail-collapsed {
+  width: 56px;
+  min-width: 56px;
+  overflow: hidden;
+  transition: width 0.15s;
+}
+
+/* Expanding out of rail mode is a temporary overlay on top of content (not a layout push) so
+   toggling it doesn't reflow the whole page every time - same idea as the mobile overlay below,
+   just also available above the 992px breakpoint. */
+.app-sidebar.rail-expanded {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100vh;
+  width: 300px;
+  min-width: 300px;
+  z-index: 999;
+}
+
 .app-content {
   flex: 1 1 0;
 
@@ -178,6 +238,22 @@ function updatedStylesBasedOnContent(contentHeader, contentPanel, appLayout) {
 
 .content-panel {
   flex: 1 1 0;
+}
+
+/* Backdrop for the desktop rail-expanded overlay (see .app-sidebar.rail-expanded above) - click
+   outside the expanded sidebar to snap it back to the slim rail. Scoped to its own class rather
+   than the bare .sidenav-overlay selector so the pre-existing mobile-only styling below (inside
+   the max-width media query) is untouched. */
+.sidenav-overlay.rail-overlay {
+  opacity: 1;
+  display: block;
+  background-color: rgba(0, 0, 0, 0.4);
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 500;
+  width: 100%;
+  height: 100%;
 }
 
 @media (max-width: 992px) {

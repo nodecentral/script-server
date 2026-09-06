@@ -1,6 +1,6 @@
 # Script-Server.md — Platform Context
 
-Version: 1.14.0
+Version: 1.15.0
 Last updated: 2026-09-06
 
 ## Platform Overview
@@ -782,6 +782,66 @@ file for `html_iframe` scripts instead of an empty/plain-text one.
 (`web-src/`), a file copy + `chmod` is not enough — the Docker image must
 be rebuilt (`docker compose up -d --build`) so `npm run build` recompiles
 `web-src/` into `web/`.
+
+### 2026-09-06 — Slim "auto-hide" sidebar rail for desktop
+
+**Motivation:** the main script-running UI's left sidebar was a fixed
+300px, always docked, with no way to reclaim that width for script
+output/parameters on desktop. A collapse mechanism already existed for
+mobile (`<992px`, sidebar fully hides off-canvas, hamburger button brings
+it back as an overlay) but nothing above that breakpoint.
+
+**Design:** extended the existing mobile mechanism to desktop rather than
+building a true VS-Code-style icon-per-item rail — scripts/groups have no
+icon data today, so a real icon rail would need new iconography (auto
+avatars or a new runner JSON field), a separate, bigger piece of work.
+Instead: a persistent 56px slim rail with a single menu-toggle icon,
+in normal document flow (not hidden, unlike mobile) so it always stays
+reachable; clicking it expands the full sidebar as a temporary overlay on
+top of content (not a layout push) with the same dark backdrop as mobile;
+clicking outside it, or navigating to a script (reusing the existing
+`router.afterEach` hook that already auto-collapses on mobile), snaps it
+back to the rail. A pin icon in the expanded sidebar's header lets a user
+turn rail mode off entirely, reverting to the original always-docked
+behaviour — persisted in `localStorage` (`sidebarRailMode`), default on.
+
+**Files:**
+- `web-src/src/common/components/AppLayout.vue` — added `railMode` state
+  (persisted), `isRailCollapsed`/`isRailOverlay`/`sidebarClasses`
+  computeds, `toggleRailMode()`. The sidebar slot is now a **scoped
+  slot**, passing `railCollapsed`/`railMode`/`onToggleExpand`/
+  `onToggleRailMode` down to whatever fills it (Vue scoped-slot props use
+  the exact key as written on the `<slot>` binding, unlike component
+  props which auto-convert kebab-case - bound them in camelCase directly
+  to avoid a real mismatch bug here). New CSS: `.rail-collapsed` (56px,
+  static, in-flow) and `.rail-expanded` (`position: fixed`, 300px,
+  elevated z-index) plus a `.sidenav-overlay.rail-overlay` backdrop
+  variant scoped separately from the pre-existing mobile-only overlay
+  styling so neither interferes with the other.
+- `web-src/src/main-app/components/MainAppSidebar.vue` — new
+  `railCollapsed`/`railMode` props; renders just the toggle button when
+  collapsed, otherwise the existing full content plus a pin/unpin icon in
+  the header.
+- `web-src/src/main-app/MainApp.vue` — destructures the new scoped-slot
+  props and wires them into `MainAppSidebar`.
+
+**Scope:** only the main script-running UI (`MainApp.vue`) uses
+`AppLayout.vue` - the admin panel (`admin.html`) has its own separate
+layout and is unaffected.
+
+**Verified:** `vue-cli-service build` compiles cleanly. Full interactive
+verification wasn't possible in this environment (no live backend to run
+the actual app against), so the exact CSS/JS state-transition logic was
+reproduced in a standalone HTML/JS mock and checked visually via
+Playwright screenshots for all four states: rail-collapsed, expanded via
+the rail icon (overlay + backdrop), collapsed again via clicking the
+backdrop, and pinned open (rail mode off, classic docked layout). **Ask
+for a live-browser check on the real NAS instance before considering this
+fully verified** - genuine Vue reactivity/router-integration bugs
+wouldn't show up in a static mock.
+
+**Deploying this fix:** same as above — Vue frontend source changed, so
+`docker compose up -d --build` is required, not just a file copy.
 
 -----
 
