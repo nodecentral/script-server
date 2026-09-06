@@ -1,6 +1,6 @@
 # Script-Server.md — Platform Context
 
-Version: 1.10.0
+Version: 1.11.0
 Last updated: 2026-09-06
 
 ## Platform Overview
@@ -400,6 +400,65 @@ services:
 
 Never hardcode secrets in scripts. Always use env vars for host/URL config
 so scripts are portable across environments.
+
+**3. Secrets Store** — persistent, multiple values, no per-run re-entry, no
+container restart. See below.
+
+-----
+
+## Secrets Store (Multi-Value, Admin-Managed, Persistent)
+
+For secrets that many different scripts need repeatedly (a finance API key,
+a Paperless-ngx token, etc.) — as opposed to a one-off value entered per run
+(secure runner parameter) or a single value that rarely changes for the
+whole container (Docker environment block) — use the categorized secrets
+store: one JSON file, `/app/data/secrets.json`, organized as
+`{category: {key: {value, updated_at}}}` (e.g. category `finance` holding
+`FINNHUB_API_KEY`, category `paperless` holding `TOKEN`). One file rather
+than one file per service: nothing here is injected into container-level
+environment the way Docker's `env_file:` would need separate files, so a
+category is just a namespace inside one store, not a filesystem boundary.
+
+Managed via two runners in `conf/runners/` (`secrets_manager.py` /
+`secrets_viewer.py`), both backed by the shared module
+`scripts/shared/secrets_store.py`:
+
+- **Secrets Manager** — set, update, or delete one entry. Pick an existing
+  entry from a dynamic dropdown, or choose the sentinel `-- new entry --`
+  and fill in a new category/key. The value parameter is `secure: true`, and
+  no script in this pattern ever echoes a stored value back — only a
+  character count confirms what was set, so nothing sensitive shows up in
+  run history.
+- **Secrets Viewer** — read-only, `output_format html_iframe`, themed like
+  Network Device Inventory. Shows category/key/last-set only, never any part
+  of the actual value.
+
+**Consuming a secret from a Python script:**
+
+```python
+import sys
+sys.path.insert(0, '/app/scripts/shared')
+from secrets_store import get_secret
+
+api_key = get_secret('finance', 'FINNHUB_API_KEY')  # None if unset
+```
+
+**Consuming a secret from Lua/bash** (same "shell out to a Python helper"
+pattern as Lua's JSON handling above) — prints just the raw value to stdout,
+exit code 1 if unset:
+
+```bash
+API_KEY=$(python3 /app/scripts/shared/secrets_store.py get finance FINNHUB_API_KEY)
+```
+
+**Security posture — read before treating this as more than it is:**
+Storage is plaintext on disk (`chmod 600` best-effort after every write,
+same QNAP bind-mount chmod caveat as elsewhere in this repo) — this is the
+same risk tier as a Docker environment block or a plain `.env` file already
+sitting on the NAS filesystem, *not* an encrypted vault. Fine for a
+home-lab, trusted-network API key; genuine encryption-at-rest with real key
+management is a separate, bigger piece of work (tracked in `ROADMAP.md`'s
+Ideas/Backlog) — don't assume this store provides it.
 
 -----
 

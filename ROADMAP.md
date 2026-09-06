@@ -44,6 +44,15 @@ change is in this repo:
   in `CLAUDE.md` under "Core Changes (Fork Divergence from Upstream)". **Verified on the real NAS
   instance**: Download on MOTD's `html_iframe` output now saves a genuine, reopenable `.html` file
   (confirmed by inspecting the actual downloaded file), not an empty/plain-text one.
+- **Secrets Store** — categorized JSON store (`/app/data/secrets.json`, `{category: {key: {value,
+  updated_at}}}`) for API keys/tokens shared across scripts (finance, paperless, etc.), replacing
+  the old "one flat env var per secret" gap called out in the Ideas/Backlog item below. Shared
+  module `scripts/shared/secrets_store.py` (importable by Python scripts, CLI-callable by
+  Lua/bash), **Secrets Manager** (set/update/delete, values never echoed back) and **Secrets
+  Viewer** (`html_iframe`, themed, category/key/last-set only — never values). Documented in
+  `CLAUDE.md`. Plaintext on disk (chmod 600) by design — not an encrypted vault; see CLAUDE.md's
+  security note. Verified end-to-end (set/get/update/delete/dropdown/rendered viewer, including
+  confirming no raw value ever appears in viewer output) in the dev sandbox.
 - **Fix `motd.py` false-positive missing-script reports for relative `working_directory`** —
   Gitea-imported runners (e.g. the Music group) use a relative `working_directory` (`"scripts"`)
   rather than this repo's own `"/app/scripts"` convention, which `motd.py`'s existence check
@@ -76,10 +85,13 @@ change is in this repo:
 
 ## Ideas / Backlog (need more design discussion before committing)
 
-- **Secrets management UI** — *Core-adjacent*. No existing vault to build on
-  (`encryption_utils.py` is auth password-hashing only). Would need our own encrypted-at-rest JSON
-  store plus real thought on key management and how it interacts with script-server's own auth
-  model before writing code.
+- **Encrypted-at-rest secrets store** — *Core-adjacent*. The plaintext categorized store (Secrets
+  Manager/Viewer, see Done above) now covers the "manage multiple API keys via the Admin UI, no
+  restart" need. What's still open is genuine encryption at rest: no existing vault to build on
+  (`encryption_utils.py` is auth password-hashing only), and it would need real thought on key
+  management and how it interacts with script-server's own auth model before writing code. Only
+  worth doing if the plaintext-on-disk risk tier (same as a Docker environment block) stops being
+  acceptable.
 - **Form-first UI, terminal minimized** — *partly already possible* by designing runners around
   rich parameter forms (chained dropdowns, `server_file`, `html`/`html_iframe` output) rather than
   raw terminal text — Network Device Labelling/Network Scanner already lean this way. *Fully*

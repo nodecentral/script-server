@@ -112,6 +112,11 @@ For the usage please check [this ticket](https://github.com/bugy/script-server/i
 > - **Network Device Labelling** — name devices in that inventory (e.g. "Chris' iPhone", "QNAP NAS
 >   Living Room")
 > - **Network Device Inventory** — browse the labelled inventory as a table (`html_iframe`)
+> - **Secrets Manager** — set/update/delete an entry in a categorized secrets store (e.g. a
+>   `finance` category holding an API key, a `paperless` category holding a token) shared by other
+>   scripts; values are never echoed back
+> - **Secrets Viewer** — browse that store as a table (`html_iframe`) — category, key, last-set,
+>   never the actual value
 >
 > Use them as templates for your own.
 >
