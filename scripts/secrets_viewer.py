@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Name: secrets_viewer.py
-# Version: 1.1.0
+# Version: 1.2.0
 # Description: Renders the categorized secrets store (/app/data/secrets.json,
 #              managed via Secrets Manager) as a styled HTML page - category,
 #              key, and when it was last set. Never shows values, not even
@@ -11,15 +11,20 @@
 #              inherit the app's stylesheet. Also lists known integrations
 #              (see secrets_store.KNOWN_INTEGRATIONS) that don't have a value
 #              set yet, so a missing secret is visible before a consuming
-#              script fails on it. Run standalone (./secrets_viewer.py) or
-#              from Script-Server.
+#              script fails on it - that checklist is a hardcoded list in
+#              secrets_store.py, NOT data read from a file, and this page
+#              says so explicitly (both as a banner when secrets.json
+#              doesn't exist at all, and as a permanent caption on the
+#              Not Yet Configured section) since it's easy to mistake for
+#              real stored data otherwise. Run standalone (./secrets_viewer.py)
+#              or from Script-Server.
 
 import html
 import os
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'shared'))
-from secrets_store import list_entries_metadata, list_known_placeholders  # noqa: E402
+from secrets_store import STORE_PATH, list_entries_metadata, list_known_placeholders  # noqa: E402
 
 # Matches web-src/src/assets/css/shared.css's :root variables (light theme
 # defaults) so this page looks like part of the app rather than a bare table.
@@ -128,6 +133,22 @@ STYLE = """
     color: rgba(255, 255, 255, 0.87);
     font-size: 0.85rem;
   }
+  .info-banner {
+    background: #fff8e1;
+    border-left: 4px solid #f9a825;
+    border-radius: 2px;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+    font-size: 0.9rem;
+  }
+  .section-note {
+    padding: 10px 20px;
+    font-size: 0.82rem;
+    font-style: italic;
+    color: var(--font-color-medium);
+    background: var(--background-color);
+    border-bottom: 1px solid var(--separator-color);
+  }
 </style>
 """
 
@@ -138,8 +159,24 @@ def render_empty(message):
     print(f'<div class="empty-state">{html.escape(message)}</div>')
 
 
+def render_file_status_banner():
+    if os.path.exists(STORE_PATH):
+        return
+    print(
+        '<div class="info-banner">'
+        f'No file exists yet at <span class="mono">{html.escape(STORE_PATH)}</span> - nothing has '
+        'ever been saved. Everything below is a hardcoded checklist of known integrations built '
+        'into <span class="mono">secrets_store.py</span>, not data read from disk. Use '
+        '<b>Secrets Manager</b> to set a real value - that is what actually creates the file.'
+        '</div>'
+    )
+
+
 def render_placeholders_group(placeholders):
     print(f'<details class="group" open><summary>Not Yet Configured ({len(placeholders)})</summary>')
+    print('<div class="section-note">This list comes from a hardcoded checklist in '
+          'secrets_store.py (KNOWN_INTEGRATIONS) - not from secrets.json. It shows what scripts '
+          'expect, whether or not the file exists yet.</div>')
     print('<div class="table-scroll"><table><thead><tr>'
           '<th>Category</th><th>Key</th><th>Value</th><th>Needed For</th></tr></thead><tbody>')
     for category, key, description in placeholders:
@@ -168,8 +205,10 @@ def main():
 
     total = len(entries)
     print(STYLE)
-    intro = (f'Secrets Viewer - {total} entr{"y" if total == 1 else "ies"} '
-             f'across {len(groups)} categor{"y" if len(groups) == 1 else "ies"}.')
+    render_file_status_banner()
+    intro = (f'Secrets Viewer - {total} real entr{"y" if total == 1 else "ies"} '
+             f'across {len(groups)} categor{"y" if len(groups) == 1 else "ies"} actually stored in '
+             f'<span class="mono">{html.escape(STORE_PATH)}</span>.')
     if placeholders:
         intro += (f' <span class="missing">{len(placeholders)} known integration(s) '
                   'not yet configured.</span>')
