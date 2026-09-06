@@ -90,6 +90,13 @@ change is in this repo:
   category/KEY)` so the instruction lives in the option you actually see, not a separate field
   description easy to skip past. Verified end-to-end: picking a suggested entry directly (leaving
   New Entry blank) resolves correctly, exactly reproducing and then fixing the reported scenario.
+- **Fix Import from Gitea's "Gitea Token" dropdown always failing** — real bug hit immediately
+  after adding a `gitea.TOKEN` value: `dropdown-category` prints `"KEY | last set <date>"`, but
+  `resolve_gitea_token()` passed the entire selected line to `get_secret()` as the key instead of
+  just `KEY`, so picking the token from the dropdown always reported it as not found even though it
+  was set. Fixed by parsing out the key portion before the `|`, same pattern already used in
+  Secrets Manager's own `parse_entry()`. Verified by reproducing the exact reported error string
+  (`"TOKEN | last set 2026-09-06 22:06:26"`) and confirming it now resolves correctly.
 - **Fix `motd.py` false-positive missing-script reports for relative `working_directory`** —
   Gitea-imported runners (e.g. the Music group) use a relative `working_directory` (`"scripts"`)
   rather than this repo's own `"/app/scripts"` convention, which `motd.py`'s existence check

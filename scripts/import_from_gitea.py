@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Name: import_from_gitea.py
-# Version: 2.3.0
+# Version: 2.3.1
 # Description: Clones a Gitea repo (expected to have its own top-level
 #              scripts/ and runners/ folders) and mirrors scripts/ into
 #              /app/scripts and runners/ into /app/conf/runners: existing
@@ -143,12 +143,15 @@ def resolve_gitea_token(explicit_token, token_key):
     stored = list_category_keys('gitea')
 
     if token_key and token_key != AUTO_SENTINEL:
-        value = get_secret('gitea', token_key)
+        # dropdown-category prints "KEY | last set <date>" - the selected value is that whole
+        # line, not just the key, so pull the key back out before looking it up.
+        key = token_key.split('|')[0].strip()
+        value = get_secret('gitea', key)
         if value is None:
-            print(f'No stored Gitea token found for gitea.{token_key} - check Secrets Manager.',
+            print(f'No stored Gitea token found for gitea.{key} - check Secrets Manager.',
                   file=sys.stderr)
             sys.exit(1)
-        return value, f'gitea.{token_key} (Secrets Store)'
+        return value, f'gitea.{key} (Secrets Store)'
 
     if len(stored) == 1:
         key = stored[0][0]
