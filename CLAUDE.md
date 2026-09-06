@@ -1,6 +1,6 @@
 # Script-Server.md — Platform Context
 
-Version: 1.8.0
+Version: 1.9.0
 Last updated: 2026-09-06
 
 ## Platform Overview
@@ -8,7 +8,10 @@ Last updated: 2026-09-06
 Script-Server by Bugy running in Docker on QNAP NAS. Provides a web UI
 for running scripts with structured parameter forms and live streaming output.
 
-- Scripts live in `scripts/`, runners in `runners/`
+- Scripts live in `scripts/`, runners in `runners/`. Non-standalone support
+  scripts live in subfolders named for their role: `scripts/shared/` for
+  dynamic-dropdown helpers, `scripts/preload/` for preload scripts (see
+  Preload Scripts below)
 - Prefer Lua for lightweight automation, Python where ecosystem matters
 - Lua 5.1+ compatibility required
 - Be conscious of QNAP OS limitations (limited shell utilities, non-standard paths)
@@ -517,25 +520,35 @@ would otherwise bloat the `description` field.
   shown as an error where the banner would be — write it as carefully as any
   other script.
 
-### Avoid a separate helper file when the main script can do double duty
+### Where the preload script should live
 
-Since `script` is just a command string, the path of least resistance is to
-create a whole new file in `scripts/shared/` for it — but that gives one
-runner two script files with unrelated names, breaking the Matched Pair
-convention's naming alignment (see Self-Learning example: an earlier
-`preload_script` pointed at `check_jq_preload.sh` while the main script was
-`preload_demo.py` — two unrelated names for one runner). Prefer, in order:
+Since `script` is just a command string, the path of least resistance is
+dropping a new file into `scripts/shared/` — but that gives one runner two
+script files with unrelated names, breaking the Matched Pair convention's
+naming alignment (seen in practice: an early version pointed `preload_script`
+at `check_jq_preload.sh` while the main script was `preload_demo.py` — two
+unrelated names for one runner). The right choice depends on what the preload
+is actually for:
 
-1. **Inline** for anything trivial (`"script": "echo '...'"`).
-2. **The main script itself, with a flag**, when the preload content overlaps
-   with what the main script already computes:
+1. **Inline**, for a one-line static message (`"script": "echo '...'"`).
+2. **The main script itself, with a flag** — ONLY when the preload content is
+   genuinely a subset/mode of what the main script already computes (a true
+   self-referential case, e.g. `motd.py` rendering its own stats as `--html`
+   for the banner and as an ANSI report when actually run):
    ```json
    "preload_script": { "script": "/app/scripts/motd.py --html", "output_format": "html" }
    ```
-   One file, no naming mismatch, no duplicated logic.
-3. Only reach for a genuinely separate file when the preload check is truly
-   unrelated to the main script's own logic — and if so, name it to align
-   with the main script (a shared prefix), not a generic helper name.
+3. **A standalone file under `scripts/preload/<name>.<ext>`, using the same
+   `<name>` as the main script** — this is the common case, not the
+   exception. A preload script's real job is preparing the user for what
+   they're about to configure and run: current defaults, live context ("3
+   devices already in inventory", "last backup was 2 days ago"), warnings —
+   content that's genuinely different from the main script's own logic, not
+   a mode of it. Putting it in `scripts/preload/` keeps `scripts/shared/` for
+   actually-shared dynamic-dropdown helpers, and matching the base name
+   (`scripts/preload/network_scanner.sh` for `scripts/network_scanner.lua` +
+   `conf/runners/network_scanner.json`) keeps all three files aligned by name
+   despite living in different folders.
 
 -----
 
