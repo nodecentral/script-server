@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Name: secrets_viewer.py
-# Version: 1.0.0
+# Version: 1.1.0
 # Description: Renders the categorized secrets store (/app/data/secrets.json,
 #              managed via Secrets Manager) as a styled HTML page - category,
 #              key, and when it was last set. Never shows values, not even
@@ -8,15 +8,18 @@
 #              Script-Server's own theme (web-src/src/assets/css/shared.css's
 #              --primary-color, --surface-color etc.) since output_format
 #              html_iframe renders in an isolated document that doesn't
-#              inherit the app's stylesheet. Run standalone
-#              (./secrets_viewer.py) or from Script-Server.
+#              inherit the app's stylesheet. Also lists known integrations
+#              (see secrets_store.KNOWN_INTEGRATIONS) that don't have a value
+#              set yet, so a missing secret is visible before a consuming
+#              script fails on it. Run standalone (./secrets_viewer.py) or
+#              from Script-Server.
 
 import html
 import os
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'shared'))
-from secrets_store import list_entries_metadata  # noqa: E402
+from secrets_store import list_entries_metadata, list_known_placeholders  # noqa: E402
 
 # Matches web-src/src/assets/css/shared.css's :root variables (light theme
 # defaults) so this page looks like part of the app rather than a bare table.
@@ -116,6 +119,15 @@ STYLE = """
     text-align: center;
     color: var(--font-color-medium);
   }
+  .missing { color: #c62828; font-weight: 500; }
+  .unset-chip {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 12px;
+    background: #c62828;
+    color: rgba(255, 255, 255, 0.87);
+    font-size: 0.85rem;
+  }
 </style>
 """
 
@@ -126,10 +138,27 @@ def render_empty(message):
     print(f'<div class="empty-state">{html.escape(message)}</div>')
 
 
+def render_placeholders_group(placeholders):
+    print(f'<details class="group" open><summary>Not Yet Configured ({len(placeholders)})</summary>')
+    print('<div class="table-scroll"><table><thead><tr>'
+          '<th>Category</th><th>Key</th><th>Value</th><th>Needed For</th></tr></thead><tbody>')
+    for category, key, description in placeholders:
+        print(
+            '<tr>'
+            f'<td class="mono">{html.escape(category)}</td>'
+            f'<td class="mono">{html.escape(key)}</td>'
+            f'<td><span class="unset-chip">not set</span></td>'
+            f'<td>{html.escape(description)}</td>'
+            '</tr>'
+        )
+    print('</tbody></table></div></details>')
+
+
 def main():
     entries = list_entries_metadata()
+    placeholders = list_known_placeholders()
 
-    if not entries:
+    if not entries and not placeholders:
         render_empty('No secrets set yet - use Secrets Manager to add one.')
         return
 
@@ -139,9 +168,16 @@ def main():
 
     total = len(entries)
     print(STYLE)
-    print(f'<div class="intro">Secrets Viewer - {total} entr{"y" if total == 1 else "ies"} '
-          f'across {len(groups)} categor{"y" if len(groups) == 1 else "ies"}. '
-          'Values are never shown here - use Secrets Manager to change one.</div>')
+    intro = (f'Secrets Viewer - {total} entr{"y" if total == 1 else "ies"} '
+             f'across {len(groups)} categor{"y" if len(groups) == 1 else "ies"}.')
+    if placeholders:
+        intro += (f' <span class="missing">{len(placeholders)} known integration(s) '
+                  'not yet configured.</span>')
+    intro += ' Values are never shown here - use Secrets Manager to change one.'
+    print(f'<div class="intro">{intro}</div>')
+
+    if placeholders:
+        render_placeholders_group(placeholders)
 
     for category in sorted(groups.keys()):
         rows = groups[category]

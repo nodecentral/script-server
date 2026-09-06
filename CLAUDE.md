@@ -1,6 +1,6 @@
 # Script-Server.md — Platform Context
 
-Version: 1.11.0
+Version: 1.12.0
 Last updated: 2026-09-06
 
 ## Platform Overview
@@ -432,6 +432,45 @@ Managed via two runners in `conf/runners/` (`secrets_manager.py` /
 - **Secrets Viewer** — read-only, `output_format html_iframe`, themed like
   Network Device Inventory. Shows category/key/last-set only, never any part
   of the actual value.
+
+### Known Integrations checklist
+
+`scripts/shared/secrets_store.py`'s `KNOWN_INTEGRATIONS` list names
+category/key pairs a script actually calls `get_secret()` for (or expects
+to, once built), each with a one-line description. Secrets Manager's
+dropdown lists these alongside real entries — a `not set yet` row is
+selectable exactly like an already-set one, so filling in a known
+integration never requires re-typing its category/key by hand. Secrets
+Viewer surfaces the same list as a **Not Yet Configured** section (a
+Script-Ingredients-Check-style readiness check for secrets, not just
+files), so a missing credential is visible before a script fails on it
+rather than after.
+
+**When wiring a script to consume a secret, add it to `KNOWN_INTEGRATIONS`
+in the same change** — that's what keeps the checklist accurate. A category
+without a real consuming script yet (e.g. `paperless` below, added ahead of
+an actual Paperless-ngx integration script) is a legitimate placeholder,
+but say so in its description so it's clear nothing reads it yet.
+
+Confirmed real integration (`notify.py` calls these directly):
+
+```python
+KNOWN_INTEGRATIONS = [
+    ('pushover', 'TOKEN', 'Pushover application token - used by Send Notification'),
+    ('pushover', 'USER_KEY', 'Pushover user key - used by Send Notification'),
+    ('prowl', 'TOKEN', 'Prowl API key - used by Send Notification'),
+]
+```
+
+**Never guess a category/key name for a script you can't see the source
+of.** A wrong guess is worse than no placeholder at all — it looks
+configured (a value sitting in the store) while the actual consuming
+script, expecting a different key, still fails. Scripts imported from a
+private Gitea repo (see Import from Gitea) are the case that bites here:
+their source isn't visible from outside the NAS, so confirm the exact
+`os.environ.get(...)` / `get_secret(...)` calls in the real script — by
+reading it directly or grepping the imported copy under `/app/scripts` —
+before adding it to `KNOWN_INTEGRATIONS` or setting a value for it.
 
 **Consuming a secret from a Python script:**
 

@@ -35,6 +35,18 @@ STORE_PATH = '/app/data/secrets.json'
 
 NEW_ENTRY_SENTINEL = '-- new entry --'
 
+# Integrations this fork already has (or expects to have) a consuming script for, so Secrets
+# Manager's dropdown and Secrets Viewer can surface them BEFORE a value is ever set - catching a
+# missing secret before a script fails on it, rather than after. Add an entry here whenever a
+# script is wired to call get_secret() for a category/key that isn't in this list yet.
+KNOWN_INTEGRATIONS = [
+    ('pushover', 'TOKEN', 'Pushover application token - used by Send Notification'),
+    ('pushover', 'USER_KEY', 'Pushover user key - used by Send Notification'),
+    ('prowl', 'TOKEN', 'Prowl API key - used by Send Notification'),
+    ('paperless', 'URL', 'Paperless-ngx base URL, e.g. http://192.168.1.x:8010 - placeholder, no consuming script yet'),
+    ('paperless', 'TOKEN', 'Paperless-ngx API token (Settings > API Tokens) - placeholder, no consuming script yet'),
+]
+
 
 def load_store():
     if not os.path.exists(STORE_PATH):
@@ -89,6 +101,17 @@ def list_categories():
     return sorted(load_store().keys())
 
 
+def list_known_placeholders():
+    """Known integrations (see KNOWN_INTEGRATIONS) that don't have a value set yet -
+    (category, key, description) tuples."""
+    store = load_store()
+    return [
+        (category, key, description)
+        for category, key, description in KNOWN_INTEGRATIONS
+        if key not in store.get(category, {})
+    ]
+
+
 def list_entries_metadata():
     """Returns (category, key, updated_at, value_length) tuples - never the raw value."""
     store = load_store()
@@ -120,6 +143,8 @@ def _cmd_dropdown_entries(_args):
     print(NEW_ENTRY_SENTINEL)
     for category, key, updated_at, _length in list_entries_metadata():
         print(f'{category} | {key} | last set {updated_at}')
+    for category, key, description in list_known_placeholders():
+        print(f'{category} | {key} | not set yet - {description}')
 
 
 def main():

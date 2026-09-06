@@ -53,6 +53,21 @@ change is in this repo:
   `CLAUDE.md`. Plaintext on disk (chmod 600) by design — not an encrypted vault; see CLAUDE.md's
   security note. Verified end-to-end (set/get/update/delete/dropdown/rendered viewer, including
   confirming no raw value ever appears in viewer output) in the dev sandbox.
+- **Known Integrations checklist + wire up `notify.py`** — `secrets_store.KNOWN_INTEGRATIONS` lists
+  category/key pairs a script consumes (or expects to), shown as selectable `not set yet` rows in
+  Secrets Manager's dropdown and as a **Not Yet Configured** section in Secrets Viewer, so a missing
+  credential is visible before a script fails on it. `notify.py` (Send Notification) now actually
+  calls `get_secret('pushover'/'prowl', 'TOKEN'/'USER_KEY')` as a fallback when the runner
+  parameter is left blank, with an explicit CLI value still overriding — first real script wired to
+  the store, not just a standalone feature. `paperless` (`URL`/`TOKEN`) added as an explicit
+  placeholder ahead of any real consuming script. **`finance` (e.g. `FINNHUB_API_KEY`) deliberately
+  NOT added**: no finance script exists in this repo or in what's been imported to the NAS so far
+  (only `ss_music_file_management` has been imported per the Gitea import state) — the real key
+  name(s) that repo's finance script(s) actually expect are unconfirmed, and guessing would be
+  worse than leaving it open (see CLAUDE.md's "never guess a category/key name" note). Verified
+  end-to-end in the dev sandbox: dropdown/placeholder-list transitions correctly as entries are
+  set, and `notify.py`'s credential resolution (store fallback, CLI override, clean failure with
+  neither) all confirmed with the real functions monkeypatched out to avoid live network calls.
 - **Fix `motd.py` false-positive missing-script reports for relative `working_directory`** —
   Gitea-imported runners (e.g. the Music group) use a relative `working_directory` (`"scripts"`)
   rather than this repo's own `"/app/scripts"` convention, which `motd.py`'s existence check

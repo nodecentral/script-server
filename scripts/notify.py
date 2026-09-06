@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
 # Name: notify.py
-# Version: 1.0.0
+# Version: 1.1.0
 # Description: Sends a push notification via Pushover or Prowl. Designed to
 #              be run manually, or shelled out to from another script (e.g.
-#              python3 /app/scripts/notify.py --service pushover --token X
-#              --user-key Y --message "New device found"). Run standalone
-#              or from Script-Server.
+#              python3 /app/scripts/notify.py --service pushover --message
+#              "New device found"). Run standalone or from Script-Server.
+#
+#              Token/user-key fall back to the Secrets Store
+#              (pushover.TOKEN / pushover.USER_KEY / prowl.TOKEN via
+#              scripts/shared/secrets_store.py - see Secrets Manager) when
+#              left blank, so credentials don't need re-entering every run.
+#              An explicit --token/--user-key still overrides the store.
 #
 #              NOTE: built from Pushover's and Prowl's long-stable public
 #              API docs, but not verified against a live account - test
@@ -16,6 +21,9 @@ import os
 import sys
 
 import requests
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'shared'))
+from secrets_store import get_secret  # noqa: E402
 
 PUSHOVER_URL = 'https://api.pushover.net/1/messages.json'
 PROWL_URL = 'https://api.prowlapp.com/publicapi/add'
@@ -80,9 +88,20 @@ def main():
     log_debug(f'service={args.service} title={args.title!r} message={args.message!r}')
 
     if args.service == 'pushover':
-        send_pushover(args.token, args.user_key, args.title, args.message)
+        token = args.token or get_secret('pushover', 'TOKEN') or ''
+        user_key = args.user_key or get_secret('pushover', 'USER_KEY') or ''
+        if not token or not user_key:
+            print('Pushover requires both a token and a user key - pass --token/--user-key, or '
+                  'set pushover.TOKEN / pushover.USER_KEY via Secrets Manager.', file=sys.stderr)
+            sys.exit(1)
+        send_pushover(token, user_key, args.title, args.message)
     elif args.service == 'prowl':
-        send_prowl(args.token, args.title, args.message)
+        token = args.token or get_secret('prowl', 'TOKEN') or ''
+        if not token:
+            print('Prowl requires a token - pass --token, or set prowl.TOKEN via '
+                  'Secrets Manager.', file=sys.stderr)
+            sys.exit(1)
+        send_prowl(token, args.title, args.message)
     else:
         print(f'Unknown service: {args.service} (expected pushover or prowl)', file=sys.stderr)
         sys.exit(1)
