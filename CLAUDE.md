@@ -1,7 +1,7 @@
 # Script-Server.md — Platform Context
 
-Version: 1.23.0
-Last updated: 2026-09-06
+Version: 1.24.0
+Last updated: 2026-09-07
 
 ## Platform Overview
 
@@ -16,6 +16,54 @@ for running scripts with structured parameter forms and live streaming output.
 - Lua 5.1+ compatibility required
 - Be conscious of QNAP OS limitations (limited shell utilities, non-standard paths)
 - Confirmed version in use: v1.18
+
+-----
+
+## For Claude Sessions Working In Other Gitea Repos
+
+Several independent Gitea repos (`ss_music_file_management`,
+`ss_movie_file_management`, `ss_photo_file_management`,
+`ss_finance_management`, `ss_health_management`, `ss_document_file_management`,
+etc.) each produce scripts imported into **this** Script-Server instance via
+**Import from Gitea** — all landing in the same flat `/app/scripts` +
+`/app/conf/runners` namespace. **This file is the single canonical source of
+convention for all of them.** If you're a Claude session working in one of
+those repos, fetch and read it before writing anything that will be imported
+here:
+
+```
+https://raw.githubusercontent.com/nodecentral/script-server/master/CLAUDE.md
+```
+
+The highest-stakes rules — confirmed to actually bite in practice, not
+theoretical:
+
+- **Secrets go through the Secrets Store, nowhere else.** One consuming
+  script (`paperless_metrics_dashboard.py`) arrived via Gitea import having
+  independently invented its own mechanism — a gitignored `paperless.env`
+  dotenv file plus a custom `scripts/shared/secrets.py` helper — with zero
+  awareness that `paperless.URL`/`paperless.TOKEN` were *already* reserved
+  placeholders in this repo's own `secrets_store.py`. Use
+  `sys.path.insert(0, '/app/scripts/shared'); from secrets_store import
+  get_secret; get_secret('paperless', 'TOKEN')` instead — see Secrets Store
+  below. Never invent a parallel secrets mechanism.
+- **Matched Pair Rule** (below): `name.ext` script + `name.json` runner,
+  same base name, both versioned together.
+- **Filenames collide across repos** — there is no per-source folder
+  isolation on import, so a script here named the same as one in another
+  repo will silently overwrite it the moment either is applied. Check
+  `conf/runners/` in this repo (or ask) before naming something generic like
+  `check_script_permissions` — that exact collision has already happened
+  once between two of these repos.
+- Execute bit (`chmod +x`), dynamic dropdown quoting/`shell: true`, and
+  every other convention in this file applies equally regardless of which
+  repo a script originated from — Script-Server itself has no idea which
+  Gitea repo anything came from once it's imported.
+
+If anything here is unclear or a convention seems to conflict with what a
+specific repo needs, that's worth raising back in the `nodecentral/
+script-server` session rather than deciding unilaterally — this file only
+stays authoritative if changes flow through one place.
 
 -----
 

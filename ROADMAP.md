@@ -200,6 +200,19 @@ change is in this repo:
   `values.script`) - no other instance found. Documented as a hard platform rule in `CLAUDE.md`,
   including the fix pattern (resolve secrets server-side inside the dropdown script itself, driven
   only by a plain field like `token_key` that picks a *name*, never a secret value).
+- **Cross-repo convention drift: caught and addressed** — a dry-run import from a new work stream
+  (`ss_document_file_management`) surfaced two real problems at once: a `check_script_permissions`
+  filename collision with an already-imported runner from a different repo, and a completely
+  independent secrets mechanism (`scripts/shared/secrets.py` + a gitignored `paperless.env`
+  dotenv file) built with no awareness that `paperless.URL`/`TOKEN` were already reserved
+  placeholders in this repo's own Secrets Store. Added a new "For Claude Sessions Working In Other
+  Gitea Repos" section at the top of `CLAUDE.md` - the canonical, single source of truth other
+  work streams are now expected to fetch (raw GitHub URL) before writing anything destined for
+  import here, with the highest-stakes rules (Secrets Store only, filename collisions, Matched
+  Pair) called out explicitly using this exact incident as the cautionary example. The
+  `ss_document_file_management` script itself still needs migrating to `secrets_store.get_secret()`
+  - that's a change to a different repo, outside this session's access; flagged for whoever
+  picks up that repo next.
 
 ## In Progress
 
