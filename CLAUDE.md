@@ -1,6 +1,6 @@
 # Script-Server.md — Platform Context
 
-Version: 1.17.0
+Version: 1.18.0
 Last updated: 2026-09-06
 
 ## Platform Overview
@@ -383,17 +383,16 @@ icon decoration, per-level filtering, or processing logic at each level.
 If no `"auth"` block is set in `conf/conf.json` (the common case for a
 single-user home-lab NAS — no login screen at all), Script-Server still
 decides who gets admin rights (the settings cog, admin.html, editing
-runner configs) via a server-side IP check — confirmed in
-`src/model/server_conf.py`/`src/web/server.py`, not assumed. The default,
-with no `access` block either, is **only requests from `127.0.0.1`/`::1`
-(literal localhost)** get admin rights — a browser hitting the NAS over
-the LAN by its real IP never qualifies, even though nothing in the UI
-hints at this being IP-dependent. This has bitten in practice: someone
-who'd tested once from a browser on the NAS itself (or via an SSH tunnel
-to `localhost`) later tested again from a LAN device and reported the
-admin cog as "gone", when the server-side behavior was actually identical
-both times — the difference was invisible to them (which network path the
-request took), not a code regression.
+runner configs) via a server-side check against `access.admin_users` in
+`conf/conf.json` — confirmed in `src/model/server_conf.py`/
+`src/web/server.py`/`src/auth/identification.py`, not assumed. With no
+`access` block at all, the default is only requests from `127.0.0.1`/
+`::1` (literal localhost) — a browser on the LAN, even the NAS's own
+regular IP, never qualifies, with nothing in the UI hinting this is
+IP-dependent. Confirmed on a real instance: a user accessing exclusively
+from an iPad over the LAN (never localhost) never had admin rights,
+consistent with the default and with an absent `conf/conf.json` — not a
+regression from any frontend change.
 
 Fix: `conf/conf.json` is deliberately **not** tracked in git (see
 `.gitignore`) since it's NAS-local/user-specific — create it directly on
@@ -410,10 +409,28 @@ the NAS:
 Grants admin rights to any device on the LAN — matches this fork's
 existing "safe for home lab, trusted network" posture (same trade-off
 already accepted for the plaintext Secrets Store, `shell: true` dropdowns,
-etc.), and the server logs a warning on startup as a reminder of that
-trade-off. Prefer `"admin_users": ["<your IP>"]` (or `"trusted_ips"`) over
-the wildcard if the NAS is reachable beyond a fully trusted LAN. Read once
-at startup — `docker compose up -d` (no `--build`) picks it up.
+etc.), and the server logs `Any user is allowed to access admin page, be
+careful!` on startup as confirmation it was actually parsed. Prefer
+`"admin_users": ["<your IP>"]` (or `"trusted_ips"`) over the wildcard if
+the NAS is reachable beyond a fully trusted LAN.
+
+**Read only once, at process startup — `docker compose up -d` alone is
+NOT enough and was confirmed NOT to pick up a conf.json change on a real
+instance.** `up -d` only recreates a container whose *service definition*
+changed (image, env, volume list); it's a no-op for a bind-mounted file's
+*content* changing underneath an already-running container. An actual
+restart is required so the Python process re-execs and re-reads the file:
+
+```bash
+docker compose restart script-server
+```
+
+Verify the fix actually took with `docker compose logs script-server 2>&1
+| grep admin_users` — that startup warning line is the confirmation, not
+just running the restart command. The app logs to stdout (`conf/logging.json`'s
+`console` handler at root DEBUG), so `docker compose logs` reliably
+captures it — an empty grep result is a real signal the config was never
+re-read, not a logging gap.
 
 -----
 

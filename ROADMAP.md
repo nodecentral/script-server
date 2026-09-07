@@ -128,6 +128,18 @@ change is in this repo:
   instead of blowing out the row again. Verified no other invalid icon name exists anywhere else
   in the codebase via a one-line cross-check against the codepoints file (documented in
   `CLAUDE.md`, reusable for any future icon addition).
+- **Diagnosed and resolved: admin cog not showing at all** — separate from the icon-name bug above
+  and not caused by any sidebar code. `conf/conf.json` genuinely never existed on the real NAS
+  instance, so the default admin check (`access.admin_users` = `127.0.0.1`/`::1` only) correctly
+  denied admin rights to a LAN-only iPad session, both before and after the sidebar work - traced
+  through `server_conf.py`/`web/server.py`/`auth/identification.py` to confirm, not assumed. Real
+  procedural lesson along the way: `docker compose up -d` alone did NOT pick up a fresh
+  `conf/conf.json` on the actual NAS - it's a no-op for a bind-mounted file's content changing
+  under an already-running container. `docker compose restart script-server` was required, and the
+  startup warning log line (`Any user is allowed to access admin page...`) is the real confirmation
+  a config change took effect, not just running the restart command. Both corrected in `CLAUDE.md`'s
+  "Admin Access Without Auth Configured" section. Resolved and confirmed on the real instance -
+  cog now shows.
 
 ## In Progress
 
