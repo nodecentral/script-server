@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Name: secrets_viewer.py
-# Version: 1.2.0
+# Version: 1.3.0
 # Description: Renders the categorized secrets store (/app/data/secrets.json,
 #              managed via Secrets Manager) as a styled HTML page - category,
 #              key, and when it was last set. Never shows values, not even
@@ -16,8 +16,10 @@
 #              says so explicitly (both as a banner when secrets.json
 #              doesn't exist at all, and as a permanent caption on the
 #              Not Yet Configured section) since it's easy to mistake for
-#              real stored data otherwise. Run standalone (./secrets_viewer.py)
-#              or from Script-Server.
+#              real stored data otherwise. render_body() is reused directly by
+#              secrets_manager.py to show the up-to-date store right after a
+#              change, alongside its own confirmation banner. Run standalone
+#              (./secrets_viewer.py) or from Script-Server.
 
 import html
 import os
@@ -141,6 +143,18 @@ STYLE = """
     margin-bottom: 16px;
     font-size: 0.9rem;
   }
+  .action-banner {
+    background: #e8f5e9;
+    border-left: 4px solid var(--primary-color);
+    border-radius: 2px;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+    font-size: 0.95rem;
+  }
+  .action-banner.error {
+    background: #ffebee;
+    border-left-color: #c62828;
+  }
   .section-note {
     padding: 10px 20px;
     font-size: 0.82rem;
@@ -154,7 +168,6 @@ STYLE = """
 
 
 def render_empty(message):
-    print(STYLE)
     print('<div class="intro">Secrets Viewer</div>')
     print(f'<div class="empty-state">{html.escape(message)}</div>')
 
@@ -191,7 +204,10 @@ def render_placeholders_group(placeholders):
     print('</tbody></table></div></details>')
 
 
-def main():
+def render_body():
+    """Prints the current store as HTML body content (STYLE not included - the caller is
+    responsible for that, see main() below). Reused by secrets_manager.py to show the up-to-date
+    store right after a change, alongside its own confirmation banner."""
     entries = list_entries_metadata()
     placeholders = list_known_placeholders()
 
@@ -204,7 +220,6 @@ def main():
         groups.setdefault(category, []).append((key, updated_at, length))
 
     total = len(entries)
-    print(STYLE)
     render_file_status_banner()
     intro = (f'Secrets Viewer - {total} real entr{"y" if total == 1 else "ies"} '
              f'across {len(groups)} categor{"y" if len(groups) == 1 else "ies"} actually stored in '
@@ -232,6 +247,11 @@ def main():
                 '</tr>'
             )
         print('</tbody></table></div></details>')
+
+
+def main():
+    print(STYLE)
+    render_body()
 
 
 if __name__ == '__main__':

@@ -1,6 +1,6 @@
 # Script-Server.md — Platform Context
 
-Version: 1.19.0
+Version: 1.20.0
 Last updated: 2026-09-06
 
 ## Platform Overview
@@ -481,10 +481,40 @@ Managed via two runners in `conf/runners/` (`secrets_manager.py` /
 
 - **Secrets Manager** — set, update, or delete one entry. Pick an existing
   entry from a dynamic dropdown, or choose the sentinel `-- new entry --`
-  and fill in a new category/key. The value parameter is `secure: true`, and
-  no script in this pattern ever echoes a stored value back — only a
-  character count confirms what was set, so nothing sensitive shows up in
-  run history.
+  and fill in a new category/key. The value field is deliberately **plain
+  text, not `secure: true`** — see "The `secure` flag is one setting for two
+  different things" below for why. No script in this pattern ever echoes a
+  stored value back on its own — the Secrets Viewer-style confirmation shown
+  after every run (success or error, reusing `secrets_viewer.render_body()`
+  directly) only ever shows a character count, never the value itself, and
+  the same confirmation lets you immediately verify the change and set the
+  next entry without leaving the page.
+
+  ### The `secure` flag is one setting for two different things
+
+  `"secure": true` on a runner parameter controls two separate effects from
+  one config value, confirmed in the actual source
+  (`src/model/parameter_config.py`'s `value_to_str`/`get_secured_value` for
+  logging, `web-src/src/common/components/textfield.vue`'s `fieldType` for
+  the `<input type="password">` rendering) — there's no way to have one
+  without the other via this flag. `type="password"` is also what makes a
+  browser (especially iOS/iPadOS Safari) treat the field as a login password
+  and offer to save/autofill it, and masked dots make it hard to proofread
+  what was typed before submitting - real friction reported in practice for
+  Secrets Manager's value field specifically.
+
+  Decision made here: Secrets Manager's value parameter deliberately has NO
+  `secure` flag at all, trading away Script-Server's own execution-history
+  redaction (a value typed here **will** be visible to anyone who can view
+  this script's past runs, unlike a genuinely `secure: true` field) for a
+  plain, proofreadable input with no browser password-manager interference.
+  Accepted as consistent with this fork's existing "safe for home-lab,
+  trusted-network" posture (same trade-off already made for the plaintext
+  Secrets Store file itself, `shell: true` dropdowns, etc.) — the runner's
+  own description states this explicitly so it's a conscious choice, not a
+  silent gap. Reconsider `secure: true` (accepting the masked-input/
+  password-manager friction) if this NAS is ever reachable beyond a fully
+  trusted network.
 
   Script-Server has no conditional field visibility — every parameter shows
   on the form regardless of what's picked elsewhere, so a second "only used

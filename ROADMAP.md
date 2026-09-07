@@ -148,6 +148,20 @@ change is in this repo:
   inline/self-referential/standalone-file cases. Verified the script runs cleanly standalone with
   no arguments and no stdin (required for preload compatibility) via a simulated subprocess
   invocation.
+- **Secrets Manager: unmasked value field + rich confirmation view** — two real usability
+  complaints fixed together. (1) The value field was `secure: true`, making it hard to proofread
+  and triggering iOS/iPadOS Safari's password-save prompt; removed the flag entirely, trading away
+  Script-Server's own execution-history redaction for a plain, readable input - a conscious,
+  documented trade-off (see `CLAUDE.md`'s "The `secure` flag is one setting for two different
+  things"), not a silent gap, consistent with this fork's existing home-lab trust posture. (2) A
+  bare "Set X (N characters)" terminal line replaced with a themed confirmation banner (green for
+  success, red for errors, both still exit-code-correct) followed by the full up-to-date store -
+  `secrets_viewer.py` refactored to expose a reusable `render_body()`, called directly by
+  `secrets_manager.py` after every action so the result and the next entry to set are both visible
+  without leaving the page. Verified end-to-end: successful set, successful delete, and all error
+  paths (bad new-entry format, missing value, delete-not-found, no entry selected) all render the
+  correct banner with the correct exit code; confirmed standalone Secrets Viewer still works
+  unchanged after the refactor; screenshotted the full rendered output via Playwright.
 
 ## In Progress
 
