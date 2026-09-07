@@ -245,6 +245,28 @@ change is in this repo:
      independently across sibling repos since each is built by a separate, context-isolated
      session. Extended `SCRIPTING.md`'s "don't invent a parallel doc/mechanism/convention" line to
      name this case explicitly. Both docs bumped (`CLAUDE.md` 1.26.0, `SCRIPTING.md` 1.1.0).
+- **Second relay batch - one correction, one confirmation** — two more findings came back from
+  sibling sessions; this time one of them was itself wrong, which is exactly what the relay loop
+  is for:
+  1. A `ss_...` session reported that Python's `print()` defaults to block-buffering under
+     Script-Server and proposed adding `sys.stdout.reconfigure(line_buffering=True)` to every
+     Python script. Checked against the actual source before accepting: `src/execution/
+     process_base.py`'s `prepare_env_variables()` (used by both the popen and pty execution
+     paths) already forces `PYTHONUNBUFFERED=1` into every script's environment, which fully
+     unbuffers Python's stdout - bare `print()` already streams live, no fix needed. Declined the
+     suggested change and instead corrected `SCRIPTING.md`'s "Script Requirements" section to
+     state this explicitly, scoping the real flush requirement to Lua/bash (which have no such
+     automatic override) - heading off every other repo re-deriving the same unnecessary
+     boilerplate independently.
+  2. A `ss_movie_file_management` session asked (medium confidence, correctly flagged as needing
+     human confirmation rather than guessed at) whether "Import from Gitea" is a real working
+     native feature, since its own hand-rolled `sync_gitea_repos.sh` (cp -a + diff -rq puller,
+     unconfirmed/never run for real) would be redundant if so. Confirmed: yes, real, native,
+     already in production use (extensively tested this session against a mock Gitea server and a
+     live NAS run) - and does more than the hand-rolled version (Secrets Store-driven URL/token
+     resolution, live repo dropdown, removes files no longer present upstream). `SCRIPTING.md`'s
+     Platform Overview no longer just implies this parenthetically; it says so outright and tells
+     a repo with its own puller to retire it. Bumped to 1.2.0.
 
 ## In Progress
 

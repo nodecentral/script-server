@@ -1,6 +1,6 @@
 # SCRIPTING.md — Script-Server Scripting Conventions (Focused)
 
-Version: 1.1.0
+Version: 1.2.0
 Last updated: 2026-09-07
 
 This is the **focused** convention doc for any Claude session writing
@@ -75,8 +75,16 @@ silent divergence that takes months to notice.
 ## Platform Overview
 
 - Scripts live in `scripts/`, runners in `conf/runners/` (or `runners/`
-  at your Gitea repo's own top level — Import from Gitea maps
-  `scripts/` → `/app/scripts` and `runners/` → `/app/conf/runners`).
+  at your Gitea repo's own top level). **You do not need your own sync
+  script.** Script-Server's own **Import from Gitea** runner (confirmed
+  real, native, and already in production use — not a proposal) mirrors
+  your repo's top-level `scripts/` → `/app/scripts` and `runners/` →
+  `/app/conf/runners`, overwriting changed files and removing files it
+  previously imported that are no longer present upstream. It resolves
+  your Gitea URL/token from the Secrets Store and lists live `owner/repo`
+  options — no manual sync/cp/diff script needed on your side. If a repo
+  already has a hand-rolled puller for this, retire it in favour of Import
+  from Gitea rather than maintaining both.
   Non-standalone support scripts live in subfolders named for their
   role: `scripts/shared/` for dynamic-dropdown helpers, `scripts/preload/`
   for preload scripts (see below).
@@ -121,7 +129,14 @@ whichever import "wins" behaves the same. The warning above is about
 - Header comment block: name, version, description
 - Debug toggle (`DEBUG=true/false`) with timestamped output
 - Flush stdout after every print — Script-Server streams live, buffered output
-  will not appear until the buffer fills or the script exits
+  will not appear until the buffer fills or the script exits. **Python is
+  already covered**: Script-Server forces `PYTHONUNBUFFERED=1` into every
+  script's environment (confirmed in `src/execution/process_base.py`,
+  `prepare_env_variables()` — applies to both its execution paths), so bare
+  `print()` already streams live with no `flush=True` or
+  `sys.stdout.reconfigure()` needed. The requirement is real for **Lua and
+  bash**, which have no such automatic override — flush explicitly there
+  (e.g. `io.stdout:flush()` in Lua).
 - Safe argument handling with defaults — never assume a parameter exists
 - Runnable standalone from terminal AND inside Script-Server
 
