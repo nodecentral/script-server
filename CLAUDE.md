@@ -1,6 +1,6 @@
 # Script-Server.md — Platform Context
 
-Version: 1.25.0
+Version: 1.26.0
 Last updated: 2026-09-07
 
 ## Platform Overview
@@ -71,7 +71,14 @@ theoretical:
   repo will silently overwrite it the moment either is applied. Check
   `conf/runners/` in this repo (or ask) before naming something generic like
   `check_script_permissions` — that exact collision has already happened
-  once between two of these repos.
+  between multiple of these repos. **Exception:** if the collision is a
+  deliberate, byte-for-byte identical generic admin script shared across
+  sibling repos (confirmed real: `check_script_permissions.sh`/`.json` now
+  ship identically from `ss_finance_management`, `ss_health_management`,
+  and `ss_document_file_management`), it's harmless — re-import is
+  idempotent and whichever import "wins" behaves the same. The warning is
+  about **divergent** content sharing a name, not shared content sharing a
+  name.
 - Execute bit (`chmod +x`), dynamic dropdown quoting/`shell: true`, and
   every other convention in this file applies equally regardless of which
   repo a script originated from — Script-Server itself has no idea which

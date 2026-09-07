@@ -50,8 +50,10 @@ KNOWN_INTEGRATIONS = [
     ('pushover', 'TOKEN', 'Pushover application token - used by Send Notification'),
     ('pushover', 'USER_KEY', 'Pushover user key - used by Send Notification'),
     ('prowl', 'TOKEN', 'Prowl API key - used by Send Notification'),
-    ('paperless', 'URL', 'Paperless-ngx base URL, e.g. http://192.168.1.x:8010 - placeholder, no consuming script yet'),
-    ('paperless', 'TOKEN', 'Paperless-ngx API token (Settings > API Tokens) - placeholder, no consuming script yet'),
+    ('paperless', 'URL', "Paperless-ngx base URL, e.g. http://192.168.1.x:8010 - used by "
+                          "ss_document_file_management's paperless_metrics_dashboard.py"),
+    ('paperless', 'TOKEN', "Paperless-ngx API token (Settings > API Tokens) - used by "
+                            "ss_document_file_management's paperless_metrics_dashboard.py"),
     ('gitea', 'URL', 'Gitea base URL, e.g. http://192.168.102.148:3011 - used by Import from '
                       'Gitea. Reserved key name: never treated as a token by gitea_client.py.'),
     ('gitea', 'TOKEN', 'Default Gitea access token - used by Import from Gitea (Gitea > Settings > '

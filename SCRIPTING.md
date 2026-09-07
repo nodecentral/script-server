@@ -1,6 +1,6 @@
 # SCRIPTING.md — Script-Server Scripting Conventions (Focused)
 
-Version: 1.0.0
+Version: 1.1.0
 Last updated: 2026-09-07
 
 This is the **focused** convention doc for any Claude session writing
@@ -59,12 +59,16 @@ repo, different access. So the loop is human-mediated:
    folds it into the canonical doc(s) and pushes.
 
 Don't invent a parallel doc, a parallel secrets mechanism, or a parallel
-convention "for now" instead of doing this — that's exactly how the
-`ss_document_file_management` incident happened (see Secrets below): a
-real script shipped with its own bespoke secrets file, unaware that the
-category it needed already existed in the shared store. A flagged
-learning that takes a day to land beats a silent divergence that takes
-months to notice.
+convention "for now" instead of doing this — including restating this
+document's own explanations in a repo-local README instead of linking to
+it. A per-repo copy of a platform convention drifts the same way a
+per-repo secrets mechanism does, and since every sibling repo is built by
+a separate, context-isolated Claude session, it can happen independently
+N times over. This is exactly how the `ss_document_file_management`
+incident happened (see Secrets below): a real script shipped with its own
+bespoke secrets file, unaware that the category it needed already existed
+in the shared store. A flagged learning that takes a day to land beats a
+silent divergence that takes months to notice.
 
 -----
 
@@ -102,6 +106,12 @@ isolation on import — a script here named the same as one in another
 repo silently overwrites it the moment either is applied. Check
 `conf/runners/` in the main script-server repo (or ask) before naming
 something generic like `check_script_permissions`.
+
+**Exception:** a deliberate, byte-for-byte identical generic admin
+script shared across sibling repos (e.g. `check_script_permissions` now
+shipping identically from several) is fine — re-import is idempotent,
+whichever import "wins" behaves the same. The warning above is about
+**divergent** content sharing a name, not shared content sharing a name.
 
 -----
 

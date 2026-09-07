@@ -226,6 +226,25 @@ change is in this repo:
   example. `CLAUDE.md`'s own cross-repo section now points other-repo sessions at `SCRIPTING.md`
   first, keeping `CLAUDE.md` itself as the fuller reference. The two files need to be kept in
   sync by hand going forward - each carries a note saying so.
+- **First real-world relay of the Learning & Sharing loop** — the `⚙ LEARNING DETECTED` format
+  in `SCRIPTING.md` worked end-to-end for the first time: a `ss_document_file_management` session
+  (its first script built against `SCRIPTING.md` v1.0.0) flagged three findings, relayed here by
+  the user, all folded in:
+  1. `secrets_store.py`'s `KNOWN_INTEGRATIONS` entries for `paperless.URL`/`paperless.TOKEN` were
+     stale ("placeholder, no consuming script yet") now that `paperless_metrics_dashboard.py`
+     actually calls `get_secret()` for both - descriptions corrected to name the real consumer.
+  2. The Matched Pair filename-collision warning didn't distinguish a genuine collision from a
+     deliberate, byte-for-byte identical generic admin script shared across sibling repos (now
+     confirmed real: `check_script_permissions.sh`/`.json` ships identically from
+     `ss_finance_management`, `ss_health_management`, and `ss_document_file_management`) - added
+     an explicit exception to both `CLAUDE.md` and `SCRIPTING.md`: the warning is about divergent
+     content sharing a name, not shared content sharing a name.
+  3. A repo can independently re-derive `SCRIPTING.md`'s own explanations into a local README
+     instead of linking to it (`ss_document_file_management` briefly had two such READMEs, since
+     removed) - same drift risk as a parallel secrets mechanism, and just as likely to happen
+     independently across sibling repos since each is built by a separate, context-isolated
+     session. Extended `SCRIPTING.md`'s "don't invent a parallel doc/mechanism/convention" line to
+     name this case explicitly. Both docs bumped (`CLAUDE.md` 1.26.0, `SCRIPTING.md` 1.1.0).
 
 ## In Progress
 
