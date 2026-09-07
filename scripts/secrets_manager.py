@@ -1,22 +1,25 @@
 #!/usr/bin/env python3
 # Name: secrets_manager.py
-# Version: 1.2.0
+# Version: 1.3.0
 # Description: Sets, updates, or deletes an entry in the categorized secrets
 #              store (/app/data/secrets.json via scripts/shared/secrets_store.py)
 #              - e.g. category "finance" holding FINNHUB_API_KEY, category
 #              "paperless" holding TOKEN. Pick an existing or suggested entry
 #              from the dropdown (populated live by secrets_store.py) - that
 #              alone is enough, category/key come from the selection itself.
-#              Only pick "+ CREATE NEW ENTRY" and fill in New Entry
-#              (category/KEY) when neither an existing nor a suggested entry
-#              fits. Values are never echoed back - only a character count
-#              confirms what was set. After every run (success or error) this
-#              re-renders the current store (same view as Secrets Viewer) so
-#              the result is immediately visible and the next entry can be
-#              set right away without navigating anywhere. Run standalone
-#              (./secrets_manager.py --entry "+ CREATE NEW ENTRY ..."
-#              --new_entry finance/API_KEY --value secret123) or from
-#              Script-Server.
+#              To add a new key to a category that already exists, pick that
+#              category's "+ ADD NEW KEY TO <category>" option and put just
+#              the KEY name in New Entry (no category to type - it's already
+#              picked). Only pick "+ CREATE NEW ENTRY IN A NEW CATEGORY" and
+#              fill in New Entry as category/KEY when no existing category
+#              fits either. Values are never echoed back - only a character
+#              count confirms what was set. After every run (success or
+#              error) this re-renders the current store (same view as
+#              Secrets Viewer) so the result is immediately visible and the
+#              next entry can be set right away without navigating anywhere.
+#              Run standalone (./secrets_manager.py --entry "+ ADD NEW KEY TO
+#              finance (type just the KEY name below, e.g. API_KEY)"
+#              --new_entry API_KEY --value secret123) or from Script-Server.
 
 import argparse
 import html
@@ -24,7 +27,8 @@ import os
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'shared'))
-from secrets_store import NEW_ENTRY_SENTINEL, delete_secret, set_secret  # noqa: E402
+from secrets_store import (NEW_ENTRY_SENTINEL, category_from_add_key_sentinel, delete_secret,
+                            set_secret)  # noqa: E402
 import secrets_viewer  # noqa: E402
 
 
@@ -40,6 +44,17 @@ def parse_entry(entry, new_entry):
             return None, None, ('New Entry must include both a category and a key, '
                                  'e.g. finance/FINNHUB_API_KEY.')
         return category, key, None
+
+    add_key_category = category_from_add_key_sentinel(entry)
+    if add_key_category is not None:
+        key = (new_entry or '').strip()
+        if not key:
+            return None, None, (f'New Entry must be the new KEY name to add under the existing '
+                                 f'"{add_key_category}" category (e.g. API_KEY) - it was left blank.')
+        if '/' in key:
+            return None, None, (f'New Entry should be just the KEY name (no "/") when adding to '
+                                 f'the existing "{add_key_category}" category - got {key!r}.')
+        return add_key_category, key, None
 
     parts = [p.strip() for p in entry.split('|')]
     if len(parts) < 2 or not parts[0] or not parts[1]:

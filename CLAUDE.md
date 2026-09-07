@@ -1,6 +1,6 @@
 # Script-Server.md — Platform Context
 
-Version: 1.27.0
+Version: 1.28.0
 Last updated: 2026-09-07
 
 ## Platform Overview
@@ -623,6 +623,24 @@ Managed via two runners in `conf/runners/` (`secrets_manager.py` /
   option itself carry the instruction (`+ CREATE NEW ENTRY (fill in New
   Entry field below: category/KEY)`) rather than relying on a separate
   field's description that's easy to skip past.
+
+  **Follow-up confusion, also real:** merging into one `category/KEY` text
+  field fixed the "extra field feels mandatory" problem but created a new
+  one — a user couldn't tell category and key were two separate concepts
+  packed into one string, and had no way to see or reuse an existing
+  category (e.g. `finance`) without retyping it from memory, risking a
+  silent miscased duplicate (`Finance` vs `finance` are different
+  categories to a plain dict key). Fixed by pushing the category choice
+  into the **dropdown itself** rather than a text field: `dropdown-entries`
+  now also emits one `+ ADD NEW KEY TO <category>` sentinel per category
+  already in the store (`secrets_store.category_from_add_key_sentinel()`
+  parses it back out), so picking an existing category is a selection, not
+  something typed — and once picked, `New Entry` only ever needs the bare
+  `KEY` name. `category/KEY` in `New Entry` is now reserved for the
+  genuinely-rare case of a brand new category via a separate, more
+  explicit sentinel (`+ CREATE NEW ENTRY IN A NEW CATEGORY`). Net effect:
+  still one "only if creating new" field, but the dropdown does the part a
+  human shouldn't have to retype correctly from memory.
 - **Secrets Viewer** — read-only, `output_format html_iframe`, themed like
   Network Device Inventory. Shows category/key/last-set only, never any part
   of the actual value.

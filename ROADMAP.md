@@ -286,6 +286,23 @@ change is in this repo:
   `ALPH_API_KEY`, `MKTSTACK_API_KEY`, `FINNHUB_API_KEY`, `COINAPI_API_KEY`, `TIINGO_API_KEY`),
   each explicitly marked as having no consuming script yet so they don't look silently configured.
   Requested directly by the user ahead of upcoming `ss_finance_management` scripts.
+- **Secrets Manager: fixed the New Entry field, again, for a different reason than last time** -
+  direct user feedback: the merged `category/KEY` text field (see the cross-repo-drift entry
+  above) was now the confusing part - no way to tell category and key apart, and no way to reuse
+  an existing category without retyping it from memory (risking a silent `Finance` vs `finance`
+  duplicate). Fixed without adding a second always-visible field (still the real constraint - see
+  the same earlier entry): `secrets_store.py`'s `dropdown-entries` now also emits one
+  `+ ADD NEW KEY TO <category>` sentinel per category already in the store, so picking an existing
+  category happens in the dropdown, not a text field - `New Entry` then only needs the bare `KEY`
+  name. Brand new category still goes through `New Entry` as `category/KEY`, now behind its own
+  clearer sentinel (`+ CREATE NEW ENTRY IN A NEW CATEGORY`). Added
+  `category_from_add_key_sentinel()` to `secrets_store.py` and taught `secrets_manager.py`'s
+  `parse_entry()` the new case, with its own validation errors (blank key, or a `/` typed out of
+  habit when it's not needed). Verified standalone: all 3 successful paths (add-to-existing,
+  brand-new-category, pick-existing-entry) plus both new error paths return exactly the expected
+  result - **still needs a live-NAS check through the real UI/preload banner**.
+  `secrets_manager.py` -> 1.3.0, `conf/runners/secrets_manager.json` -> 1.4.0, `CLAUDE.md` ->
+  1.28.0.
 
 ## In Progress
 
@@ -302,6 +319,11 @@ change is in this repo:
   alongside the textfield fix anyway). Confirm they show up in Secrets
   Manager's dropdown and Secrets Viewer's "Not Yet Configured" list after
   restart, then set `finance/EOD_API_KEY` for real.
+- **Needs a live-NAS check**: Secrets Manager's reworked "New Entry" flow (the `+ ADD NEW KEY TO
+  <category>` sentinel and the renamed `+ CREATE NEW ENTRY IN A NEW CATEGORY`) - `parse_entry()`
+  logic verified standalone (see Done above), but not yet exercised through the real dropdown/
+  preload banner on the NAS. No rebuild needed for this one (Python-only change, no `web-src/`
+  touched) - just restart the container and try adding a key to an existing category.
 
 ## Planned
 

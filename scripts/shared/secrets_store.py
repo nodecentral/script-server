@@ -39,8 +39,17 @@ STORE_PATH = '/app/data/secrets.json'
 # Deliberately loud and self-explanatory, not just "-- new entry --": Script-Server has no way to
 # hide the New Entry field unless this exact sentinel is picked, so the dropdown option itself has
 # to carry the instruction ("fill in New Entry below") rather than relying on a field description
-# the user may not read.
-NEW_ENTRY_SENTINEL = '+ CREATE NEW ENTRY (fill in New Entry field below: category/KEY)'
+# the user may not read. Reserved for a genuinely new category - see ADD_KEY_SENTINEL_PREFIX below
+# for adding a key to a category that already exists, which doesn't require typing the category at
+# all (picked from the dropdown instead, so it can never be mistyped/miscased).
+NEW_ENTRY_SENTINEL = '+ CREATE NEW ENTRY IN A NEW CATEGORY (fill in New Entry field below: category/KEY)'
+
+# One of these is offered per existing category (see _cmd_dropdown_entries) so adding another key
+# to a category you already have - the most common "new entry" case in practice - never requires
+# typing (or mistyping/miscasing) the category name: picking this sentinel already tells the main
+# script which category, so New Entry only needs the bare KEY name, e.g. "FINNHUB_API_KEY".
+ADD_KEY_SENTINEL_PREFIX = '+ ADD NEW KEY TO '
+ADD_KEY_SENTINEL_SUFFIX = ' (type just the KEY name below, e.g. API_KEY)'
 
 # Integrations this fork already has (or expects to have) a consuming script for, so Secrets
 # Manager's dropdown and Secrets Viewer can surface them BEFORE a value is ever set - catching a
@@ -146,6 +155,14 @@ def list_category_keys(category):
     )
 
 
+def category_from_add_key_sentinel(entry):
+    """If entry is one of the per-category "+ ADD NEW KEY TO <category>" sentinels, returns that
+    category; otherwise None."""
+    if entry.startswith(ADD_KEY_SENTINEL_PREFIX) and entry.endswith(ADD_KEY_SENTINEL_SUFFIX):
+        return entry[len(ADD_KEY_SENTINEL_PREFIX):-len(ADD_KEY_SENTINEL_SUFFIX)]
+    return None
+
+
 def list_known_placeholders():
     """Known integrations (see KNOWN_INTEGRATIONS) that don't have a value set yet -
     (category, key, description) tuples."""
@@ -186,6 +203,8 @@ def _cmd_list_categories(_args):
 
 def _cmd_dropdown_entries(_args):
     print(NEW_ENTRY_SENTINEL)
+    for category in list_categories():
+        print(f'{ADD_KEY_SENTINEL_PREFIX}{category}{ADD_KEY_SENTINEL_SUFFIX}')
     for category, key, updated_at, _length in list_entries_metadata():
         print(f'{category} | {key} | ✓ set - last updated {updated_at}')
     for category, key, description in list_known_placeholders():
