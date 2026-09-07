@@ -1,6 +1,6 @@
 # Script-Server.md — Platform Context
 
-Version: 1.18.0
+Version: 1.19.0
 Last updated: 2026-09-06
 
 ## Platform Overview
@@ -754,6 +754,24 @@ missing script/preload files, grouped and collapsible via `<details>`) are
 deliberately different scripts, not a self-referential flag toggle — the
 preload's job here is genuinely different content, matching case 3 above,
 not case 2.
+
+4. **Another runner's own script, pointed at directly** — when the desired
+   preload content isn't a subset of *this* runner's own logic (ruling out
+   case 2) but is *exactly* what a separate, independently-existing runner
+   already does as its whole job, don't duplicate that rendering logic into
+   a new `scripts/preload/<name>` file (case 3) — just point `preload_script`
+   straight at the other runner's script:
+   ```json
+   "preload_script": { "script": "/app/scripts/secrets_viewer.py", "output_format": "html_iframe" }
+   ```
+   Real example: **Secrets Manager**'s banner shows what's already in the
+   store before you change anything, by reusing **Secrets Viewer**'s script
+   directly rather than re-implementing the same store-rendering logic a
+   second time — one place to fix if the store's schema ever changes, and
+   the preload always stays in sync with what running Secrets Viewer
+   standalone actually shows. Only safe when the reused script is already
+   preload-compatible on its own merits (no required arguments, no stdin,
+   side-effect-free) — true here since Secrets Viewer is read-only by design.
 
 -----
 

@@ -140,6 +140,14 @@ change is in this repo:
   a config change took effect, not just running the restart command. Both corrected in `CLAUDE.md`'s
   "Admin Access Without Auth Configured" section. Resolved and confirmed on the real instance -
   cog now shows.
+- **Secrets Manager preload banner** — shows what's already in the store (via Secrets Viewer,
+  including the Not Yet Configured checklist) before you make any change, so you're never guessing
+  what's already set. Reuses `scripts/secrets_viewer.py` directly as the `preload_script` rather
+  than duplicating its rendering logic into a new file - documented as a fourth preload pattern
+  ("another runner's own script, pointed at directly") in `CLAUDE.md`, alongside the existing
+  inline/self-referential/standalone-file cases. Verified the script runs cleanly standalone with
+  no arguments and no stdin (required for preload compatibility) via a simulated subprocess
+  invocation.
 
 ## In Progress
 
