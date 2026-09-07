@@ -120,6 +120,14 @@ For the usage please check [this ticket](https://github.com/bugy/script-server/i
 >
 > Use them as templates for your own.
 >
+> **Slim auto-hide sidebar (desktop).** The left sidebar collapses to a 56px rail with a single
+> menu icon by default, freeing up width for script output/parameters — click it to expand the
+> full sidebar as a temporary overlay; picking a script or clicking outside it snaps it back to
+> the rail automatically. Click the pin icon in the expanded header to turn this off entirely and
+> revert to the original always-docked sidebar — your choice is remembered across reloads. This is
+> a Core change to `web-src/` (not a runner), so picking it up after a `git pull` needs a full
+> `docker compose up -d --build`, same as any other frontend change.
+>
 > If you downloaded this as a ZIP rather than `git clone`d it, the execute bit on `scripts/*.sh` is not
 > preserved — `docker-compose.yml`'s entrypoint runs `chmod -R +x /app/scripts` on every container start to
 > fix this automatically.
