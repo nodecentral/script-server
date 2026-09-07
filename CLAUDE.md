@@ -1,6 +1,6 @@
 # Script-Server.md — Platform Context
 
-Version: 1.20.0
+Version: 1.22.0
 Last updated: 2026-09-06
 
 ## Platform Overview
@@ -575,11 +575,12 @@ reading it directly or grepping the imported copy under `/app/scripts` —
 
 Some categories legitimately hold more than one value under different key
 names — e.g. `gitea` might need a different access token per repo, not one
-token for everything. For that case, use `secrets_store.py`'s
-`dropdown-category <category>` subcommand (distinct from `dropdown-entries`,
-which lists across *all* categories for Secrets Manager) as a second
-dropdown's `values.script`, alongside `list_category_keys(category)` for
-resolving the pick in the consuming script:
+token for everything. `secrets_store.py`'s generic `dropdown-category
+<category>` subcommand (distinct from `dropdown-entries`, which lists
+across *all* categories for Secrets Manager) is the reusable building
+block for this — a second dropdown's `values.script`, alongside
+`list_category_keys(category)` for resolving the pick in the consuming
+script:
 
 ```json
 {
@@ -592,15 +593,69 @@ resolving the pick in the consuming script:
 
 The dropdown always includes `secrets_store.AUTO_SENTINEL` as its first
 value, meaning "don't force a specific one." Resolve it as: an explicit
-manual value (if the runner also has one, e.g. Import from Gitea's `token`
-field) always wins; otherwise if exactly one key is stored under that
-category, auto-select it silently; if more than one is stored, require an
-explicit pick (`token_key` not equal to `AUTO_SENTINEL`) and fail loudly
-rather than guessing which one applies — see `import_from_gitea.py`'s
-`resolve_gitea_token()` for the reference implementation. Log which source
-was used (`"gitea.MUSIC_REPO (Secrets Store)"`, `"the manually entered token
-field"`, etc.) so a run's own output explains itself — never log the value.
-before adding it to `KNOWN_INTEGRATIONS` or setting a value for it.
+manual value (if the runner also has one, e.g. a `token` field) always
+wins; otherwise if exactly one key is stored under that category,
+auto-select it silently; if more than one is stored, require an explicit
+pick (`token_key` not equal to `AUTO_SENTINEL`) and fail loudly rather
+than guessing which one applies. Log which source was used
+(`"gitea.MUSIC_REPO (Secrets Store)"`, `"the manually entered token
+field"`, etc.) so a run's own output explains itself — never log the
+value.
+
+**When the category also holds a non-token value** (see the URL example
+below), the generic `dropdown-category` would wrongly offer it as if it
+were a token. Import from Gitea's actual dropdown is
+`gitea_client.py dropdown-tokens`, a thin domain-specific wrapper around
+`list_gitea_tokens()` (itself `list_category_keys('gitea')` filtered
+through `RESERVED_GITEA_KEYS`) — same output shape as `dropdown-category`
+so `resolve_gitea_token()`'s parsing is unchanged, just with the reserved
+key excluded. Keep the domain-specific exclusion knowledge in the
+domain's own shared module (`gitea_client.py`), not leaked into
+`secrets_store.py`, which stays fully generic — see
+`gitea_client.resolve_gitea_token()`/`resolve_gitea_url()` for the
+reference implementation, shared across Import from Gitea's main script,
+preload banner, and both dropdowns.
+
+### Storing more than a token in a category — e.g. a service's own URL
+
+A category isn't limited to tokens. Import from Gitea stores its Gitea
+instance's base URL as `gitea.URL` alongside its token(s), rather than as
+a runner form field — motivated directly by preload scripts receiving
+**no parameter values at all** (see Preload Scripts above): a URL typed
+into the form could never reach the preload banner anyway, so storing it
+means the preload, both dropdowns, and the main script all resolve the
+exact same value with no risk of a stale runner-JSON default drifting
+from what's actually configured. `gitea_client.resolve_gitea_url()` is
+the reference implementation — raises the same `GiteaApiError` pattern as
+token resolution when unset, with a message pointing at Secrets Manager.
+Add any such reserved key to `RESERVED_GITEA_KEYS` (or the equivalent set
+for a different domain's shared module) so it's excluded everywhere
+tokens are enumerated, and add it to `KNOWN_INTEGRATIONS` in
+`secrets_store.py` too, exactly like a token, so it shows up in Secrets
+Manager/Viewer's readiness checklist the same way.
+
+### Deriving an identity from a token instead of asking for it separately
+
+If the token itself is tied to a specific identity (a Gitea personal
+access token belongs to one account, same idea as a GitHub PAT), don't add
+a separate "username"/"owner" field the user has to keep in sync with
+whichever token they picked — call the service's own "who am I" API
+endpoint and derive it. Import from Gitea used to have a manual `owner`
+text field (default `"claude"`, silently wrong the moment a different
+token was used); replaced with `gitea_client.list_user_repos()` calling
+Gitea's `GET /user/repos`, which returns each accessible repo's real
+`full_name` (`owner/repo`) already resolved for that exact token — own
+repos and any orgs it belongs to, in one call, no separate identity
+lookup needed for that part. `gitea_client.get_authenticated_user()`
+(`GET /user`) is used separately only where a human-readable name is
+actually wanted (the preload banner's "Connected as `<username>`").
+Dropdown values carrying real data this way also need a way to signal
+"this failed" without crashing the dropdown blank — `dropdown-repos`
+prefixes every sentinel/error line with `--` specifically so the
+consuming script can tell a real `owner/repo` selection apart from an
+error message that might itself contain a URL (and therefore slashes) —
+never assume "contains a `/`" alone means "real value" once error text is
+in the mix.
 
 **Consuming a secret from a Python script:**
 

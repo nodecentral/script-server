@@ -162,6 +162,30 @@ change is in this repo:
   paths (bad new-entry format, missing value, delete-not-found, no entry selected) all render the
   correct banner with the correct exit code; confirmed standalone Secrets Viewer still works
   unchanged after the refactor; screenshotted the full rendered output via Playwright.
+- **Import from Gitea overhaul: preload readiness check, live repo dropdown, no URL/owner fields**
+  — new shared `scripts/shared/gitea_client.py` (Gitea API client + URL/token resolution) and
+  `scripts/preload/import_from_gitea.py`. Both the Gitea URL and its token(s) now live in the
+  Secrets Store's `gitea` category (`URL` key alongside one or more token keys) instead of runner
+  form fields - motivated directly by preload scripts receiving no parameter context at all, so a
+  form-typed URL could never reach the preload banner anyway; storing it means the preload, both
+  dropdowns, and the main script always resolve the identical, current value. The banner checks
+  both are set and, when exactly one token is stored, actually connects and reports success (as
+  whom, how many repos) or the real failure reason. The Repo dropdown lists live `owner/repo`
+  options straight from Gitea's own `/user/repos` API for whichever token is in play (paginated,
+  handles 50+ repos) - answers a direct question about whether a separate owner/username field is
+  even needed: no, since a token already identifies one account, `owner/repo` values come
+  pre-resolved from the API itself. A Manual Repo field (`owner/repo`) is the sole fallback, only
+  used when the dropdown can't populate live (public repo, no token). `RESERVED_GITEA_KEYS`
+  excludes `URL` from ever being offered as a fake token candidate in the multi-token
+  picker/dropdown - a real category-design edge case now documented in `CLAUDE.md` as a reusable
+  pattern for any future "category holds more than just tokens" case. Verified extensively against
+  a real local mock Gitea HTTP server (not just unit-tested in isolation): authenticated/
+  unauthenticated requests, pagination across multiple pages of repos, unreachable-host and
+  invalid-token error messages, all four preload states (no URL, no token, ambiguous multi-token,
+  working single-token connection), the dropdown CLI's sentinel-vs-real-value distinction
+  (including the critical edge case of an error message itself containing URL slashes, which must
+  never be mistaken for a real `owner/repo` selection), and a full clone-and-sync run against a
+  real local git repository with the URL/owner/repo entirely resolved from the Secrets Store.
 
 ## In Progress
 

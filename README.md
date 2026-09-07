@@ -99,7 +99,11 @@ For the usage please check [this ticket](https://github.com/bugy/script-server/i
 > - **Disk Usage** — confirms the bind mounts above are actually connected, then shows a tree view of a
 >   picked path
 > - **Import from Gitea** — pulls scripts/runners from a Gitea repo using the same layout into this
->   instance (dry-run by default, `--apply` to write)
+>   instance (dry-run by default, `--apply` to write). No Gitea URL or owner/username field on the
+>   form at all — both the URL and one or more tokens live in Secrets Manager (category `gitea`,
+>   keys `URL` and `TOKEN`), and the Repo dropdown lists live `owner/repo` options straight from
+>   Gitea's own API for whichever token is in play. The banner checks both are set and confirms the
+>   token actually works before you do anything.
 > - **Download Image** — fetches a URL into `data/` and displays it inline
 > - **Disk Usage Chart** — interactive Plotly chart of used/free space per mount
 > - **Terminal Colors** / **Progress Demo** — ANSI colour and live-progress output, written in Lua

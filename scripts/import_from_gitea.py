@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Name: import_from_gitea.py
-# Version: 2.3.1
+# Version: 4.0.0
 # Description: Clones a Gitea repo (expected to have its own top-level
 #              scripts/ and runners/ folders) and mirrors scripts/ into
 #              /app/scripts and runners/ into /app/conf/runners: existing
@@ -12,15 +12,24 @@
 #              in /app/data/gitea_import_state.json) - nothing else under
 #              scripts/ or conf/runners/ is touched. Dry-run by default -
 #              pass --apply to actually write files. Run standalone
-#              (./import_from_gitea.py --apply) or from Script-Server.
+#              (./import_from_gitea.py --repo someowner/somerepo --apply)
+#              or from Script-Server.
 #
-#              Gitea token resolution: an explicit "token" field always wins.
-#              Otherwise this looks at the "gitea" category in the Secrets
-#              Store (scripts/shared/secrets_store.py) - if exactly one token
-#              is stored there it's used automatically, if there's more than
-#              one the "Gitea Token" dropdown must pick which one (different
-#              repos can need different tokens), and if none are stored the
-#              repo is assumed to be public.
+#              No "Gitea URL" field either: both the URL and its token(s)
+#              live in the Secrets Store's "gitea" category (key URL, plus
+#              one or more token keys), set via Secrets Manager - see
+#              gitea_client.resolve_gitea_url()/resolve_gitea_token(). An
+#              explicit manually entered "token" field still overrides the
+#              stored token for a one-off run; if more than one token is
+#              stored the "Gitea Token" dropdown must pick which one.
+#
+#              No separate "owner" field either: the Repo dropdown lists
+#              live "owner/repo" values straight from Gitea's own
+#              /user/repos API for whichever token is in play, so the owner
+#              never needs typing - see gitea_client.list_user_repos().
+#              Manual Repo (also owner/repo) is the fallback for a public
+#              repo with no token, where the dropdown can't be populated
+#              live.
 
 import argparse
 import json
@@ -31,7 +40,7 @@ import sys
 import tempfile
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'shared'))
-from secrets_store import AUTO_SENTINEL, get_secret, list_category_keys  # noqa: E402
+from gitea_client import GiteaApiError, resolve_gitea_token, resolve_gitea_url  # noqa: E402
 
 STATE_PATH = '/app/data/gitea_import_state.json'
 
@@ -125,7 +134,8 @@ def clone_repo(gitea_url, owner, repo, branch, token, clone_dir):
     if result.returncode != 0:
         print(result.stderr, file=sys.stderr)
         if 'could not read Username' in result.stderr or 'Authentication failed' in result.stderr:
-            print('This repo needs a Gitea access token - fill in the "token" field '
+            print('This repo needs a Gitea access token - add one via Secrets Manager '
+                  '(category gitea) or fill in the manual "token" field directly '
                   '(Gitea > Settings > Applications > Generate New Token, needs read '
                   'access to the repo).', file=sys.stderr)
         else:
@@ -134,36 +144,34 @@ def clone_repo(gitea_url, owner, repo, branch, token, clone_dir):
         sys.exit(1)
 
 
-def resolve_gitea_token(explicit_token, token_key):
-    """Returns (token, source_description) - source_description is for logging only,
-    never the token value itself."""
-    if explicit_token:
-        return explicit_token, 'the manually entered token field'
+def resolve_owner_repo(repo_selection, manual_repo):
+    """Repo dropdown values are real 'owner/repo' selections; sentinel/error lines from
+    gitea_client's dropdown-repos all start with '--' (e.g. "-- could not fetch repos: ... --",
+    which can itself contain '/' from a URL in the error text - so detect sentinels by that
+    prefix, not by the presence of a slash). Falls back to Manual Repo (also owner/repo) when
+    the dropdown couldn't be populated - the case a public, tokenless repo needs, since there's
+    no token to list live repos with."""
+    selection = (repo_selection or '').strip()
+    if selection and not selection.startswith('--'):
+        if '/' not in selection:
+            print(f'Selected repo {selection!r} is not in owner/repo form - unexpected dropdown '
+                  f'value.', file=sys.stderr)
+            sys.exit(1)
+        owner, _, repo = selection.partition('/')
+        return owner.strip(), repo.strip()
 
-    stored = list_category_keys('gitea')
-
-    if token_key and token_key != AUTO_SENTINEL:
-        # dropdown-category prints "KEY | last set <date>" - the selected value is that whole
-        # line, not just the key, so pull the key back out before looking it up.
-        key = token_key.split('|')[0].strip()
-        value = get_secret('gitea', key)
-        if value is None:
-            print(f'No stored Gitea token found for gitea.{key} - check Secrets Manager.',
+    manual = (manual_repo or '').strip()
+    if manual:
+        if '/' not in manual:
+            print('Manual Repo must be in the form owner/repo, e.g. someuser/somerepo.',
                   file=sys.stderr)
             sys.exit(1)
-        return value, f'gitea.{key} (Secrets Store)'
+        owner, _, repo = manual.partition('/')
+        return owner.strip(), repo.strip()
 
-    if len(stored) == 1:
-        key = stored[0][0]
-        return get_secret('gitea', key), f'gitea.{key} (Secrets Store, auto-selected - only one stored)'
-
-    if len(stored) > 1:
-        stored_names = ', '.join(f'gitea.{key}' for key, _ in stored)
-        print(f'Multiple Gitea tokens are stored ({stored_names}) - pick one from the '
-              '"Gitea Token" dropdown, or fill in the manual token field directly.', file=sys.stderr)
-        sys.exit(1)
-
-    return '', 'none (public repo assumed)'
+    print('No repo selected - pick one from the Repo dropdown above (needs a working Gitea '
+          'token), or fill in Manual Repo (owner/repo) directly.', file=sys.stderr)
+    sys.exit(1)
 
 
 def fix_permissions():
@@ -188,23 +196,24 @@ def fix_permissions():
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--url', default=os.environ.get('PARAM_GITEA_URL', 'http://192.168.102.148:3011'))
-    parser.add_argument('--owner', default=os.environ.get('PARAM_OWNER', 'claude'))
-    parser.add_argument('--repo', default=os.environ.get('PARAM_REPO', 'ss_music_file_management'))
+    parser.add_argument('--repo', default=os.environ.get('PARAM_REPO', ''))
+    parser.add_argument('--manual_repo', default=os.environ.get('PARAM_MANUAL_REPO', ''))
     parser.add_argument('--branch', default=os.environ.get('PARAM_BRANCH', 'main'))
     parser.add_argument('--token-key', default=os.environ.get('PARAM_TOKEN_KEY', ''))
     parser.add_argument('--apply', action='store_true', default=os.environ.get('PARAM_APPLY') == 'true')
     args = parser.parse_args()
 
-    gitea_url = args.url.rstrip('/')
     explicit_token = os.environ.get('GITEA_TOKEN', '')
-    token, token_source = resolve_gitea_token(explicit_token, args.token_key)
-
-    if not gitea_url or not args.owner or not args.repo:
-        print('Missing required parameter(s): url, owner and repo are all required', file=sys.stderr)
+    try:
+        gitea_url = resolve_gitea_url()
+        token, token_source = resolve_gitea_token(explicit_token, args.token_key)
+    except GiteaApiError as e:
+        print(str(e), file=sys.stderr)
         sys.exit(1)
 
-    log_debug(f'url={gitea_url} owner={args.owner} repo={args.repo} branch={args.branch} apply={args.apply}')
+    owner, repo = resolve_owner_repo(args.repo, args.manual_repo)
+
+    log_debug(f'url={gitea_url} owner={owner} repo={repo} branch={args.branch} apply={args.apply}')
     print(f'Gitea token: {token_source}')
 
     if args.apply:
@@ -213,12 +222,12 @@ def main():
         print('Mode: DRY RUN (no files will be written - pass --apply to actually import)')
     print()
 
-    source_key = f'{gitea_url}|{args.owner}|{args.repo}'
+    source_key = f'{gitea_url}|{owner}|{repo}'
     state = load_state()
     previous = state.get(source_key, {'scripts': [], 'runners': []})
 
     with tempfile.TemporaryDirectory() as clone_dir:
-        clone_repo(gitea_url, args.owner, args.repo, args.branch, token, clone_dir)
+        clone_repo(gitea_url, owner, repo, args.branch, token, clone_dir)
         print()
 
         scripts_files = sync_category(
