@@ -213,6 +213,19 @@ change is in this repo:
   `ss_document_file_management` script itself still needs migrating to `secrets_store.get_secret()`
   - that's a change to a different repo, outside this session's access; flagged for whoever
   picks up that repo next.
+- **`SCRIPTING.md` — focused scripting-only doc for other Gitea repos' Claude sessions** —
+  follow-up to the cross-repo pointer above, after measuring `CLAUDE.md` at 1219 lines / ~13.7K
+  tokens and confirming most of that (sidebar/theme/Vue internals, admin-auth internals) is
+  irrelevant to a session whose whole job is writing one script + runner pair. `SCRIPTING.md` is
+  a ~550-line trim covering everything actually needed to author a compliant pair - parameter
+  types, dynamic dropdowns (including the hard `secure`-in-`values.script` rule), Secrets Store
+  usage, output formats, preload scripts, the Matched Pair rule - and deliberately excludes
+  Admin Access and Core Changes (Fork Divergence). Carries a "Learning & Sharing" section at both
+  the top and bottom (bookended on purpose) explaining the human-mediated relay loop back to this
+  repo, using the `ss_document_file_management` secrets-divergence incident as the cautionary
+  example. `CLAUDE.md`'s own cross-repo section now points other-repo sessions at `SCRIPTING.md`
+  first, keeping `CLAUDE.md` itself as the fuller reference. The two files need to be kept in
+  sync by hand going forward - each carries a note saying so.
 
 ## In Progress
 

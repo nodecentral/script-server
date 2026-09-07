@@ -1,6 +1,6 @@
 # Script-Server.md — Platform Context
 
-Version: 1.24.0
+Version: 1.25.0
 Last updated: 2026-09-07
 
 ## Platform Overview
@@ -26,14 +26,31 @@ Several independent Gitea repos (`ss_music_file_management`,
 `ss_finance_management`, `ss_health_management`, `ss_document_file_management`,
 etc.) each produce scripts imported into **this** Script-Server instance via
 **Import from Gitea** — all landing in the same flat `/app/scripts` +
-`/app/conf/runners` namespace. **This file is the single canonical source of
-convention for all of them.** If you're a Claude session working in one of
-those repos, fetch and read it before writing anything that will be imported
-here:
+`/app/conf/runners` namespace. **This file (and its focused companion,
+`SCRIPTING.md`) is the single canonical source of convention for all of
+them.**
+
+If you're a Claude session working in one of those repos, fetch and read
+**`SCRIPTING.md`** first — it's the trimmed, scripting-only doc (no UI/
+sidebar/admin internals) built specifically so a scripting session doesn't
+have to ingest this entire file:
+
+```
+https://raw.githubusercontent.com/nodecentral/script-server/master/SCRIPTING.md
+```
+
+Come back to this full file only if you need deeper rationale behind a
+rule, or anything about Script-Server's own server/admin/UI internals that
+`SCRIPTING.md` deliberately leaves out:
 
 ```
 https://raw.githubusercontent.com/nodecentral/script-server/master/CLAUDE.md
 ```
+
+Keep the two in sync — a rule that applies to script/runner authoring
+belongs in both (trimmed appropriately for `SCRIPTING.md`); anything about
+this app's own internals belongs only here. `SCRIPTING.md` itself carries
+the same reminder at its top.
 
 The highest-stakes rules — confirmed to actually bite in practice, not
 theoretical:
