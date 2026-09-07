@@ -289,7 +289,19 @@ change is in this repo:
 
 ## In Progress
 
-*(nothing right now)*
+- **Needs a Docker rebuild + live-iPad verification**: the `textfield.vue`
+  autocapitalize/autocorrect/spellcheck fix (see Done above, 2026-09-07 entry).
+  Code is committed and pushed; nothing has been rebuilt or retested on the
+  real NAS yet. Run `docker compose up -d --build`, then retype `EOHD` (or
+  any short all-caps token) into a plain text field on the actual iPad and
+  confirm it now posts unmangled.
+- **Needs the same rebuild to actually appear**: the 8 new `finance`
+  `KNOWN_INTEGRATIONS` entries (`EOD_API_KEY` + 7 reserved placeholders) -
+  code-only change to a Python list, picked up on next container restart
+  (no frontend rebuild strictly required for this one, but it'll land
+  alongside the textfield fix anyway). Confirm they show up in Secrets
+  Manager's dropdown and Secrets Viewer's "Not Yet Configured" list after
+  restart, then set `finance/EOD_API_KEY` for real.
 
 ## Planned
 
