@@ -267,6 +267,25 @@ change is in this repo:
      resolution, live repo dropdown, removes files no longer present upstream). `SCRIPTING.md`'s
      Platform Overview no longer just implies this parenthetically; it says so outright and tells
      a repo with its own puller to retire it. Bumped to 1.2.0.
+- **Fix: iPad Safari silently re-cased a typed Secrets Manager value** — real bug hit live on the
+  NAS: typing `EOHD` into the "New Entry" text field posted as `Eohd`, no error, no visible sign
+  it happened. Root cause confirmed in `web-src/src/common/components/textfield.vue` - the
+  `<input>` set no `autocapitalize`/`autocorrect`/`spellcheck` attributes, so every plain-text
+  parameter fell back to iOS/iPadOS Safari's defaults (`autocapitalize="sentences"` + autocorrect
+  on), which can silently re-case or "correct" a short all-caps token a human typed on purpose
+  (category names, key fragments, hostnames). Different field type and different mechanism from
+  the earlier masked-field/password-manager issue - same root cause class (an iOS Safari default
+  nobody had turned off). Fixed by adding `autocapitalize="off" autocorrect="off"
+  spellcheck="false"` to the input - applies to every plain-text parameter across every runner, no
+  case where the browser's default was ever wanted. **Needs a live-iPad check on the real NAS
+  instance** before considered fully verified - `vue-cli-service build` wasn't run in this
+  environment (static attribute change, no `node_modules` installed here).
+- **Added 8 `finance` category entries to `KNOWN_INTEGRATIONS`** — `EOD_API_KEY` (used by
+  Portfolio Setup/Update Prices in `ss_finance_management` for price fallback when FT
+  Markets/Yahoo fail) plus 7 reserved-for-now placeholders (`FMP_API_KEY`, `FRED_API_KEY`,
+  `ALPH_API_KEY`, `MKTSTACK_API_KEY`, `FINNHUB_API_KEY`, `COINAPI_API_KEY`, `TIINGO_API_KEY`),
+  each explicitly marked as having no consuming script yet so they don't look silently configured.
+  Requested directly by the user ahead of upcoming `ss_finance_management` scripts.
 
 ## In Progress
 

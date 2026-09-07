@@ -59,6 +59,23 @@ KNOWN_INTEGRATIONS = [
     ('gitea', 'TOKEN', 'Default Gitea access token - used by Import from Gitea (Gitea > Settings > '
                         'Applications > Generate New Token). Add more named keys under the gitea '
                         'category via Secrets Manager if different repos need different tokens.'),
+    ('finance', 'EOD_API_KEY', 'EOD Historical Data API key - used by Portfolio Setup/Update '
+                                'Prices (ss_finance_management) for price fallback when FT '
+                                'Markets/Yahoo fail'),
+    ('finance', 'FMP_API_KEY', 'Financial Modeling Prep API key - reserved, no consuming script '
+                                'yet (ss_finance_management)'),
+    ('finance', 'FRED_API_KEY', 'FRED (Federal Reserve Economic Data) API key - reserved, no '
+                                 'consuming script yet (ss_finance_management)'),
+    ('finance', 'ALPH_API_KEY', 'Alpha Vantage API key - reserved, no consuming script yet '
+                                 '(ss_finance_management)'),
+    ('finance', 'MKTSTACK_API_KEY', 'Marketstack API key - reserved, no consuming script yet '
+                                     '(ss_finance_management)'),
+    ('finance', 'FINNHUB_API_KEY', 'Finnhub API key - reserved, no consuming script yet '
+                                    '(ss_finance_management)'),
+    ('finance', 'COINAPI_API_KEY', 'CoinAPI key - reserved, no consuming script yet '
+                                    '(ss_finance_management)'),
+    ('finance', 'TIINGO_API_KEY', 'Tiingo API key - reserved, no consuming script yet '
+                                   '(ss_finance_management)'),
 ]
 
 # Sentinel for a dropdown scoped to one category (see list_category_keys/dropdown-category) -

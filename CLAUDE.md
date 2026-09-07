@@ -1,6 +1,6 @@
 # Script-Server.md — Platform Context
 
-Version: 1.26.0
+Version: 1.27.0
 Last updated: 2026-09-07
 
 ## Platform Overview
@@ -1151,6 +1151,43 @@ codebase. Re-rendered the actual header markup against the real bundled
 font file via Playwright, confirming the server name now truncates
 reasonably (e.g. "My Home N...") rather than collapsing to one letter,
 with both icons rendering as small, correctly-sized glyphs.
+
+### 2026-09-07 — iPad Safari silently mangled a typed text-field value
+
+**Symptom, reported directly from the real NAS instance (iPad browser,
+the only way this fork is ever accessed):** typing `EOHD` into a plain
+text parameter (Secrets Manager's "New Entry" field) submitted as `Eohd`
+- no error, no visible change on screen while typing, the value was just
+silently different from what was typed by the time the form posted.
+
+**Root cause:** `web-src/src/common/components/textfield.vue`'s `<input>`
+sets no `autocapitalize`, `autocorrect`, or `spellcheck` attribute, so
+every plain-text parameter falls back to the browser's own defaults.
+iOS/iPadOS Safari's default for a text input is `autocapitalize="sentences"`
+plus autocorrect on - exactly the combination that can re-case or "correct"
+a short all-caps token a human typed deliberately (a category name, an API
+key fragment, a hostname) into something else, with nothing in the UI to
+show it happened. This is a plain `type="text"` field, not the masked
+`secure`/password-manager issue documented in the Secrets Store section
+above - a different iOS input quirk hitting a different field type.
+
+**Fix:** added `autocapitalize="off"`, `autocorrect="off"`, and
+`spellcheck="false"` to the `<input>` in `textfield.vue`. Applies to every
+plain-text parameter across every runner (category/key combos, hostnames,
+manual tokens, file paths) - none of these are natural-language input, so
+there's no case where autocapitalize/autocorrect was ever doing something
+wanted, only cases where it silently could have been doing harm.
+
+**Verified:** `vue-cli-service build` not run in this environment (no
+`node_modules` installed here) - this is a static attribute addition to a
+single `<input>` element with no logic change, but **still needs a
+live-iPad check on the real NAS instance** before being considered fully
+verified, per this fork's own standing rule for frontend changes that
+can't be exercised against a live backend.
+
+**Deploying this fix:** same as every other `web-src/` change in this
+log - `docker compose up -d --build` is required, a file copy is not
+enough.
 
 -----
 
