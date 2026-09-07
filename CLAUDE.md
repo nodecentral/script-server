@@ -1,6 +1,6 @@
 # Script-Server.md — Platform Context
 
-Version: 1.22.0
+Version: 1.23.0
 Last updated: 2026-09-06
 
 ## Platform Overview
@@ -214,6 +214,28 @@ API results, database entries, etc.
 - `${parameter_name}` — injects the current value of another parameter
 - `${auth.username}` — authenticated username
 - `${auth.audit_name}` — user info when auth is disabled
+
+**Never substitute a `secure`, `constant`, or `no_value` parameter into
+another parameter's `values.script`.** Confirmed on a real instance, not
+assumed: Script-Server hard-refuses to even load the runner, throwing
+`Unsupported parameter "X" of type "secure" in values.script!`
+(`parameter_config.py`'s `validate_parameter_dependencies`, called for
+every parameter at config-load time) — the whole script fails with
+"Failed to load script info / Failed to connect to the server" in the UI,
+not just a greyed-out dropdown like a missing execute bit would cause.
+Bit this in practice: Import from Gitea's live Repo dropdown originally
+substituted `${token}` (the manual, `secure: true` token field) alongside
+`${token_key}` (a plain `list` field, fine) — removing `${token}` fixed
+it. If a dropdown genuinely needs a secret to do its job, resolve that
+secret server-side inside the dropdown script itself (e.g. via
+`secrets_store.get_secret()`/`gitea_client.resolve_gitea_token()`) rather
+than passing it through form-field substitution — exactly the pattern
+`gitea_client.py dropdown-repos` uses, driven only by `token_key` (which
+picks a *name*, not a secret) with the actual token value resolved
+internally. A one-off manually-typed secure value (like Import from
+Gitea's manual `token` field) simply can't drive a live dropdown at all;
+say so in the field's own description rather than leaving it to silently
+not work.
 
 -----
 
@@ -1109,6 +1131,10 @@ Rules:
   greyed out
 - Forgetting `chmod +x` on helper scripts — missing execute bit silently
   greys out any dropdown that depends on that script, with no UI error
+- Substituting a `secure`/`constant`/`no_value` parameter into another
+  parameter's `values.script` — Script-Server refuses to even load the
+  runner (see Parameter substitution in script strings above), a more
+  severe failure than a greyed-out dropdown
 
 -----
 

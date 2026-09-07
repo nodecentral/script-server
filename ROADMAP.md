@@ -186,6 +186,20 @@ change is in this repo:
   (including the critical edge case of an error message itself containing URL slashes, which must
   never be mistaken for a real `owner/repo` selection), and a full clone-and-sync run against a
   real local git repository with the URL/owner/repo entirely resolved from the Secrets Store.
+- **Fix: Import from Gitea failed to load at all on the real NAS instance** — real bug caught
+  immediately on first live use, not in the dev sandbox testing above (a live Script-Server
+  instance enforces a validation rule a standalone script test can't reproduce). Server log showed
+  `Unsupported parameter "token" of type "secure" in values.script!` - Script-Server hard-refuses
+  to load any runner where a `secure`/`constant`/`no_value` parameter is referenced in another
+  parameter's `values.script`, confirmed in `parameter_config.py`'s `validate_parameter_dependencies`.
+  The live Repo dropdown had substituted `${token}` (the manual secure token field) alongside
+  `${token_key}`. Fixed by dropping `${token}` from the dropdown entirely - the manual token field
+  now only drives the actual import step, not the live listing, with both the field description and
+  `dropdown-repos`'s own no-token message saying so explicitly. Re-scanned every runner JSON in the
+  repo for the same pattern (secure/constant/no_value param referenced in another param's
+  `values.script`) - no other instance found. Documented as a hard platform rule in `CLAUDE.md`,
+  including the fix pattern (resolve secrets server-side inside the dropdown script itself, driven
+  only by a plain field like `token_key` that picks a *name*, never a secret value).
 
 ## In Progress
 

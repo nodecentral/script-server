@@ -155,17 +155,22 @@ def list_user_repos(gitea_url, token):
 
 
 def _cmd_dropdown_repos(args):
-    if len(args) != 2:
-        print('-- usage: dropdown-repos <token_key> <explicit_token> --')
+    # Only token_key, never an explicit manually-typed token: Script-Server hard-refuses to load
+    # any runner where a "secure" parameter is referenced in another parameter's values.script
+    # (raises "Unsupported parameter ... of type secure in values.script!" at config-load time,
+    # confirmed on a real instance - not a runtime issue, the whole script fails to open). The
+    # manual token field can still drive the actual import/clone step, just not this dropdown.
+    if len(args) != 1:
+        print('-- usage: dropdown-repos <token_key> --')
         return
 
-    token_key, explicit_token = args
+    token_key = args[0]
     try:
         gitea_url = resolve_gitea_url()
-        token, _source = resolve_gitea_token(explicit_token, token_key)
+        token, _source = resolve_gitea_token('', token_key)
         if not token:
-            print('-- no Gitea token available - add one via Secrets Manager, or fill in the '
-                  'token field --')
+            print('-- no Gitea token available - add one via Secrets Manager (a manually typed '
+                  'token cannot drive this dropdown, only the actual import) --')
             return
         repos = list_user_repos(gitea_url, token)
     except GiteaApiError as e:
