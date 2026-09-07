@@ -1,6 +1,6 @@
 # Script-Server.md — Platform Context
 
-Version: 1.16.0
+Version: 1.17.0
 Last updated: 2026-09-06
 
 ## Platform Overview
@@ -375,6 +375,45 @@ icon decoration, per-level filtering, or processing logic at each level.
 - All parameters are passed as both arguments AND env variables by default.
   Default env var name: `PARAM_{CAPITALIZED_NAME_WITH_UNDERSCORES}`
   Override with `"env_var": "MY_CUSTOM_NAME"` in the runner
+
+-----
+
+## Admin Access Without Auth Configured
+
+If no `"auth"` block is set in `conf/conf.json` (the common case for a
+single-user home-lab NAS — no login screen at all), Script-Server still
+decides who gets admin rights (the settings cog, admin.html, editing
+runner configs) via a server-side IP check — confirmed in
+`src/model/server_conf.py`/`src/web/server.py`, not assumed. The default,
+with no `access` block either, is **only requests from `127.0.0.1`/`::1`
+(literal localhost)** get admin rights — a browser hitting the NAS over
+the LAN by its real IP never qualifies, even though nothing in the UI
+hints at this being IP-dependent. This has bitten in practice: someone
+who'd tested once from a browser on the NAS itself (or via an SSH tunnel
+to `localhost`) later tested again from a LAN device and reported the
+admin cog as "gone", when the server-side behavior was actually identical
+both times — the difference was invisible to them (which network path the
+request took), not a code regression.
+
+Fix: `conf/conf.json` is deliberately **not** tracked in git (see
+`.gitignore`) since it's NAS-local/user-specific — create it directly on
+the NAS:
+
+```json
+{
+  "access": {
+    "admin_users": ["*"]
+  }
+}
+```
+
+Grants admin rights to any device on the LAN — matches this fork's
+existing "safe for home lab, trusted network" posture (same trade-off
+already accepted for the plaintext Secrets Store, `shell: true` dropdowns,
+etc.), and the server logs a warning on startup as a reminder of that
+trade-off. Prefer `"admin_users": ["<your IP>"]` (or `"trusted_ips"`) over
+the wildcard if the NAS is reachable beyond a fully trusted LAN. Read once
+at startup — `docker compose up -d` (no `--build`) picks it up.
 
 -----
 
