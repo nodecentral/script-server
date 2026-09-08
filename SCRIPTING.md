@@ -1,6 +1,6 @@
 # SCRIPTING.md — Script-Server Scripting Conventions (Focused)
 
-Version: 1.3.0
+Version: 1.4.0
 Last updated: 2026-09-08
 
 This is the **focused** convention doc for any Claude session writing
@@ -375,6 +375,20 @@ in order of preference for most cases:
    `scripts/shared/secrets_store.py`'s `KNOWN_INTEGRATIONS` list) before
    building anything of your own.
 
+   **Adding a new secret, via Secrets Manager (a runner in the main
+   script-server repo, not something you edit here):** open Secrets
+   Manager. If your product/key is already listed in the dropdown - either
+   as a real set entry or a `not set yet` known-integration suggestion -
+   pick it, that alone carries the product/key. Otherwise pick
+   `+ CREATE NEW ENTRY` and fill in two fields together with Value in the
+   same run: **New Product** (an `editable_list` - pick an existing
+   product from the autocomplete, or type a brand new one, e.g. `Adobe`)
+   and **New Key** (plain text, e.g. `API_KEY`). Run it - the value is
+   never echoed back, only a character count confirms it was set. This is
+   a human action inside Script-Server's UI; a Claude session in a
+   sibling repo can tell the user exactly what product/key to add (and
+   should, rather than guessing), but can't run Secrets Manager itself.
+
    **Never guess a product/key name** for a value you're about to
    consume — a wrong guess is worse than none (looks configured while
    silently failing). Confirm the exact key your script calls
@@ -470,6 +484,17 @@ command run the moment the page opens — before any parameter is set:
   read input or see any form field's value, even a default. Anything it
   needs (like a service URL) must come from somewhere else it CAN reach —
   the Secrets Store is the right answer here, not a hardcoded constant.
+  **Yes, a preload script can call `get_secret()`** - it's a plain file
+  read with no dependency on runner parameters at all, so it works
+  identically inside a preload script and a main script. Real, working
+  precedent: `scripts/preload/import_from_gitea.py` imports
+  `secrets_store.get_secret` and `gitea_client.resolve_gitea_url()`
+  directly to check readiness before the form even loads. One gotcha: a
+  preload script under `scripts/preload/` is one directory deeper than a
+  main script under `scripts/`, so its `sys.path.insert(...)` needs an
+  extra `os.path.dirname(...)` to still land on `scripts/shared` - copying
+  a main script's path-setup line verbatim into a preload script will look
+  right but resolve one level wrong.
 - **Purely informational, never blocking** — cannot prevent the main
   script from running; re-check anything that actually matters in the
   main script too.
