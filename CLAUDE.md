@@ -1,7 +1,7 @@
 # Script-Server.md — Platform Context
 
-Version: 1.28.0
-Last updated: 2026-09-07
+Version: 1.29.0
+Last updated: 2026-09-08
 
 ## Platform Overview
 
@@ -558,31 +558,47 @@ container restart. See below.
 
 ## Secrets Store (Multi-Value, Admin-Managed, Persistent)
 
-For secrets that many different scripts need repeatedly (a finance API key,
+For secrets that many different scripts need repeatedly (a Finnhub API key,
 a Paperless-ngx token, etc.) — as opposed to a one-off value entered per run
 (secure runner parameter) or a single value that rarely changes for the
-whole container (Docker environment block) — use the categorized secrets
-store: one JSON file, `/app/data/secrets.json`, organized as
-`{category: {key: {value, updated_at}}}` (e.g. category `finance` holding
-`FINNHUB_API_KEY`, category `paperless` holding `TOKEN`). One file rather
-than one file per service: nothing here is injected into container-level
-environment the way Docker's `env_file:` would need separate files, so a
-category is just a namespace inside one store, not a filesystem boundary.
+whole container (Docker environment block) — use the secrets store: one
+JSON file, `/app/data/secrets.json`, organized as
+`{product: {key: {value, updated_at}}}` (e.g. product `finnhub` holding
+`API_KEY`, product `paperless` holding `TOKEN`). One file rather than one
+file per service: nothing here is injected into container-level environment
+the way Docker's `env_file:` would need separate files, so a product is
+just a namespace inside one store, not a filesystem boundary.
+
+**Terminology: "product," not "category."** A product is the actual
+service/product the secret belongs to (`gitea`, `paperless`, `finnhub`,
+`adobe`...) — **one product, one real product, always**. Do not create a
+grouping/topic product that bundles several unrelated providers under one
+umbrella name (an earlier version of this store had a `finance` product
+holding eight different providers' keys - `EOD_API_KEY`, `FINNHUB_API_KEY`,
+etc. - and it caused real, repeated user confusion, see the "Real
+confusion, three times" account below). If several providers are related,
+give each its own product; a shared key name across them (most now use
+`API_KEY`) is enough consistency.
 
 Managed via two runners in `conf/runners/` (`secrets_manager.py` /
 `secrets_viewer.py`), both backed by the shared module
 `scripts/shared/secrets_store.py`:
 
 - **Secrets Manager** — set, update, or delete one entry. Pick an existing
-  entry from a dynamic dropdown, or choose the sentinel `-- new entry --`
-  and fill in a new category/key. The value field is deliberately **plain
-  text, not `secure: true`** — see "The `secure` flag is one setting for two
-  different things" below for why. No script in this pattern ever echoes a
-  stored value back on its own — the Secrets Viewer-style confirmation shown
-  after every run (success or error, reusing `secrets_viewer.render_body()`
-  directly) only ever shows a character count, never the value itself, and
-  the same confirmation lets you immediately verify the change and set the
-  next entry without leaving the page.
+  or known-but-unset entry from a dynamic dropdown (product/key already
+  carried by the selection, nothing else to fill in), or choose the
+  sentinel `+ CREATE NEW ENTRY` and fill in **New Product** (an
+  `editable_list` field - suggests every existing product via autocomplete,
+  but still accepts a typed new one, e.g. `Adobe`) and **New Key** (plain
+  text, e.g. `API_KEY`) together with Value, all in the same run. The value
+  field is deliberately **plain text, not `secure: true`** — see "The
+  `secure` flag is one setting for two different things" below for why. No
+  script in this pattern ever echoes a stored value back on its own — the
+  Secrets Viewer-style confirmation shown after every run (success or
+  error, reusing `secrets_viewer.render_body()` directly) only ever shows a
+  character count, never the value itself, and the same confirmation lets
+  you immediately verify the change and set the next entry without leaving
+  the page.
 
   ### The `secure` flag is one setting for two different things
 
@@ -610,56 +626,83 @@ Managed via two runners in `conf/runners/` (`secrets_manager.py` /
   password-manager friction) if this NAS is ever reachable beyond a fully
   trusted network.
 
+  ### Real confusion, three times - the field design's actual history
+
   Script-Server has no conditional field visibility — every parameter shows
   on the form regardless of what's picked elsewhere, so a second "only used
   if you picked X" field reads as a required next step even when it isn't.
-  Real confusion hit this exact spot: a user picked a suggested entry
-  straight from the dropdown (which already carries its own category/key)
-  and still felt obligated to fill in the separate new-entry fields sitting
-  right there on the form. Fixes that don't require conditional visibility
-  (which this version of script-server doesn't have): merge what would be
-  multiple "only if creating new" fields into as few fields as possible (one
-  `new_entry` field taking `category/KEY`, not two), and make the sentinel
-  option itself carry the instruction (`+ CREATE NEW ENTRY (fill in New
-  Entry field below: category/KEY)`) rather than relying on a separate
-  field's description that's easy to skip past.
+  This drove three real, reported rounds of confusion, each fixed a
+  different way - worth keeping the full history so a future redesign
+  doesn't re-walk the same dead ends:
 
-  **Follow-up confusion, also real:** merging into one `category/KEY` text
-  field fixed the "extra field feels mandatory" problem but created a new
-  one — a user couldn't tell category and key were two separate concepts
-  packed into one string, and had no way to see or reuse an existing
-  category (e.g. `finance`) without retyping it from memory, risking a
-  silent miscased duplicate (`Finance` vs `finance` are different
-  categories to a plain dict key). Fixed by pushing the category choice
-  into the **dropdown itself** rather than a text field: `dropdown-entries`
-  now also emits one `+ ADD NEW KEY TO <category>` sentinel per category
-  already in the store (`secrets_store.category_from_add_key_sentinel()`
-  parses it back out), so picking an existing category is a selection, not
-  something typed — and once picked, `New Entry` only ever needs the bare
-  `KEY` name. `category/KEY` in `New Entry` is now reserved for the
-  genuinely-rare case of a brand new category via a separate, more
-  explicit sentinel (`+ CREATE NEW ENTRY IN A NEW CATEGORY`). Net effect:
-  still one "only if creating new" field, but the dropdown does the part a
-  human shouldn't have to retype correctly from memory.
+  1. **A user picked a suggested entry straight from the dropdown** (which
+     already carried its own category/key) and still felt obligated to
+     fill in the separate new-entry fields sitting right there on the
+     form. Fixed by merging what would be multiple "only if creating new"
+     fields into one `new_entry` field taking `category/KEY`, and making
+     the sentinel option itself carry the instruction (`+ CREATE NEW ENTRY
+     (fill in New Entry field below: category/KEY)`) rather than relying
+     on a field description that's easy to skip past.
+  2. **Merging into one `category/KEY` text field then hid that category
+     and key were two separate concepts**, and gave no way to reuse an
+     existing category without retyping it from memory (risking a silent
+     `Finance`-vs-`finance` duplicate). Fixed by pushing the category
+     choice into the dropdown itself: `dropdown-entries` emitted one
+     `+ ADD NEW KEY TO <category>` sentinel per existing category, so
+     picking one was a selection, not something typed.
+  3. **Both of the above were still built around a `finance` category that
+     was never really one product** - it was a grouping of eight unrelated
+     providers, which broke the entire product/key mental model for that
+     one case and made "Category" impossible to honestly rename to
+     "Product." Root-caused and fixed properly this time, not patched
+     again: `finance` was split into one product per provider (`eod`,
+     `finnhub`, `alphavantage`, etc.), which let the whole "add a key to an
+     existing category" sentinel mechanism from fix #2 be **deleted
+     entirely** in favor of something simpler - an `editable_list` field
+     (**New Product**) that suggests every real product via autocomplete
+     but still accepts a typed new one, paired with a plain **New Key**
+     field. Two always-visible fields instead of one, but each field now
+     means exactly one thing, and category/key are never packed into a
+     string a human has to parse. "Category" was renamed to "Product"
+     throughout the UI, docs, and `secrets_store.py`'s own function
+     signatures (`get_secret(product, key)`, `list_products()`,
+     `list_product_keys()`) once every real category actually was one.
+
+     **Cost of the fix:** the already-built `Portfolio Setup/Update Prices`
+     script in `ss_finance_management` calls
+     `get_secret('finance', 'EOD_API_KEY')` (the old grouped name) - it
+     needs updating to `get_secret('eod', 'API_KEY')` to match. That's a
+     change to a different repo, outside this session's access; flagged in
+     `secrets_store.py`'s `KNOWN_INTEGRATIONS` entry for `eod` and in
+     `ROADMAP.md` for whoever picks up that repo next.
+
+  The lesson generalizes: minimizing field count is the right instinct
+  when the merge doesn't hide a real distinction, but forcing two genuinely
+  different concepts (a product name and a key name) into one delimited
+  string is not the same kind of merge as removing a redundant field - it
+  just moves the confusion into string-parsing. When a rename like
+  "Category" → "Product" doesn't cleanly apply to every existing value,
+  that's a signal the underlying data model has an exception worth fixing,
+  not just a label worth avoiding.
 - **Secrets Viewer** — read-only, `output_format html_iframe`, themed like
-  Network Device Inventory. Shows category/key/last-set only, never any part
+  Network Device Inventory. Shows product/key/last-set only, never any part
   of the actual value.
 
 ### Known Integrations checklist
 
 `scripts/shared/secrets_store.py`'s `KNOWN_INTEGRATIONS` list names
-category/key pairs a script actually calls `get_secret()` for (or expects
+product/key pairs a script actually calls `get_secret()` for (or expects
 to, once built), each with a one-line description. Secrets Manager's
 dropdown lists these alongside real entries — a `not set yet` row is
 selectable exactly like an already-set one, so filling in a known
-integration never requires re-typing its category/key by hand. Secrets
+integration never requires re-typing its product/key by hand. Secrets
 Viewer surfaces the same list as a **Not Yet Configured** section (a
 Script-Ingredients-Check-style readiness check for secrets, not just
 files), so a missing credential is visible before a script fails on it
 rather than after.
 
 **When wiring a script to consume a secret, add it to `KNOWN_INTEGRATIONS`
-in the same change** — that's what keeps the checklist accurate. A category
+in the same change** — that's what keeps the checklist accurate. A product
 without a real consuming script yet (e.g. `paperless` below, added ahead of
 an actual Paperless-ngx integration script) is a legitimate placeholder,
 but say so in its description so it's clear nothing reads it yet.
@@ -674,7 +717,7 @@ KNOWN_INTEGRATIONS = [
 ]
 ```
 
-**Never guess a category/key name for a script you can't see the source
+**Never guess a product/key name for a script you can't see the source
 of.** A wrong guess is worse than no placeholder at all — it looks
 configured (a value sitting in the store) while the actual consuming
 script, expecting a different key, still fails. Scripts imported from a
@@ -683,15 +726,15 @@ their source isn't visible from outside the NAS, so confirm the exact
 `os.environ.get(...)` / `get_secret(...)` calls in the real script — by
 reading it directly or grepping the imported copy under `/app/scripts` —
 
-### Letting a runner pick among several stored tokens in one category
+### Letting a runner pick among several stored keys for one product
 
-Some categories legitimately hold more than one value under different key
+Some products legitimately hold more than one value under different key
 names — e.g. `gitea` might need a different access token per repo, not one
-token for everything. `secrets_store.py`'s generic `dropdown-category
-<category>` subcommand (distinct from `dropdown-entries`, which lists
-across *all* categories for Secrets Manager) is the reusable building
+token for everything. `secrets_store.py`'s generic `dropdown-product
+<product>` subcommand (distinct from `dropdown-entries`, which lists
+across *all* products for Secrets Manager) is the reusable building
 block for this — a second dropdown's `values.script`, alongside
-`list_category_keys(category)` for resolving the pick in the consuming
+`list_product_keys(product)` for resolving the pick in the consuming
 script:
 
 ```json
@@ -699,14 +742,14 @@ script:
   "name": "token_key",
   "param": "--token-key",
   "type": "list",
-  "values": { "script": "/app/scripts/shared/secrets_store.py dropdown-category gitea" }
+  "values": { "script": "/app/scripts/shared/secrets_store.py dropdown-product gitea" }
 }
 ```
 
 The dropdown always includes `secrets_store.AUTO_SENTINEL` as its first
 value, meaning "don't force a specific one." Resolve it as: an explicit
 manual value (if the runner also has one, e.g. a `token` field) always
-wins; otherwise if exactly one key is stored under that category,
+wins; otherwise if exactly one key is stored under that product,
 auto-select it silently; if more than one is stored, require an explicit
 pick (`token_key` not equal to `AUTO_SENTINEL`) and fail loudly rather
 than guessing which one applies. Log which source was used
@@ -714,12 +757,12 @@ than guessing which one applies. Log which source was used
 field"`, etc.) so a run's own output explains itself — never log the
 value.
 
-**When the category also holds a non-token value** (see the URL example
-below), the generic `dropdown-category` would wrongly offer it as if it
+**When the product also holds a non-token value** (see the URL example
+below), the generic `dropdown-product` would wrongly offer it as if it
 were a token. Import from Gitea's actual dropdown is
 `gitea_client.py dropdown-tokens`, a thin domain-specific wrapper around
-`list_gitea_tokens()` (itself `list_category_keys('gitea')` filtered
-through `RESERVED_GITEA_KEYS`) — same output shape as `dropdown-category`
+`list_gitea_tokens()` (itself `list_product_keys('gitea')` filtered
+through `RESERVED_GITEA_KEYS`) — same output shape as `dropdown-product`
 so `resolve_gitea_token()`'s parsing is unchanged, just with the reserved
 key excluded. Keep the domain-specific exclusion knowledge in the
 domain's own shared module (`gitea_client.py`), not leaked into
@@ -728,9 +771,9 @@ domain's own shared module (`gitea_client.py`), not leaked into
 reference implementation, shared across Import from Gitea's main script,
 preload banner, and both dropdowns.
 
-### Storing more than a token in a category — e.g. a service's own URL
+### Storing more than a token for one product — e.g. a service's own URL
 
-A category isn't limited to tokens. Import from Gitea stores its Gitea
+A product isn't limited to tokens. Import from Gitea stores its Gitea
 instance's base URL as `gitea.URL` alongside its token(s), rather than as
 a runner form field — motivated directly by preload scripts receiving
 **no parameter values at all** (see Preload Scripts above): a URL typed

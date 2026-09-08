@@ -1,7 +1,7 @@
 # SCRIPTING.md — Script-Server Scripting Conventions (Focused)
 
-Version: 1.2.0
-Last updated: 2026-09-07
+Version: 1.3.0
+Last updated: 2026-09-08
 
 This is the **focused** convention doc for any Claude session writing
 scripts/runners destined for import into `nodecentral/script-server` —
@@ -66,7 +66,7 @@ per-repo secrets mechanism does, and since every sibling repo is built by
 a separate, context-isolated Claude session, it can happen independently
 N times over. This is exactly how the `ss_document_file_management`
 incident happened (see Secrets below): a real script shipped with its own
-bespoke secrets file, unaware that the category it needed already existed
+bespoke secrets file, unaware that the product it needed already existed
 in the shared store. A flagged learning that takes a day to land beats a
 silent divergence that takes months to notice.
 
@@ -340,9 +340,17 @@ each level.
 in order of preference for most cases:
 
 1. **Secrets Store** (preferred for API keys/tokens reused across runs) —
-   a categorized JSON store (`/app/data/secrets.json`), managed via the
-   **Secrets Manager**/**Secrets Viewer** runners in the main
-   script-server repo, backed by `scripts/shared/secrets_store.py`.
+   a JSON store (`/app/data/secrets.json`) keyed by **product** (the
+   service the secret belongs to - `gitea`, `paperless`, `finnhub`) then
+   **key** (the credential within it - `TOKEN`, `API_KEY`, `URL`), managed
+   via the **Secrets Manager**/**Secrets Viewer** runners in the main
+   script-server repo, backed by `scripts/shared/secrets_store.py`. A
+   product should always be one real product/service - never a grouping of
+   several unrelated providers under one umbrella name (an earlier version
+   of this store had exactly that, a `finance` product holding eight
+   different providers, and it caused real confusion - see CLAUDE.md's
+   Secrets Store section for the full account). If you're adding a new
+   integration, give it its own product.
 
    **Consume from Python:**
    ```python
@@ -350,12 +358,12 @@ in order of preference for most cases:
    sys.path.insert(0, '/app/scripts/shared')
    from secrets_store import get_secret
 
-   api_key = get_secret('finance', 'FINNHUB_API_KEY')  # None if unset
+   api_key = get_secret('finnhub', 'API_KEY')  # None if unset
    ```
 
    **Consume from Lua/bash** (shell out to the same Python helper):
    ```bash
-   API_KEY=$(python3 /app/scripts/shared/secrets_store.py get finance FINNHUB_API_KEY)
+   API_KEY=$(python3 /app/scripts/shared/secrets_store.py get finnhub API_KEY)
    ```
 
    **Never invent a parallel secrets mechanism** (a local `.env` file, a
@@ -363,11 +371,11 @@ in order of preference for most cases:
    (a `paperless_metrics_dashboard.py` script arrived with its own
    dotenv-based secrets, unaware `paperless.URL`/`paperless.TOKEN` were
    already reserved in the shared store). Check whether your service's
-   category already exists (ask, or read
+   product already exists (ask, or read
    `scripts/shared/secrets_store.py`'s `KNOWN_INTEGRATIONS` list) before
    building anything of your own.
 
-   **Never guess a category/key name** for a value you're about to
+   **Never guess a product/key name** for a value you're about to
    consume — a wrong guess is worse than none (looks configured while
    silently failing). Confirm the exact key your script calls
    `get_secret()` for, and if it's new, that's a learning to flag (see
@@ -562,7 +570,10 @@ manages the Script-Server deployment.
   parameter's `values.script` — Script-Server refuses to even load the
   runner, a more severe failure than a greyed-out dropdown
 - Inventing a parallel secrets mechanism instead of using the Secrets Store
-- Guessing a Secrets Store category/key name instead of confirming it
+- Guessing a Secrets Store product/key name instead of confirming it
+- Creating a grouping/topic product that bundles several unrelated
+  providers under one umbrella name — one product should always be one
+  real product/service, each with its own name
 
 -----
 

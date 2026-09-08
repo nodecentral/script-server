@@ -16,7 +16,7 @@
 #              or from Script-Server.
 #
 #              No "Gitea URL" field either: both the URL and its token(s)
-#              live in the Secrets Store's "gitea" category (key URL, plus
+#              live in the Secrets Store's "gitea" product (key URL, plus
 #              one or more token keys), set via Secrets Manager - see
 #              gitea_client.resolve_gitea_url()/resolve_gitea_token(). An
 #              explicit manually entered "token" field still overrides the
@@ -135,7 +135,7 @@ def clone_repo(gitea_url, owner, repo, branch, token, clone_dir):
         print(result.stderr, file=sys.stderr)
         if 'could not read Username' in result.stderr or 'Authentication failed' in result.stderr:
             print('This repo needs a Gitea access token - add one via Secrets Manager '
-                  '(category gitea) or fill in the manual "token" field directly '
+                  '(product gitea) or fill in the manual "token" field directly '
                   '(Gitea > Settings > Applications > Generate New Token, needs read '
                   'access to the repo).', file=sys.stderr)
         else:

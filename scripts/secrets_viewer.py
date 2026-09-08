@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # Name: secrets_viewer.py
-# Version: 1.3.0
+# Version: 1.4.0
 # Description: Renders the categorized secrets store (/app/data/secrets.json,
-#              managed via Secrets Manager) as a styled HTML page - category,
+#              managed via Secrets Manager) as a styled HTML page - product,
 #              key, and when it was last set. Never shows values, not even
 #              partially - only a character-count hint. Colours/fonts match
 #              Script-Server's own theme (web-src/src/assets/css/shared.css's
@@ -191,11 +191,11 @@ def render_placeholders_group(placeholders):
           'secrets_store.py (KNOWN_INTEGRATIONS) - not from secrets.json. It shows what scripts '
           'expect, whether or not the file exists yet.</div>')
     print('<div class="table-scroll"><table><thead><tr>'
-          '<th>Category</th><th>Key</th><th>Value</th><th>Needed For</th></tr></thead><tbody>')
-    for category, key, description in placeholders:
+          '<th>Product</th><th>Key</th><th>Value</th><th>Needed For</th></tr></thead><tbody>')
+    for product, key, description in placeholders:
         print(
             '<tr>'
-            f'<td class="mono">{html.escape(category)}</td>'
+            f'<td class="mono">{html.escape(product)}</td>'
             f'<td class="mono">{html.escape(key)}</td>'
             f'<td><span class="unset-chip">not set</span></td>'
             f'<td>{html.escape(description)}</td>'
@@ -216,13 +216,13 @@ def render_body():
         return
 
     groups = {}
-    for category, key, updated_at, length in entries:
-        groups.setdefault(category, []).append((key, updated_at, length))
+    for product, key, updated_at, length in entries:
+        groups.setdefault(product, []).append((key, updated_at, length))
 
     total = len(entries)
     render_file_status_banner()
     intro = (f'Secrets Viewer - {total} real entr{"y" if total == 1 else "ies"} '
-             f'across {len(groups)} categor{"y" if len(groups) == 1 else "ies"} actually stored in '
+             f'across {len(groups)} product{"" if len(groups) == 1 else "s"} actually stored in '
              f'<span class="mono">{html.escape(STORE_PATH)}</span>.')
     if placeholders:
         intro += (f' <span class="missing">{len(placeholders)} known integration(s) '
@@ -233,9 +233,9 @@ def render_body():
     if placeholders:
         render_placeholders_group(placeholders)
 
-    for category in sorted(groups.keys()):
-        rows = groups[category]
-        print(f'<details class="group" open><summary>{html.escape(category)} ({len(rows)})</summary>')
+    for product in sorted(groups.keys()):
+        rows = groups[product]
+        print(f'<details class="group" open><summary>{html.escape(product)} ({len(rows)})</summary>')
         print('<div class="table-scroll"><table><thead><tr>'
               '<th>Key</th><th>Value</th><th>Last Set</th></tr></thead><tbody>')
         for key, updated_at, length in rows:

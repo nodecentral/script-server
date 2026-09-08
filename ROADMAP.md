@@ -303,6 +303,38 @@ change is in this repo:
   result - **still needs a live-NAS check through the real UI/preload banner**.
   `secrets_manager.py` -> 1.3.0, `conf/runners/secrets_manager.json` -> 1.4.0, `CLAUDE.md` ->
   1.28.0.
+- **Secrets Manager: "Category" renamed to "Product," and the underlying data model actually
+  fixed to earn that rename** - more direct user feedback, and this time the fix from the prior
+  entry was itself part of the problem. Two complaints: (1) "Category" read as a product name for
+  `gitea`/`paperless`/etc. but not for `finance`, which secretly grouped eight unrelated
+  providers under one name; (2) the sentinel-based "+ ADD NEW KEY TO X" flow from the prior entry
+  still errored with a confusing "must be in the form category/KEY" message when a user picked
+  the wrong sentinel, because two genuinely different concepts (product name, key name) were
+  still being packed into other flows as a single string. Root-caused properly this time instead
+  of patching around it again: split `finance` into one product per provider (`eod`, `fmp`,
+  `fred`, `alphavantage`, `marketstack`, `finnhub`, `coinapi`, `tiingo`, each holding just
+  `API_KEY`), which let "Category" become an honest, accurate rename to "Product" everywhere -
+  UI labels, runner descriptions, `secrets_store.py`'s own function names
+  (`get_secret`/`set_secret`/`delete_secret(product, key)`, `list_products()`,
+  `list_product_keys()`), and every consumer (`gitea_client.py`, `import_from_gitea.py`, its
+  preload). The now-unnecessary "+ ADD NEW KEY TO `<category>`" per-category sentinel mechanism
+  was deleted entirely (simpler than adding a fourth field to keep patching it) in favor of a
+  single `+ CREATE NEW ENTRY` sentinel paired with two always-visible fields: **New Product**
+  (`editable_list` type - autocomplete-suggests every existing product via
+  `secrets_store.py list-products`, but still accepts a typed new one) and **New Key** (plain
+  text). `category/KEY`-as-one-string parsing is gone completely - no more slash format to get
+  wrong. `CLAUDE.md`'s Secrets Store section now carries the full three-round history of this
+  field's design (see "Real confusion, three times") so a future redesign doesn't re-walk the
+  same dead ends. Verified standalone: all `parse_entry()` paths (new entry with existing
+  product, new entry with brand new product, picking a real/suggested entry, both blank-field
+  error cases) return exactly the expected result - **still needs a live-NAS check**, and
+  `editable_list`'s autocomplete behavior specifically hasn't been visually confirmed in a real
+  browser. `secrets_manager.py` -> 1.4.0, `conf/runners/secrets_manager.json` -> 1.5.0,
+  `secrets_viewer.py`/`secrets_viewer.json` -> 1.4.0, `import_from_gitea.json` -> 4.1.1,
+  `CLAUDE.md` -> 1.29.0, `SCRIPTING.md` -> 1.3.0. **Real cost, not free**: the already-built
+  `Portfolio Setup/Update Prices` script in `ss_finance_management` calls
+  `get_secret('finance', 'EOD_API_KEY')` and needs updating to `get_secret('eod', 'API_KEY')` -
+  a change to a different repo, outside this session's access (see In Progress below).
 
 ## In Progress
 
@@ -312,18 +344,25 @@ change is in this repo:
   real NAS yet. Run `docker compose up -d --build`, then retype `EOHD` (or
   any short all-caps token) into a plain text field on the actual iPad and
   confirm it now posts unmangled.
-- **Needs the same rebuild to actually appear**: the 8 new `finance`
-  `KNOWN_INTEGRATIONS` entries (`EOD_API_KEY` + 7 reserved placeholders) -
-  code-only change to a Python list, picked up on next container restart
-  (no frontend rebuild strictly required for this one, but it'll land
-  alongside the textfield fix anyway). Confirm they show up in Secrets
-  Manager's dropdown and Secrets Viewer's "Not Yet Configured" list after
-  restart, then set `finance/EOD_API_KEY` for real.
-- **Needs a live-NAS check**: Secrets Manager's reworked "New Entry" flow (the `+ ADD NEW KEY TO
-  <category>` sentinel and the renamed `+ CREATE NEW ENTRY IN A NEW CATEGORY`) - `parse_entry()`
-  logic verified standalone (see Done above), but not yet exercised through the real dropdown/
-  preload banner on the NAS. No rebuild needed for this one (Python-only change, no `web-src/`
-  touched) - just restart the container and try adding a key to an existing category.
+- **Needs the same rebuild to actually appear**: the new `KNOWN_INTEGRATIONS` entries for `eod`,
+  `fmp`, `fred`, `alphavantage`, `marketstack`, `finnhub`, `coinapi`, `tiingo` (see the
+  Category-to-Product rework below) - code-only change to a Python list, picked up on next
+  container restart (no frontend rebuild strictly required for this one, but it'll land alongside
+  the textfield fix anyway). Confirm they show up in Secrets Manager's dropdown and Secrets
+  Viewer's "Not Yet Configured" list after restart.
+- **Needs a live-NAS check**: Secrets Manager's reworked New Product (`editable_list`) + New Key
+  fields, replacing the old single "New Entry" text field entirely - `parse_entry()` logic
+  verified standalone (see Done below), but not yet exercised through the real dropdown/preload
+  banner on the NAS, and `editable_list`'s autocomplete-suggest-but-still-type-new behavior
+  specifically hasn't been visually confirmed in a real browser. No rebuild needed (Python + JSON
+  only, no `web-src/` touched) - just restart the container and try creating a new entry.
+- **Cross-repo change needed, outside this session's access**: `ss_finance_management`'s
+  `Portfolio Setup/Update Prices` script calls `get_secret('finance', 'EOD_API_KEY')` (the old
+  grouped-category name, now removed from this store) - it needs updating to
+  `get_secret('eod', 'API_KEY')` to match the Category-to-Product rework below. Flag this to
+  whoever picks up that repo next; until it's updated, that script's EOD Historical Data fallback
+  will silently find no secret (returns `None`, same as "never configured") rather than erroring
+  loudly - worth a quick manual check there after the rename lands.
 
 ## Planned
 

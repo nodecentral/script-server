@@ -3,16 +3,16 @@
 # resolution, used by Import from Gitea's main script, its preload banner, and the live
 # "repo"/"token" dropdowns.
 #
-# Both the Gitea URL and its token(s) live in the Secrets Store's "gitea" category (matching
+# Both the Gitea URL and its token(s) live in the Secrets Store's "gitea" product (matching
 # the paperless URL+TOKEN pattern) rather than as runner form fields - preload scripts get no
 # parameter context at all (see CLAUDE.md), so a URL typed into the form could never reach the
 # preload banner anyway; storing it means the preload, the dropdowns, and the main script all
 # resolve the exact same value with no risk of drifting from a stale runner-JSON default.
-# RESERVED_GITEA_KEYS marks key names in that category that are NOT tokens (currently just
+# RESERVED_GITEA_KEYS marks key names under that product that are NOT tokens (currently just
 # "URL") so the multi-token picker/dropdown never treats them as one.
 #
 # Token resolution: an explicit manually entered token always wins. Otherwise looks at the
-# "gitea" category - if exactly one token is stored there it's auto-selected, if more than one
+# "gitea" product - if exactly one token is stored there it's auto-selected, if more than one
 # a token_key must be given (see dropdown-tokens below), and if none are stored, no token is
 # used (public repo assumed - any Gitea API call that actually needs auth then fails with a
 # clear message rather than a confusing generic one).
@@ -28,7 +28,7 @@ import sys
 import requests
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from secrets_store import AUTO_SENTINEL, get_secret, list_category_keys  # noqa: E402
+from secrets_store import AUTO_SENTINEL, get_secret, list_product_keys  # noqa: E402
 
 REQUEST_TIMEOUT_SECONDS = 10
 REPOS_PAGE_SIZE = 50
@@ -43,18 +43,18 @@ class GiteaApiError(Exception):
 
 def resolve_gitea_url():
     """Returns the configured Gitea base URL (no trailing slash). Raises GiteaApiError if
-    none is set - the "gitea" category's reserved "URL" key, via Secrets Manager."""
+    none is set - the "gitea" product's reserved "URL" key, via Secrets Manager."""
     url = get_secret('gitea', 'URL')
     if not url:
-        raise GiteaApiError('No Gitea URL configured - add one via Secrets Manager (category '
+        raise GiteaApiError('No Gitea URL configured - add one via Secrets Manager (product '
                              'gitea, key URL, e.g. http://192.168.102.148:3011).')
     return url.rstrip('/')
 
 
 def list_gitea_tokens():
-    """Keys under the "gitea" category that are actual tokens - excludes the reserved URL
+    """Keys under the "gitea" product that are actual tokens - excludes the reserved URL
     entry, so it's never offered as a fake "token" candidate."""
-    return [(key, updated_at) for key, updated_at in list_category_keys('gitea')
+    return [(key, updated_at) for key, updated_at in list_product_keys('gitea')
             if key not in RESERVED_GITEA_KEYS]
 
 

@@ -1,17 +1,27 @@
 #!/usr/bin/env python3
 # Shared module (not a standalone Script-Server script): a single categorized
-# JSON store for API keys/tokens needed by other scripts - e.g. a "finance"
-# category holding FINNHUB_API_KEY, a "paperless" category holding TOKEN -
-# so unrelated scripts don't need to share one flat namespace of env vars.
+# JSON store for API keys/tokens needed by other scripts - e.g. a "gitea"
+# product holding a TOKEN, a "paperless" product holding a TOKEN - so
+# unrelated scripts don't need to share one flat namespace of env vars.
+#
+# Terminology: a "product" is the service/product the secret belongs to
+# (gitea, paperless, pushover, adobe...) and a "key" is the specific
+# credential within it (TOKEN, URL, API_KEY...). Each product should be one
+# real product/service - if you're tempted to create a grouping/topic
+# product (e.g. an old "finance" product that held eight unrelated
+# providers' keys), don't: give each provider its own product instead, one
+# key each, so "product" always means exactly what it says. See ROADMAP.md's
+# entry on this rename for why - a prior version of this store had a
+# "finance" grouping and it caused real confusion.
 #
 # Consuming a secret from a Python script running under Script-Server:
 #   import sys
 #   sys.path.insert(0, '/app/scripts/shared')
 #   from secrets_store import get_secret
-#   api_key = get_secret('finance', 'FINNHUB_API_KEY')
+#   api_key = get_secret('finnhub', 'API_KEY')
 #
 # Consuming a secret from Lua/bash (or anything that can shell out):
-#   python3 /app/scripts/shared/secrets_store.py get finance FINNHUB_API_KEY
+#   python3 /app/scripts/shared/secrets_store.py get finnhub API_KEY
 # prints just the raw value to stdout (nothing else), exit code 1 if unset -
 # same "shell out to a Python helper" pattern used for JSON in Lua elsewhere
 # in this repo (see CLAUDE.md's "Lua has no JSON library" note).
@@ -24,9 +34,11 @@
 #
 # This module is also used directly as a dynamic dropdown's values.script:
 # - `dropdown-entries` for Secrets Manager (conf/runners/secrets_manager.json)
-# - `dropdown-category <category>` for a runner that needs to let the user
-#   pick among several stored tokens in one category, e.g. Import from Gitea
-#   picking which stored "gitea" token to use when more than one exists
+# - `list-products` for Secrets Manager's "New Product" field (editable_list -
+#   suggests existing products but still accepts a typed new one)
+# - `dropdown-product <product>` for a runner that needs to let the user pick
+#   among several stored keys for one product, e.g. Import from Gitea picking
+#   which stored "gitea" token to use when more than one exists
 #   (see conf/runners/import_from_gitea.json)
 
 import json
@@ -37,24 +49,17 @@ import time
 STORE_PATH = '/app/data/secrets.json'
 
 # Deliberately loud and self-explanatory, not just "-- new entry --": Script-Server has no way to
-# hide the New Entry field unless this exact sentinel is picked, so the dropdown option itself has
-# to carry the instruction ("fill in New Entry below") rather than relying on a field description
-# the user may not read. Reserved for a genuinely new category - see ADD_KEY_SENTINEL_PREFIX below
-# for adding a key to a category that already exists, which doesn't require typing the category at
-# all (picked from the dropdown instead, so it can never be mistyped/miscased).
-NEW_ENTRY_SENTINEL = '+ CREATE NEW ENTRY IN A NEW CATEGORY (fill in New Entry field below: category/KEY)'
-
-# One of these is offered per existing category (see _cmd_dropdown_entries) so adding another key
-# to a category you already have - the most common "new entry" case in practice - never requires
-# typing (or mistyping/miscasing) the category name: picking this sentinel already tells the main
-# script which category, so New Entry only needs the bare KEY name, e.g. "FINNHUB_API_KEY".
-ADD_KEY_SENTINEL_PREFIX = '+ ADD NEW KEY TO '
-ADD_KEY_SENTINEL_SUFFIX = ' (type just the KEY name below, e.g. API_KEY)'
+# hide the New Product/New Key fields unless this exact sentinel is picked, so the dropdown option
+# itself has to carry the instruction rather than relying on a field description the user may not
+# read. New Product is an editable_list (see list-products below) so an existing product can be
+# picked instead of retyped - this sentinel covers both "add a key to an existing product" and
+# "create a brand new product", since either way the two fields below are just Product + Key now.
+NEW_ENTRY_SENTINEL = '+ CREATE NEW ENTRY (fill in New Product + New Key below)'
 
 # Integrations this fork already has (or expects to have) a consuming script for, so Secrets
 # Manager's dropdown and Secrets Viewer can surface them BEFORE a value is ever set - catching a
 # missing secret before a script fails on it, rather than after. Add an entry here whenever a
-# script is wired to call get_secret() for a category/key that isn't in this list yet.
+# script is wired to call get_secret() for a product/key that isn't in this list yet.
 KNOWN_INTEGRATIONS = [
     ('pushover', 'TOKEN', 'Pushover application token - used by Send Notification'),
     ('pushover', 'USER_KEY', 'Pushover user key - used by Send Notification'),
@@ -67,29 +72,29 @@ KNOWN_INTEGRATIONS = [
                       'Gitea. Reserved key name: never treated as a token by gitea_client.py.'),
     ('gitea', 'TOKEN', 'Default Gitea access token - used by Import from Gitea (Gitea > Settings > '
                         'Applications > Generate New Token). Add more named keys under the gitea '
-                        'category via Secrets Manager if different repos need different tokens.'),
-    ('finance', 'EOD_API_KEY', 'EOD Historical Data API key - used by Portfolio Setup/Update '
-                                'Prices (ss_finance_management) for price fallback when FT '
-                                'Markets/Yahoo fail'),
-    ('finance', 'FMP_API_KEY', 'Financial Modeling Prep API key - reserved, no consuming script '
-                                'yet (ss_finance_management)'),
-    ('finance', 'FRED_API_KEY', 'FRED (Federal Reserve Economic Data) API key - reserved, no '
-                                 'consuming script yet (ss_finance_management)'),
-    ('finance', 'ALPH_API_KEY', 'Alpha Vantage API key - reserved, no consuming script yet '
+                        'product via Secrets Manager if different repos need different tokens.'),
+    ('eod', 'API_KEY', "EOD Historical Data API key - used by Portfolio Setup/Update Prices "
+                        "(ss_finance_management) for price fallback when FT Markets/Yahoo fail. "
+                        "NOTE: that script currently calls get_secret('finance', 'EOD_API_KEY') "
+                        "(the old grouped-category name) - it needs updating to "
+                        "get_secret('eod', 'API_KEY') to match this rename, see ROADMAP.md."),
+    ('fmp', 'API_KEY', 'Financial Modeling Prep API key - reserved, no consuming script yet '
+                        '(ss_finance_management)'),
+    ('fred', 'API_KEY', 'FRED (Federal Reserve Economic Data) API key - reserved, no consuming '
+                         'script yet (ss_finance_management)'),
+    ('alphavantage', 'API_KEY', 'Alpha Vantage API key - reserved, no consuming script yet '
                                  '(ss_finance_management)'),
-    ('finance', 'MKTSTACK_API_KEY', 'Marketstack API key - reserved, no consuming script yet '
-                                     '(ss_finance_management)'),
-    ('finance', 'FINNHUB_API_KEY', 'Finnhub API key - reserved, no consuming script yet '
-                                    '(ss_finance_management)'),
-    ('finance', 'COINAPI_API_KEY', 'CoinAPI key - reserved, no consuming script yet '
-                                    '(ss_finance_management)'),
-    ('finance', 'TIINGO_API_KEY', 'Tiingo API key - reserved, no consuming script yet '
-                                   '(ss_finance_management)'),
+    ('marketstack', 'API_KEY', 'Marketstack API key - reserved, no consuming script yet '
+                                '(ss_finance_management)'),
+    ('finnhub', 'API_KEY', 'Finnhub API key - reserved, no consuming script yet '
+                            '(ss_finance_management)'),
+    ('coinapi', 'API_KEY', 'CoinAPI key - reserved, no consuming script yet (ss_finance_management)'),
+    ('tiingo', 'API_KEY', 'Tiingo API key - reserved, no consuming script yet (ss_finance_management)'),
 ]
 
-# Sentinel for a dropdown scoped to one category (see list_category_keys/dropdown-category) -
-# means "don't pick a specific stored token, let the caller decide" (e.g. Import from Gitea falls
-# back to a manually entered token, or auto-selects if exactly one is stored under that category).
+# Sentinel for a dropdown scoped to one product (see list_product_keys/dropdown-product) - means
+# "don't pick a specific stored key, let the caller decide" (e.g. Import from Gitea falls back to
+# a manually entered token, or auto-selects if exactly one is stored under that product).
 AUTO_SENTINEL = '-- auto (manual token field, or the only stored one) --'
 
 
@@ -115,79 +120,71 @@ def save_store(store):
         pass  # best-effort - same QNAP bind-mount chmod caveat as elsewhere in this repo
 
 
-def get_secret(category, key):
-    """Returns the raw secret value, or None if the category/key doesn't exist."""
+def get_secret(product, key):
+    """Returns the raw secret value, or None if the product/key doesn't exist."""
     store = load_store()
-    entry = store.get(category, {}).get(key)
+    entry = store.get(product, {}).get(key)
     return entry.get('value') if entry else None
 
 
-def set_secret(category, key, value):
+def set_secret(product, key, value):
     store = load_store()
-    store.setdefault(category, {})[key] = {
+    store.setdefault(product, {})[key] = {
         'value': value,
         'updated_at': time.strftime('%Y-%m-%d %H:%M:%S'),
     }
     save_store(store)
 
 
-def delete_secret(category, key):
+def delete_secret(product, key):
     store = load_store()
-    if category in store and key in store[category]:
-        del store[category][key]
-        if not store[category]:
-            del store[category]
+    if product in store and key in store[product]:
+        del store[product][key]
+        if not store[product]:
+            del store[product]
         save_store(store)
         return True
     return False
 
 
-def list_categories():
+def list_products():
     return sorted(load_store().keys())
 
 
-def list_category_keys(category):
-    """Returns (key, updated_at) tuples for all keys currently set under one category."""
-    entries = load_store().get(category, {})
+def list_product_keys(product):
+    """Returns (key, updated_at) tuples for all keys currently set under one product."""
+    entries = load_store().get(product, {})
     return sorted(
         [(key, entry.get('updated_at', '')) for key, entry in entries.items()],
         key=lambda e: e[0].lower(),
     )
 
 
-def category_from_add_key_sentinel(entry):
-    """If entry is one of the per-category "+ ADD NEW KEY TO <category>" sentinels, returns that
-    category; otherwise None."""
-    if entry.startswith(ADD_KEY_SENTINEL_PREFIX) and entry.endswith(ADD_KEY_SENTINEL_SUFFIX):
-        return entry[len(ADD_KEY_SENTINEL_PREFIX):-len(ADD_KEY_SENTINEL_SUFFIX)]
-    return None
-
-
 def list_known_placeholders():
     """Known integrations (see KNOWN_INTEGRATIONS) that don't have a value set yet -
-    (category, key, description) tuples."""
+    (product, key, description) tuples."""
     store = load_store()
     return [
-        (category, key, description)
-        for category, key, description in KNOWN_INTEGRATIONS
-        if key not in store.get(category, {})
+        (product, key, description)
+        for product, key, description in KNOWN_INTEGRATIONS
+        if key not in store.get(product, {})
     ]
 
 
 def list_entries_metadata():
-    """Returns (category, key, updated_at, value_length) tuples - never the raw value."""
+    """Returns (product, key, updated_at, value_length) tuples - never the raw value."""
     store = load_store()
     result = []
-    for category, keys in store.items():
+    for product, keys in store.items():
         for key, entry in keys.items():
             value = entry.get('value', '')
-            result.append((category, key, entry.get('updated_at', ''), len(value)))
+            result.append((product, key, entry.get('updated_at', ''), len(value)))
     return sorted(result, key=lambda e: (e[0].lower(), e[1].lower()))
 
 
 def _cmd_get(args):
     if len(args) != 2:
-        print('Usage: secrets_store.py get <category> <key>', file=sys.stderr)
+        print('Usage: secrets_store.py get <product> <key>', file=sys.stderr)
         sys.exit(1)
     value = get_secret(args[0], args[1])
     if value is None:
@@ -196,42 +193,41 @@ def _cmd_get(args):
     print(value, end='')
 
 
-def _cmd_list_categories(_args):
-    for category in list_categories():
-        print(category)
+def _cmd_list_products(_args):
+    for product in list_products():
+        print(product)
 
 
 def _cmd_dropdown_entries(_args):
     print(NEW_ENTRY_SENTINEL)
-    for category in list_categories():
-        print(f'{ADD_KEY_SENTINEL_PREFIX}{category}{ADD_KEY_SENTINEL_SUFFIX}')
-    for category, key, updated_at, _length in list_entries_metadata():
-        print(f'{category} | {key} | ✓ set - last updated {updated_at}')
-    for category, key, description in list_known_placeholders():
-        print(f'{category} | {key} | ○ not set yet - {description}')
+    for product, key, updated_at, _length in list_entries_metadata():
+        print(f'{product} | {key} | ✓ set - last updated {updated_at}')
+    for product, key, description in list_known_placeholders():
+        print(f'{product} | {key} | ○ not set yet - {description}')
 
 
-def _cmd_dropdown_category(args):
+def _cmd_dropdown_product(args):
     if len(args) != 1:
-        print('Usage: secrets_store.py dropdown-category <category>', file=sys.stderr)
+        print('Usage: secrets_store.py dropdown-product <product>', file=sys.stderr)
         sys.exit(1)
-    category = args[0]
+    product = args[0]
     print(AUTO_SENTINEL)
-    for key, updated_at in list_category_keys(category):
+    for key, updated_at in list_product_keys(product):
         print(f'{key} | last set {updated_at}')
 
 
 def main():
     if len(sys.argv) < 2:
-        print('Usage: secrets_store.py <get|list-categories|dropdown-entries> [args...]', file=sys.stderr)
+        print('Usage: secrets_store.py <get|list-products|dropdown-entries|dropdown-product> [args...]',
+              file=sys.stderr)
         sys.exit(1)
 
     command, rest = sys.argv[1], sys.argv[2:]
     commands = {
         'get': _cmd_get,
-        'list-categories': _cmd_list_categories,
+        'list-products': _cmd_list_products,
         'dropdown-entries': _cmd_dropdown_entries,
-        'dropdown-category': _cmd_dropdown_category,
+        'dropdown-product': _cmd_dropdown_product,
     }
     if command not in commands:
         print(f'Unknown command: {command}', file=sys.stderr)

@@ -100,7 +100,7 @@ For the usage please check [this ticket](https://github.com/bugy/script-server/i
 >   picked path
 > - **Import from Gitea** — pulls scripts/runners from a Gitea repo using the same layout into this
 >   instance (dry-run by default, `--apply` to write). No Gitea URL or owner/username field on the
->   form at all — both the URL and one or more tokens live in Secrets Manager (category `gitea`,
+>   form at all — both the URL and one or more tokens live in Secrets Manager (product `gitea`,
 >   keys `URL` and `TOKEN`), and the Repo dropdown lists live `owner/repo` options straight from
 >   Gitea's own API for whichever token is in play. The banner checks both are set and confirms the
 >   token actually works before you do anything.
@@ -116,10 +116,10 @@ For the usage please check [this ticket](https://github.com/bugy/script-server/i
 > - **Network Device Labelling** — name devices in that inventory (e.g. "Chris' iPhone", "QNAP NAS
 >   Living Room")
 > - **Network Device Inventory** — browse the labelled inventory as a table (`html_iframe`)
-> - **Secrets Manager** — set/update/delete an entry in a categorized secrets store (e.g. a
->   `finance` category holding an API key, a `paperless` category holding a token) shared by other
+> - **Secrets Manager** — set/update/delete an entry in a secrets store keyed by product (e.g. a
+>   `finnhub` product holding an API key, a `paperless` product holding a token) shared by other
 >   scripts; values are never echoed back
-> - **Secrets Viewer** — browse that store as a table (`html_iframe`) — category, key, last-set,
+> - **Secrets Viewer** — browse that store as a table (`html_iframe`) — product, key, last-set,
 >   never the actual value
 >
 > Use them as templates for your own.

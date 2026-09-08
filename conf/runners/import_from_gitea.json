@@ -1,8 +1,8 @@
 {
-  "_version": "4.1.0",
+  "_version": "4.1.1",
   "name": "Import from Gitea",
   "group": "Admin",
-  "description": "Mirrors a Gitea repo's top-level scripts/ + runners/ folders into this instance (scripts/ -> /app/scripts, runners/ -> /app/conf/runners). Overwrites existing files with the latest version, and REMOVES files that this same source previously imported but no longer has upstream (e.g. you deleted/renamed a script in Gitea) - only files previously imported from this exact url+owner+repo are ever candidates for removal, nothing else under scripts/ or conf/runners/ is touched. Dry-run by default (lists what would change, writes nothing) - check 'apply' to actually sync. No Gitea URL field here either: both the URL and its token(s) live in the Secrets Store's 'gitea' category (key URL, plus one or more token keys) via Secrets Manager - the banner (before you click Run) checks both are set and confirms the token actually works. Repo below then lists live 'owner/repo' options straight from Gitea for that token, no owner/username to type separately. The manual 'token' field is a one-off override for the actual import step only - Script-Server does not allow a masked/secure field to drive a dropdown, so it can't populate Repo live; use Manual Repo below in that case.",
+  "description": "Mirrors a Gitea repo's top-level scripts/ + runners/ folders into this instance (scripts/ -> /app/scripts, runners/ -> /app/conf/runners). Overwrites existing files with the latest version, and REMOVES files that this same source previously imported but no longer has upstream (e.g. you deleted/renamed a script in Gitea) - only files previously imported from this exact url+owner+repo are ever candidates for removal, nothing else under scripts/ or conf/runners/ is touched. Dry-run by default (lists what would change, writes nothing) - check 'apply' to actually sync. No Gitea URL field here either: both the URL and its token(s) live in the Secrets Store's 'gitea' product (key URL, plus one or more token keys) via Secrets Manager - the banner (before you click Run) checks both are set and confirms the token actually works. Repo below then lists live 'owner/repo' options straight from Gitea for that token, no owner/username to type separately. The manual 'token' field is a one-off override for the actual import step only - Script-Server does not allow a masked/secure field to drive a dropdown, so it can't populate Repo live; use Manual Repo below in that case.",
   "script_path": "import_from_gitea.py",
   "working_directory": "/app/scripts",
   "preload_script": {
@@ -20,7 +20,7 @@
     {
       "name": "token_key",
       "param": "--token-key",
-      "description": "Stored Gitea token to use (only needed when more than one is stored under the 'gitea' category) - also what drives the live Repo dropdown below",
+      "description": "Stored Gitea token to use (only needed when more than one is stored under the 'gitea' product) - also what drives the live Repo dropdown below",
       "type": "list",
       "values": {
         "script": "/app/scripts/shared/gitea_client.py dropdown-tokens"

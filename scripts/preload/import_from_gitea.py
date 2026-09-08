@@ -70,7 +70,7 @@ def main():
 
     if not tokens:
         error_banner(
-            'No Gitea token is configured yet. Add one via <b>Secrets Manager</b> (category '
+            'No Gitea token is configured yet. Add one via <b>Secrets Manager</b> (product '
             '<span class="mono">gitea</span>, e.g. key <span class="mono">TOKEN</span>) before '
             'importing from a private repo.'
         )
