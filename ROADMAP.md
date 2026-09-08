@@ -335,6 +335,59 @@ change is in this repo:
   `Portfolio Setup/Update Prices` script in `ss_finance_management` calls
   `get_secret('finance', 'EOD_API_KEY')` and needs updating to `get_secret('eod', 'API_KEY')` -
   a change to a different repo, outside this session's access (see In Progress below).
+- **Three follow-ups from the same round of feedback, all built** — per-secret descriptions,
+  data-file-backed known integrations, and a Secret Ingredients Check scanner:
+  1. **Per-secret description field** - `secrets.json` entries can now carry a `description`
+     alongside `value`/`updated_at`. `set_secret(product, key, value, description='')` only
+     overwrites the stored description when a non-empty one is passed, so updating just the value
+     via Secrets Manager's new optional Description field never silently wipes an existing one.
+     Secrets Viewer's per-product table gained a Description column (truncated with a hover
+     title, matching MOTD's own `.desc` styling - reused those exact CSS rules).
+  2. **`KNOWN_INTEGRATIONS` moved from a hardcoded Python list to checked-in data** -
+     `conf/secrets_defaults.json` (15 entries, same product/key/description content as before).
+     Resolved the merge-strategy question flagged as open last time by not needing a merge at
+     all: `secrets_store.load_known_integrations()` reads the file live on every call, exactly
+     mirroring how the old Python constant was already read live - the checklist and
+     `/app/data/secrets.json` (the real values) stay two entirely separate files, so a `git pull`
+     that adds a new placeholder can never touch, let alone clobber, a real stored value. Simpler
+     than the "copy defaults into the store" idea originally floated, and avoids that idea's
+     first-run/re-seeding problem entirely by not doing it.
+  3. **Secret Ingredients Check** (`scripts/secret_ingredients_check.py` +
+     `conf/runners/secret_ingredients_check.json`) - a standalone Admin script (option (b) from
+     the two considered last time; the Import-from-Gitea-hook option (a) is still open, see
+     Planned/Ideas below), mirroring `motd.py`'s Script Ingredients Check pattern exactly
+     (themed collapsible HTML, `output_format html_iframe`). Regex-scans every `.py`/`.sh`/`.lua`
+     file under `scripts/` for `get_secret('product', 'key')` and `secrets_store.py get product
+     key` calls, cross-checks the referenced product/key pairs against what's actually
+     configured, and reports two groups: **Referenced but Not Configured** (the main ask - a
+     secret a script expects that isn't set) and **Set but Never Referenced** (the "wider quality
+     checks" extension the user flagged as a later idea, included now since the same scan already
+     has both lists in hand). Explicitly labeled best-effort in its own output - a static regex
+     scan cannot resolve a product/key built from a variable at runtime, so results are a floor
+     on real issues, not an exhaustive guarantee.
+
+     **Real bug caught during verification, not shipped:** an early version's regexes matched
+     across newlines, so this script's own multi-line header comment (documenting the very
+     patterns being matched) was picked up as a false "reference" - confirmed by actually running
+     it against this repo's real `scripts/` folder before calling it done, not just eyeballing
+     the code. Fixed by scanning line-by-line instead of over whole file contents, adding a
+     `VALID_TOKEN_RE` filter (a real product/key is always a plain identifier - anything matching
+     `<product>`-style placeholder text or containing `$`/`<`/`>` is a doc string or an
+     unresolvable shell variable, not a real finding), and excluding the scanner's own file from
+     the scan entirely (its docstring will always contain literal example call syntax needed to
+     document the patterns, which is indistinguishable from a real call at the regex level - not
+     worth trying to out-clever with an even smarter regex). Verified clean afterward against a
+     controlled temp store: real references in `notify.py` and `gitea_client.py` correctly
+     flagged as missing, a deliberately-set-but-unreferenced test secret correctly landed in the
+     "unused" group, and zero false positives remained.
+
+     **Scope note:** only the standalone on-demand script was built. The "run automatically
+     whenever something is added or updated" framing from the original ask isn't realistic as a
+     true file-watcher (Script-Server has none) - hooking this into Import from Gitea's own apply
+     step, so it runs at the actual point in this fork's workflow where scripts change, is still
+     open and tracked under Planned below.
+  `secrets_manager.py` -> 1.5.0, `secrets_manager.json` -> 1.6.0, `secrets_viewer.py` -> 1.5.0,
+  `secret_ingredients_check.py`/`.json` -> 1.0.0 (new).
 
 ## In Progress
 
@@ -344,12 +397,18 @@ change is in this repo:
   real NAS yet. Run `docker compose up -d --build`, then retype `EOHD` (or
   any short all-caps token) into a plain text field on the actual iPad and
   confirm it now posts unmangled.
-- **Needs the same rebuild to actually appear**: the new `KNOWN_INTEGRATIONS` entries for `eod`,
-  `fmp`, `fred`, `alphavantage`, `marketstack`, `finnhub`, `coinapi`, `tiingo` (see the
-  Category-to-Product rework below) - code-only change to a Python list, picked up on next
-  container restart (no frontend rebuild strictly required for this one, but it'll land alongside
-  the textfield fix anyway). Confirm they show up in Secrets Manager's dropdown and Secrets
-  Viewer's "Not Yet Configured" list after restart.
+- **Needs the same rebuild to actually appear**: the known-integration entries for `eod`, `fmp`,
+  `fred`, `alphavantage`, `marketstack`, `finnhub`, `coinapi`, `tiingo`, now sourced from
+  `conf/secrets_defaults.json` rather than a Python list - a plain file, picked up live on next
+  read, no container restart strictly required for this one either, but confirm they show up in
+  Secrets Manager's dropdown and Secrets Viewer's "Not Yet Configured" list once the file is
+  actually on the NAS.
+- **Needs a live-NAS check**: the per-secret Description field (Secrets Manager/Viewer) and the
+  new Secret Ingredients Check runner - both verified standalone against a temp store and a
+  controlled test (see Done above), neither exercised through the real UI yet. For Secret
+  Ingredients Check specifically, worth running once against the real, current `scripts/` +
+  `secrets.json` to see what it actually finds on this NAS - that first real run is the point of
+  building it.
 - **Needs a live-NAS check**: Secrets Manager's reworked New Product (`editable_list`) + New Key
   fields, replacing the old single "New Entry" text field entirely - `parse_entry()` logic
   verified standalone (see Done below), but not yet exercised through the real dropdown/preload
@@ -381,52 +440,14 @@ change is in this repo:
    `@media (prefers-color-scheme: dark)` — script-server already serves this file if present. Zero
    code changes for automatic light/dark; a manual in-UI toggle would be a Core change on top of this.
 
-4. **Per-secret description field, settable via Secrets Manager** — *Admin script + data model*.
-   Direct user feedback: right now a description only exists for entries still listed in
-   `KNOWN_INTEGRATIONS` (a hardcoded Python list) - once a value is actually set, or for any
-   ad-hoc product/key created via Secrets Manager's New Product/New Key fields (e.g. a hand-typed
-   `Adobe`/`API_KEY`), there is no way to record or see *why* that secret exists or how it's used.
-   Add a `description` field to each entry in `secrets.json` (alongside `value`/`updated_at`),
-   settable/updatable via a new optional field in Secrets Manager, and shown in Secrets Viewer for
-   both set and not-yet-set entries (today only the not-yet-set/placeholder table shows a
-   description, sourced from the hardcoded list - the "set" table shows none at all). For an
-   entry that's also in `KNOWN_INTEGRATIONS`, a user-entered description should probably override
-   the coded one rather than sit alongside it - the user's own words about their actual use case
-   are more useful once they've actually configured it.
+4. **Hook Secret Ingredients Check into Import from Gitea's apply step** — *Admin script edit*.
+   The standalone runner is done (see Done above) and covers the on-demand case; this closes the
+   "whenever something is added or updated" half of the original ask by running the same scan as
+   an extra step at the end of `import_from_gitea.py --apply`, since that's the actual point in
+   this fork's workflow where scripts get added/changed - append its findings to that run's own
+   output rather than duplicating the scan logic.
 
 ## Ideas / Backlog (need more design discussion before committing)
-
-- **Ship a default/example `secrets.json` instead of hardcoding known integrations in Python** —
-  *needs a design decision on merge strategy before building*. Direct user feedback:
-  `KNOWN_INTEGRATIONS` in `secrets_store.py` hides the list of expected secrets inside a script
-  instead of making it visible as data, and doesn't let a user browse/edit "known but unset"
-  entries the same way as real ones. Proposed direction: ship a checked-in seed/example file
-  (e.g. `conf/secrets.default.json`) with empty-value placeholder entries carrying the same
-  description text `KNOWN_INTEGRATIONS` has today (ties into the per-secret description field
-  above), and have Secrets Manager/Viewer read that file merged with the real
-  `/app/data/secrets.json` rather than a Python constant - so the expected-secrets list is just
-  data, visible and diffable in git, not buried in `secrets_store.py`. Open question that needs
-  resolving before this is buildable: how does the seed get applied - copied into
-  `/app/data/secrets.json` once on first run (simple, but a later `git pull` that adds new
-  placeholder products would never reach an already-initialized store), or merged in live on
-  every read (stays current, but needs to correctly distinguish "seed says not-yet-set" from "user
-  explicitly set an empty string" and must never let a re-copied seed clobber a real value).
-  Whichever direction, this would retire `KNOWN_INTEGRATIONS` as a Python list entirely - the same
-  product/key/description data, just moved into the data file it was always describing.
-- **Secret Ingredients Check** — *Admin script, mirrors the existing `motd.py` "Script Ingredients
-  Check" pattern*. User's request, explicitly flagged as exploratory/not urgent: a scanner that
-  greps every script under `scripts/` for `get_secret(...)` / `secrets_store.py get ...` calls,
-  extracts the product/key pairs actually referenced in code, and cross-checks them against what's
-  really set in the store - flagging any secret a script expects that isn't configured yet,
-  visible before the script fails on it at runtime rather than after. Script-Server has no
-  built-in file-watcher/webhook trigger to run this truly "whenever something is added or
-  updated," so the realistic options are: (a) run it as an extra step at the end of every Import
-  from Gitea execution, since that's the actual point in this fork's workflow where scripts get
-  added/changed, or (b) a standalone on-demand Admin script the user runs periodically, same
-  pattern as MOTD's own Script Ingredients Check. User's own framing: this could extend later to
-  wider health/quality-control signals beyond secrets, not just a secrets-only checker - worth
-  designing with that extensibility in mind (e.g. folding into or running alongside `motd.py`'s
-  existing missing-file audit) rather than as a one-off.
 
 - **Encrypted-at-rest secrets store** — *Core-adjacent*. The plaintext categorized store (Secrets
   Manager/Viewer, see Done above) now covers the "manage multiple API keys via the Admin UI, no

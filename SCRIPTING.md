@@ -1,6 +1,6 @@
 # SCRIPTING.md — Script-Server Scripting Conventions (Focused)
 
-Version: 1.4.0
+Version: 1.5.0
 Last updated: 2026-09-08
 
 This is the **focused** convention doc for any Claude session writing
@@ -371,9 +371,9 @@ in order of preference for most cases:
    (a `paperless_metrics_dashboard.py` script arrived with its own
    dotenv-based secrets, unaware `paperless.URL`/`paperless.TOKEN` were
    already reserved in the shared store). Check whether your service's
-   product already exists (ask, or read
-   `scripts/shared/secrets_store.py`'s `KNOWN_INTEGRATIONS` list) before
-   building anything of your own.
+   product already exists (ask, or read `conf/secrets_defaults.json` -
+   checked-in data, not a Python file) before building anything of your
+   own.
 
    **Adding a new secret, via Secrets Manager (a runner in the main
    script-server repo, not something you edit here):** open Secrets
@@ -383,7 +383,9 @@ in order of preference for most cases:
    `+ CREATE NEW ENTRY` and fill in two fields together with Value in the
    same run: **New Product** (an `editable_list` - pick an existing
    product from the autocomplete, or type a brand new one, e.g. `Adobe`)
-   and **New Key** (plain text, e.g. `API_KEY`). Run it - the value is
+   and **New Key** (plain text, e.g. `API_KEY`). An optional **Description**
+   field records what the secret is for - leaving it blank on an update
+   keeps whatever description was already there. Run it - the value is
    never echoed back, only a character count confirms it was set. This is
    a human action inside Script-Server's UI; a Claude session in a
    sibling repo can tell the user exactly what product/key to add (and
@@ -393,8 +395,8 @@ in order of preference for most cases:
    consume — a wrong guess is worse than none (looks configured while
    silently failing). Confirm the exact key your script calls
    `get_secret()` for, and if it's new, that's a learning to flag (see
-   Learning & Sharing above) so it gets added to `KNOWN_INTEGRATIONS` and
-   shows up in Secrets Manager/Viewer's readiness checklist.
+   Learning & Sharing above) so it gets added to `conf/secrets_defaults.json`
+   and shows up in Secrets Manager/Viewer's readiness checklist.
 
    **Security posture:** plaintext on disk (`chmod 600` best-effort),
    same risk tier as a Docker environment block — not an encrypted

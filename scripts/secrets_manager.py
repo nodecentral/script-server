@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Name: secrets_manager.py
-# Version: 1.4.0
+# Version: 1.5.0
 # Description: Sets, updates, or deletes an entry in the categorized secrets
 #              store (/app/data/secrets.json via scripts/shared/secrets_store.py)
 #              - e.g. product "gitea" holding TOKEN, product "finnhub" holding
@@ -11,15 +11,19 @@
 #              product), pick "+ CREATE NEW ENTRY" and fill in New Product
 #              (an existing product from the list, or type a new one, e.g.
 #              Adobe) and New Key (e.g. API_KEY) - both are needed together,
-#              in the same run as the Value. Values are never echoed back -
-#              only a character count confirms what was set. After every run
-#              (success or error) this re-renders the current store (same
-#              view as Secrets Viewer) so the result is immediately visible
-#              and the next entry can be set right away without navigating
-#              anywhere. Run standalone (./secrets_manager.py --entry
+#              in the same run as the Value. Description is optional free
+#              text (what this secret is for / how it's used) - leave it
+#              blank on an update and whatever was there before is kept, so
+#              re-setting just the value never silently wipes a description
+#              out. Values are never echoed back - only a character count
+#              confirms what was set. After every run (success or error) this
+#              re-renders the current store (same view as Secrets Viewer) so
+#              the result is immediately visible and the next entry can be
+#              set right away without navigating anywhere. Run standalone
+#              (./secrets_manager.py --entry
 #              "+ CREATE NEW ENTRY (fill in New Product + New Key below)"
-#              --new_product finnhub --new_key API_KEY --value secret123)
-#              or from Script-Server.
+#              --new_product finnhub --new_key API_KEY --value secret123
+#              --description "Used by X for Y") or from Script-Server.
 
 import argparse
 import html
@@ -65,6 +69,7 @@ def main():
     parser.add_argument('--new_key', default=os.environ.get('PARAM_NEW_KEY', ''))
     parser.add_argument('--action', default=os.environ.get('PARAM_ACTION', 'set'))
     parser.add_argument('--value', default=os.environ.get('PARAM_VALUE', ''))
+    parser.add_argument('--description', default=os.environ.get('PARAM_DESCRIPTION', ''))
     args = parser.parse_args()
 
     if not args.entry:
@@ -87,7 +92,7 @@ def main():
         fail('A value is required when action is "Set / Update value".')
         return
 
-    set_secret(product, key, args.value)
+    set_secret(product, key, args.value, args.description)
     render_result(True, f'Set {product}.{key} ({len(args.value)} characters)')
 
 

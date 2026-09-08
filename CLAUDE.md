@@ -1,6 +1,6 @@
 # Script-Server.md — Platform Context
 
-Version: 1.29.0
+Version: 1.30.0
 Last updated: 2026-09-08
 
 ## Platform Overview
@@ -673,8 +673,8 @@ Managed via two runners in `conf/runners/` (`secrets_manager.py` /
      `get_secret('finance', 'EOD_API_KEY')` (the old grouped name) - it
      needs updating to `get_secret('eod', 'API_KEY')` to match. That's a
      change to a different repo, outside this session's access; flagged in
-     `secrets_store.py`'s `KNOWN_INTEGRATIONS` entry for `eod` and in
-     `ROADMAP.md` for whoever picks up that repo next.
+     `conf/secrets_defaults.json`'s entry for `eod` and in `ROADMAP.md` for
+     whoever picks up that repo next.
 
   The lesson generalizes: minimizing field count is the right instinct
   when the merge doesn't hide a real distinction, but forcing two genuinely
@@ -690,32 +690,50 @@ Managed via two runners in `conf/runners/` (`secrets_manager.py` /
 
 ### Known Integrations checklist
 
-`scripts/shared/secrets_store.py`'s `KNOWN_INTEGRATIONS` list names
+`conf/secrets_defaults.json` - checked into git, a JSON list of
+`{"product": ..., "key": ..., "description": ...}` objects - names
 product/key pairs a script actually calls `get_secret()` for (or expects
-to, once built), each with a one-line description. Secrets Manager's
-dropdown lists these alongside real entries — a `not set yet` row is
-selectable exactly like an already-set one, so filling in a known
-integration never requires re-typing its product/key by hand. Secrets
-Viewer surfaces the same list as a **Not Yet Configured** section (a
-Script-Ingredients-Check-style readiness check for secrets, not just
-files), so a missing credential is visible before a script fails on it
-rather than after.
+to, once built), each with a one-line description. This is deliberately
+**data, not code**: `secrets_store.py`'s `load_known_integrations()`
+reads it at call time, so the expected-secrets checklist is visible and
+diffable in git without opening a Python file, and it's a completely
+separate file from `/app/data/secrets.json` (gitignored, NAS-local, the
+real values) - nothing here is ever copied into that file, so a fresh
+`git pull` that adds a new placeholder can never clobber a real stored
+value. Secrets Manager's dropdown lists these alongside real entries — a
+`not set yet` row is selectable exactly like an already-set one, so
+filling in a known integration never requires re-typing its product/key
+by hand. Secrets Viewer surfaces the same list as a **Not Yet
+Configured** section (a Script-Ingredients-Check-style readiness check
+for secrets, not just files), so a missing credential is visible before
+a script fails on it rather than after.
 
-**When wiring a script to consume a secret, add it to `KNOWN_INTEGRATIONS`
-in the same change** — that's what keeps the checklist accurate. A product
-without a real consuming script yet (e.g. `paperless` below, added ahead of
-an actual Paperless-ngx integration script) is a legitimate placeholder,
-but say so in its description so it's clear nothing reads it yet.
+**When wiring a script to consume a secret, add it to
+`conf/secrets_defaults.json` in the same change** — that's what keeps the
+checklist accurate. A product without a real consuming script yet (e.g.
+`paperless` below, added ahead of an actual Paperless-ngx integration
+script) is a legitimate placeholder, but say so in its description so
+it's clear nothing reads it yet.
 
 Confirmed real integration (`notify.py` calls these directly):
 
-```python
-KNOWN_INTEGRATIONS = [
-    ('pushover', 'TOKEN', 'Pushover application token - used by Send Notification'),
-    ('pushover', 'USER_KEY', 'Pushover user key - used by Send Notification'),
-    ('prowl', 'TOKEN', 'Prowl API key - used by Send Notification'),
+```json
+[
+  {"product": "pushover", "key": "TOKEN", "description": "Pushover application token - used by Send Notification"},
+  {"product": "pushover", "key": "USER_KEY", "description": "Pushover user key - used by Send Notification"},
+  {"product": "prowl", "key": "TOKEN", "description": "Prowl API key - used by Send Notification"}
 ]
 ```
+
+A **set** secret can also carry its own description, entered via Secrets
+Manager's optional Description field and stored in `secrets.json` itself
+(`{value, updated_at, description}`) - shown in Secrets Viewer's per-entry
+table. Leaving Description blank on an update keeps whatever was already
+stored, so re-setting just the value never silently wipes a description
+out. A user-entered description naturally supersedes the
+`secrets_defaults.json` one in the UI once a value is actually set, since
+Secrets Viewer's "set" table reads live from `secrets.json`, not the
+defaults file, at that point.
 
 **Never guess a product/key name for a script you can't see the source
 of.** A wrong guess is worse than no placeholder at all — it looks
@@ -785,9 +803,9 @@ the reference implementation — raises the same `GiteaApiError` pattern as
 token resolution when unset, with a message pointing at Secrets Manager.
 Add any such reserved key to `RESERVED_GITEA_KEYS` (or the equivalent set
 for a different domain's shared module) so it's excluded everywhere
-tokens are enumerated, and add it to `KNOWN_INTEGRATIONS` in
-`secrets_store.py` too, exactly like a token, so it shows up in Secrets
-Manager/Viewer's readiness checklist the same way.
+tokens are enumerated, and add it to `conf/secrets_defaults.json` too,
+exactly like a token, so it shows up in Secrets Manager/Viewer's
+readiness checklist the same way.
 
 ### Deriving an identity from a token instead of asking for it separately
 

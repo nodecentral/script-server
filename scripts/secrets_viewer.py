@@ -1,24 +1,26 @@
 #!/usr/bin/env python3
 # Name: secrets_viewer.py
-# Version: 1.4.0
+# Version: 1.5.0
 # Description: Renders the categorized secrets store (/app/data/secrets.json,
 #              managed via Secrets Manager) as a styled HTML page - product,
-#              key, and when it was last set. Never shows values, not even
-#              partially - only a character-count hint. Colours/fonts match
-#              Script-Server's own theme (web-src/src/assets/css/shared.css's
-#              --primary-color, --surface-color etc.) since output_format
-#              html_iframe renders in an isolated document that doesn't
-#              inherit the app's stylesheet. Also lists known integrations
-#              (see secrets_store.KNOWN_INTEGRATIONS) that don't have a value
-#              set yet, so a missing secret is visible before a consuming
-#              script fails on it - that checklist is a hardcoded list in
-#              secrets_store.py, NOT data read from a file, and this page
-#              says so explicitly (both as a banner when secrets.json
-#              doesn't exist at all, and as a permanent caption on the
-#              Not Yet Configured section) since it's easy to mistake for
-#              real stored data otherwise. render_body() is reused directly by
-#              secrets_manager.py to show the up-to-date store right after a
-#              change, alongside its own confirmation banner. Run standalone
+#              key, description, and when it was last set. Never shows
+#              values, not even partially - only a character-count hint.
+#              Colours/fonts match Script-Server's own theme
+#              (web-src/src/assets/css/shared.css's --primary-color,
+#              --surface-color etc.) since output_format html_iframe
+#              renders in an isolated document that doesn't inherit the
+#              app's stylesheet. Also lists known integrations (see
+#              secrets_store.KNOWN_INTEGRATIONS_PATH,
+#              conf/secrets_defaults.json) that don't have a value set yet,
+#              so a missing secret is visible before a consuming script
+#              fails on it - that checklist is checked-in DATA, not
+#              secrets.json itself, and this page says so explicitly (both
+#              as a banner when secrets.json doesn't exist at all, and as a
+#              permanent caption on the Not Yet Configured section) since
+#              it's easy to mistake for real stored data otherwise.
+#              render_body() is reused directly by secrets_manager.py to
+#              show the up-to-date store right after a change, alongside
+#              its own confirmation banner. Run standalone
 #              (./secrets_viewer.py) or from Script-Server.
 
 import html
@@ -163,6 +165,15 @@ STYLE = """
     background: var(--background-color);
     border-bottom: 1px solid var(--separator-color);
   }
+  .desc {
+    display: block;
+    max-width: 320px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--font-color-medium);
+  }
+  .na { color: var(--font-color-medium); }
 </style>
 """
 
@@ -187,9 +198,9 @@ def render_file_status_banner():
 
 def render_placeholders_group(placeholders):
     print(f'<details class="group" open><summary>Not Yet Configured ({len(placeholders)})</summary>')
-    print('<div class="section-note">This list comes from a hardcoded checklist in '
-          'secrets_store.py (KNOWN_INTEGRATIONS) - not from secrets.json. It shows what scripts '
-          'expect, whether or not the file exists yet.</div>')
+    print('<div class="section-note">This list comes from conf/secrets_defaults.json (checked '
+          'into git) - not from secrets.json. It shows what scripts expect, whether or not '
+          'secrets.json exists yet.</div>')
     print('<div class="table-scroll"><table><thead><tr>'
           '<th>Product</th><th>Key</th><th>Value</th><th>Needed For</th></tr></thead><tbody>')
     for product, key, description in placeholders:
@@ -216,8 +227,8 @@ def render_body():
         return
 
     groups = {}
-    for product, key, updated_at, length in entries:
-        groups.setdefault(product, []).append((key, updated_at, length))
+    for product, key, updated_at, length, description in entries:
+        groups.setdefault(product, []).append((key, updated_at, length, description))
 
     total = len(entries)
     render_file_status_banner()
@@ -237,12 +248,16 @@ def render_body():
         rows = groups[product]
         print(f'<details class="group" open><summary>{html.escape(product)} ({len(rows)})</summary>')
         print('<div class="table-scroll"><table><thead><tr>'
-              '<th>Key</th><th>Value</th><th>Last Set</th></tr></thead><tbody>')
-        for key, updated_at, length in rows:
+              '<th>Key</th><th>Value</th><th>Description</th><th>Last Set</th></tr></thead><tbody>')
+        for key, updated_at, length, description in rows:
+            desc_html = (f'<span class="desc" title="{html.escape(description)}">'
+                         f'{html.escape(description)}</span>') if description else (
+                         '<span class="na">&mdash;</span>')
             print(
                 '<tr>'
                 f'<td class="mono">{html.escape(key)}</td>'
                 f'<td><span class="set-chip">set &middot; {length} chars</span></td>'
+                f'<td>{desc_html}</td>'
                 f'<td>{html.escape(updated_at)}</td>'
                 '</tr>'
             )

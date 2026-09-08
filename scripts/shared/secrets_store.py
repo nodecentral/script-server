@@ -48,6 +48,16 @@ import time
 
 STORE_PATH = '/app/data/secrets.json'
 
+# The "expected secrets" checklist - product/key/description entries this fork already has (or
+# expects to have) a consuming script for, so Secrets Manager's dropdown and Secrets Viewer can
+# surface them BEFORE a value is ever set. Shipped as checked-in DATA (this file, not code) so
+# it's visible/diffable in git and editable without touching secrets_store.py - deliberately kept
+# separate from /app/data/secrets.json (the real, gitignored, NAS-local values) so a fresh git
+# pull can add new known integrations without ever touching or clobbering real stored values.
+# Add an entry here whenever a script is wired to call get_secret() for a product/key that isn't
+# in this list yet.
+KNOWN_INTEGRATIONS_PATH = '/app/conf/secrets_defaults.json'
+
 # Deliberately loud and self-explanatory, not just "-- new entry --": Script-Server has no way to
 # hide the New Product/New Key fields unless this exact sentinel is picked, so the dropdown option
 # itself has to carry the instruction rather than relying on a field description the user may not
@@ -55,42 +65,6 @@ STORE_PATH = '/app/data/secrets.json'
 # picked instead of retyped - this sentinel covers both "add a key to an existing product" and
 # "create a brand new product", since either way the two fields below are just Product + Key now.
 NEW_ENTRY_SENTINEL = '+ CREATE NEW ENTRY (fill in New Product + New Key below)'
-
-# Integrations this fork already has (or expects to have) a consuming script for, so Secrets
-# Manager's dropdown and Secrets Viewer can surface them BEFORE a value is ever set - catching a
-# missing secret before a script fails on it, rather than after. Add an entry here whenever a
-# script is wired to call get_secret() for a product/key that isn't in this list yet.
-KNOWN_INTEGRATIONS = [
-    ('pushover', 'TOKEN', 'Pushover application token - used by Send Notification'),
-    ('pushover', 'USER_KEY', 'Pushover user key - used by Send Notification'),
-    ('prowl', 'TOKEN', 'Prowl API key - used by Send Notification'),
-    ('paperless', 'URL', "Paperless-ngx base URL, e.g. http://192.168.1.x:8010 - used by "
-                          "ss_document_file_management's paperless_metrics_dashboard.py"),
-    ('paperless', 'TOKEN', "Paperless-ngx API token (Settings > API Tokens) - used by "
-                            "ss_document_file_management's paperless_metrics_dashboard.py"),
-    ('gitea', 'URL', 'Gitea base URL, e.g. http://192.168.102.148:3011 - used by Import from '
-                      'Gitea. Reserved key name: never treated as a token by gitea_client.py.'),
-    ('gitea', 'TOKEN', 'Default Gitea access token - used by Import from Gitea (Gitea > Settings > '
-                        'Applications > Generate New Token). Add more named keys under the gitea '
-                        'product via Secrets Manager if different repos need different tokens.'),
-    ('eod', 'API_KEY', "EOD Historical Data API key - used by Portfolio Setup/Update Prices "
-                        "(ss_finance_management) for price fallback when FT Markets/Yahoo fail. "
-                        "NOTE: that script currently calls get_secret('finance', 'EOD_API_KEY') "
-                        "(the old grouped-category name) - it needs updating to "
-                        "get_secret('eod', 'API_KEY') to match this rename, see ROADMAP.md."),
-    ('fmp', 'API_KEY', 'Financial Modeling Prep API key - reserved, no consuming script yet '
-                        '(ss_finance_management)'),
-    ('fred', 'API_KEY', 'FRED (Federal Reserve Economic Data) API key - reserved, no consuming '
-                         'script yet (ss_finance_management)'),
-    ('alphavantage', 'API_KEY', 'Alpha Vantage API key - reserved, no consuming script yet '
-                                 '(ss_finance_management)'),
-    ('marketstack', 'API_KEY', 'Marketstack API key - reserved, no consuming script yet '
-                                '(ss_finance_management)'),
-    ('finnhub', 'API_KEY', 'Finnhub API key - reserved, no consuming script yet '
-                            '(ss_finance_management)'),
-    ('coinapi', 'API_KEY', 'CoinAPI key - reserved, no consuming script yet (ss_finance_management)'),
-    ('tiingo', 'API_KEY', 'Tiingo API key - reserved, no consuming script yet (ss_finance_management)'),
-]
 
 # Sentinel for a dropdown scoped to one product (see list_product_keys/dropdown-product) - means
 # "don't pick a specific stored key, let the caller decide" (e.g. Import from Gitea falls back to
@@ -120,6 +94,25 @@ def save_store(store):
         pass  # best-effort - same QNAP bind-mount chmod caveat as elsewhere in this repo
 
 
+def load_known_integrations():
+    """Returns (product, key, description) tuples from the checked-in defaults file
+    (KNOWN_INTEGRATIONS_PATH) - the "expected secrets" checklist. Missing/unreadable file is
+    treated as an empty checklist, not an error - this file is optional data, never required for
+    the store itself to work."""
+    if not os.path.exists(KNOWN_INTEGRATIONS_PATH):
+        return []
+    with open(KNOWN_INTEGRATIONS_PATH) as f:
+        try:
+            entries = json.load(f)
+        except json.JSONDecodeError:
+            return []
+    return [
+        (entry['product'], entry['key'], entry.get('description', ''))
+        for entry in entries
+        if 'product' in entry and 'key' in entry
+    ]
+
+
 def get_secret(product, key):
     """Returns the raw secret value, or None if the product/key doesn't exist."""
     store = load_store()
@@ -127,12 +120,16 @@ def get_secret(product, key):
     return entry.get('value') if entry else None
 
 
-def set_secret(product, key, value):
+def set_secret(product, key, value, description=''):
+    """Sets/updates a secret's value. A non-empty description overwrites any existing one; an
+    empty description leaves whatever was already stored untouched, so updating just the value
+    never silently wipes out a description set on a previous run."""
     store = load_store()
-    store.setdefault(product, {})[key] = {
-        'value': value,
-        'updated_at': time.strftime('%Y-%m-%d %H:%M:%S'),
-    }
+    entry = store.setdefault(product, {}).setdefault(key, {})
+    entry['value'] = value
+    entry['updated_at'] = time.strftime('%Y-%m-%d %H:%M:%S')
+    if description:
+        entry['description'] = description
     save_store(store)
 
 
@@ -161,24 +158,27 @@ def list_product_keys(product):
 
 
 def list_known_placeholders():
-    """Known integrations (see KNOWN_INTEGRATIONS) that don't have a value set yet -
+    """Known integrations (see load_known_integrations()) that don't have a value set yet -
     (product, key, description) tuples."""
     store = load_store()
     return [
         (product, key, description)
-        for product, key, description in KNOWN_INTEGRATIONS
+        for product, key, description in load_known_integrations()
         if key not in store.get(product, {})
     ]
 
 
 def list_entries_metadata():
-    """Returns (product, key, updated_at, value_length) tuples - never the raw value."""
+    """Returns (product, key, updated_at, value_length, description) tuples - never the raw
+    value. description is whatever was entered via Secrets Manager, empty string if none."""
     store = load_store()
     result = []
     for product, keys in store.items():
         for key, entry in keys.items():
             value = entry.get('value', '')
-            result.append((product, key, entry.get('updated_at', ''), len(value)))
+            result.append((
+                product, key, entry.get('updated_at', ''), len(value), entry.get('description', ''),
+            ))
     return sorted(result, key=lambda e: (e[0].lower(), e[1].lower()))
 
 
@@ -200,8 +200,9 @@ def _cmd_list_products(_args):
 
 def _cmd_dropdown_entries(_args):
     print(NEW_ENTRY_SENTINEL)
-    for product, key, updated_at, _length in list_entries_metadata():
-        print(f'{product} | {key} | ✓ set - last updated {updated_at}')
+    for product, key, updated_at, _length, description in list_entries_metadata():
+        suffix = f' - {description}' if description else ''
+        print(f'{product} | {key} | ✓ set - last updated {updated_at}{suffix}')
     for product, key, description in list_known_placeholders():
         print(f'{product} | {key} | ○ not set yet - {description}')
 
