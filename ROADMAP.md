@@ -381,7 +381,52 @@ change is in this repo:
    `@media (prefers-color-scheme: dark)` — script-server already serves this file if present. Zero
    code changes for automatic light/dark; a manual in-UI toggle would be a Core change on top of this.
 
+4. **Per-secret description field, settable via Secrets Manager** — *Admin script + data model*.
+   Direct user feedback: right now a description only exists for entries still listed in
+   `KNOWN_INTEGRATIONS` (a hardcoded Python list) - once a value is actually set, or for any
+   ad-hoc product/key created via Secrets Manager's New Product/New Key fields (e.g. a hand-typed
+   `Adobe`/`API_KEY`), there is no way to record or see *why* that secret exists or how it's used.
+   Add a `description` field to each entry in `secrets.json` (alongside `value`/`updated_at`),
+   settable/updatable via a new optional field in Secrets Manager, and shown in Secrets Viewer for
+   both set and not-yet-set entries (today only the not-yet-set/placeholder table shows a
+   description, sourced from the hardcoded list - the "set" table shows none at all). For an
+   entry that's also in `KNOWN_INTEGRATIONS`, a user-entered description should probably override
+   the coded one rather than sit alongside it - the user's own words about their actual use case
+   are more useful once they've actually configured it.
+
 ## Ideas / Backlog (need more design discussion before committing)
+
+- **Ship a default/example `secrets.json` instead of hardcoding known integrations in Python** —
+  *needs a design decision on merge strategy before building*. Direct user feedback:
+  `KNOWN_INTEGRATIONS` in `secrets_store.py` hides the list of expected secrets inside a script
+  instead of making it visible as data, and doesn't let a user browse/edit "known but unset"
+  entries the same way as real ones. Proposed direction: ship a checked-in seed/example file
+  (e.g. `conf/secrets.default.json`) with empty-value placeholder entries carrying the same
+  description text `KNOWN_INTEGRATIONS` has today (ties into the per-secret description field
+  above), and have Secrets Manager/Viewer read that file merged with the real
+  `/app/data/secrets.json` rather than a Python constant - so the expected-secrets list is just
+  data, visible and diffable in git, not buried in `secrets_store.py`. Open question that needs
+  resolving before this is buildable: how does the seed get applied - copied into
+  `/app/data/secrets.json` once on first run (simple, but a later `git pull` that adds new
+  placeholder products would never reach an already-initialized store), or merged in live on
+  every read (stays current, but needs to correctly distinguish "seed says not-yet-set" from "user
+  explicitly set an empty string" and must never let a re-copied seed clobber a real value).
+  Whichever direction, this would retire `KNOWN_INTEGRATIONS` as a Python list entirely - the same
+  product/key/description data, just moved into the data file it was always describing.
+- **Secret Ingredients Check** — *Admin script, mirrors the existing `motd.py` "Script Ingredients
+  Check" pattern*. User's request, explicitly flagged as exploratory/not urgent: a scanner that
+  greps every script under `scripts/` for `get_secret(...)` / `secrets_store.py get ...` calls,
+  extracts the product/key pairs actually referenced in code, and cross-checks them against what's
+  really set in the store - flagging any secret a script expects that isn't configured yet,
+  visible before the script fails on it at runtime rather than after. Script-Server has no
+  built-in file-watcher/webhook trigger to run this truly "whenever something is added or
+  updated," so the realistic options are: (a) run it as an extra step at the end of every Import
+  from Gitea execution, since that's the actual point in this fork's workflow where scripts get
+  added/changed, or (b) a standalone on-demand Admin script the user runs periodically, same
+  pattern as MOTD's own Script Ingredients Check. User's own framing: this could extend later to
+  wider health/quality-control signals beyond secrets, not just a secrets-only checker - worth
+  designing with that extensibility in mind (e.g. folding into or running alongside `motd.py`'s
+  existing missing-file audit) rather than as a one-off.
 
 - **Encrypted-at-rest secrets store** — *Core-adjacent*. The plaintext categorized store (Secrets
   Manager/Viewer, see Done above) now covers the "manage multiple API keys via the Admin UI, no
