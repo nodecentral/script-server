@@ -1,7 +1,7 @@
 # SCRIPTING.md — Script-Server Scripting Conventions (Focused)
 
-Version: 1.5.0
-Last updated: 2026-09-08
+Version: 1.6.0
+Last updated: 2026-09-10
 
 This is the **focused** convention doc for any Claude session writing
 scripts/runners destined for import into `nodecentral/script-server` —
@@ -127,7 +127,14 @@ whichever import "wins" behaves the same. The warning above is about
 
 - Shebang line always
 - Header comment block: name, version, description
-- Debug toggle (`DEBUG=true/false`) with timestamped output
+- Debug toggle (`DEBUG=true/false`) with timestamped output — declare it as
+  a normal `parameters` list entry (`"type": "list"`, values `false`/`true`),
+  not a top-level `"env": [...]` block in the runner JSON. `env` is **not**
+  a recognized runner JSON field (confirmed against `script_config.py`'s
+  actual recognized-fields list - nothing named `env` appears anywhere in
+  it) - Script-Server silently ignores it exactly like any other unknown
+  field (see Matched Pair Rule above), so a script relying on it for a
+  working DEBUG toggle has none, with nothing in the UI to say so.
 - Flush stdout after every print — Script-Server streams live, buffered output
   will not appear until the buffer fills or the script exits. **Python is
   already covered**: Script-Server forces `PYTHONUNBUFFERED=1` into every
@@ -524,11 +531,21 @@ common they are:
 
 ## Output Formats
 
-- `terminal` — plain stdout, ANSI colour codes supported
+- `terminal` — plain stdout, ANSI colour codes supported (full terminal
+  emulator on the frontend - cursor control, inline images, the works)
 - `html_iframe` — full HTML/CSS/JS rendered inline, **no sanitisation**
 - `html` — sanitised HTML — **strips `<style>` tags and inline `style=`
   attributes**, so any script needing custom CSS/theming must use
   `html_iframe`, not `html`
+- `text` — a real, distinct 4th format (confirmed in `script_config.py`'s
+  `OUTPUT_FORMATS` list and the frontend's own `TextOutput.js`), not an
+  alias for `terminal` and not a mistake to avoid. Renders as plain text
+  with **no ANSI escape-code interpretation at all** - a script that emits
+  colour codes will show the raw escape sequences as literal garbage
+  characters instead of colour, and inline images aren't supported (logs a
+  console warning if attempted). Use it when output is genuinely plain
+  text that must never be misread as ANSI - `terminal` is still the right
+  default for anything colour-coded.
 
 **Progress indicators in html_iframe** (CSS spinners never self-terminate):
 1. Emit `<span class="spinner" id="spin-x"></span>` with the phase label
@@ -583,6 +600,9 @@ manages the Script-Server deployment.
 
 - `"type": "select"` — use `"type": "list"`
 - `"labels": []` — use `"values_ui_mapping": {}` instead
+- A top-level `"env": [...]` block in the runner JSON for a DEBUG toggle
+  (or anything else) — not a recognized field, silently ignored; use a
+  normal `parameters` entry instead
 - Folder prefix in `script_path` when `working_directory` is set
 - Hardcoded paths, IPs, or credentials anywhere in scripts
 - Assuming parameters always exist — always provide defaults

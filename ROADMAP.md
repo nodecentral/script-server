@@ -388,9 +388,39 @@ change is in this repo:
      open and tracked under Planned below.
   `secrets_manager.py` -> 1.5.0, `secrets_manager.json` -> 1.6.0, `secrets_viewer.py` -> 1.5.0,
   `secret_ingredients_check.py`/`.json` -> 1.0.0 (new).
+- **Three learnings relayed and checked, two folded in, one flagged as contested rather than
+  guessed at:**
+  1. **Confirmed:** a top-level `"env": [...]` runner JSON block is not a recognized field.
+     Checked directly against `script_config.py`'s actual recognized-fields list - nothing named
+     `env` appears anywhere in it, consistent with the platform's documented "ignores unknown
+     fields" behavior. Documented in both `CLAUDE.md` and `SCRIPTING.md`'s Script Requirements
+     and Avoid sections: declare a DEBUG toggle as a normal `parameters` entry instead.
+  2. **Confirmed, but the suggested fix was wrong:** `output_format: "text"` is real, not a typo
+     or an alias for `terminal` - checked `script_config.py`'s `OUTPUT_FORMATS` list (it's a
+     genuine 4th value) and the frontend's `TextOutput.js` vs `TerminalOutput.js` (a bare
+     `<code>` element with zero ANSI interpretation, versus a full ANSI-aware terminal emulator -
+     a real, meaningful behavioral difference, not just cosmetic). Documented accurately in both
+     docs' Output Formats sections instead of either of the two options originally proposed
+     (alias vs. avoid-list) - neither was right.
+  3. **Contested against this repo's own history - not written into either doc.** The relayed
+     learning claims a bare `pip install X` fails with "externally-managed-environment" (PEP
+     668) inside Script-Server's own container, needing a `--break-system-packages` fallback.
+     But `scripts/install_package.py` already does a bare `pip install` (no such flag) and is
+     recorded above as "verified with real installs (jq, psutil, etc.)" with no mention of this
+     failure. Neither account says explicitly whether it ran against the real NAS container vs. a
+     dev/build sandbox, so the two could be describing genuinely different environments rather
+     than one being simply wrong - not resolved from this session alone. Needs a live check
+     (`docker exec` into the actual running container, try a bare `pip install` for a package not
+     already present) before either doc says anything about this one way or the other.
 
 ## In Progress
 
+- **Needs a live check on the real NAS container**: does a bare `pip install X` actually fail
+  with "externally-managed-environment" inside Script-Server's own image, or was that only ever
+  seen in a different (dev sandbox) environment? Contradicts `install_package.py`'s own
+  already-verified bare `pip install` - see the Done entry above for the full account. Resolve
+  with `docker exec -it script-server pip install <some-not-yet-installed-package>` and see what
+  actually happens, then update `CLAUDE.md`/`SCRIPTING.md` accordingly either way.
 - **Needs a Docker rebuild + live-iPad verification**: the `textfield.vue`
   autocapitalize/autocorrect/spellcheck fix (see Done above, 2026-09-07 entry).
   Code is committed and pushed; nothing has been rebuilt or retested on the

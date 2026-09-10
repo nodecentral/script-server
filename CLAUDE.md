@@ -1,7 +1,7 @@
 # Script-Server.md — Platform Context
 
-Version: 1.30.0
-Last updated: 2026-09-08
+Version: 1.31.0
+Last updated: 2026-09-10
 
 ## Platform Overview
 
@@ -110,7 +110,13 @@ Every solution MUST produce a matched pair:
 
 - Shebang line always
 - Header comment block: name, version, description
-- Debug toggle (`DEBUG=true/false`) with timestamped output
+- Debug toggle (`DEBUG=true/false`) with timestamped output — declare it as
+  a normal `parameters` list entry, not a top-level `"env": [...]` block in
+  the runner JSON. `env` is not a recognized runner JSON field (confirmed
+  against `script_config.py`'s actual recognized-fields list - nothing
+  named `env` appears anywhere in it), so Script-Server silently ignores
+  it like any other unknown field, leaving a script that relies on it with
+  no working toggle and nothing in the UI to say so.
 - Flush stdout after every print — Script-Server streams live, buffered output
   will not appear until the buffer fills or the script exits
 - Safe argument handling with defaults — never assume a parameter exists
@@ -1038,6 +1044,14 @@ not case 2.
 - `terminal` — plain stdout, ANSI colour codes supported
 - `html_iframe` — full HTML/CSS/JS rendered inline, no sanitisation
 - `html` — sanitised HTML (no scripts or CSS links)
+- `text` — a real, distinct 4th format, confirmed in `script_config.py`'s
+  `OUTPUT_FORMATS = [OUTPUT_FORMAT_TERMINAL, 'html', 'html_iframe', 'text']`
+  and the frontend's `TextOutput.js` (a bare `<code>` element) versus
+  `terminal`'s full ANSI-aware `TerminalOutput.js` - not an alias for
+  `terminal`, not something to avoid. No ANSI escape-code interpretation
+  at all (raw codes show as literal garbage) and no inline image support
+  (`TextOutput.js` logs a console warning if attempted). Use only when
+  output is genuinely plain text that must never be misread as ANSI.
 
 **Progress indicators in html_iframe:**
 CSS spinners never self-terminate. Pattern for live progress feedback:
@@ -1309,6 +1323,9 @@ Rules:
 
 - `"type": "select"` — use `"type": "list"`
 - `"labels": []` — use `"values_ui_mapping": {}` instead
+- A top-level `"env": [...]` block in the runner JSON for a DEBUG toggle
+  (or anything else) — not a recognized field, silently ignored; use a
+  normal `parameters` entry instead
 - Folder prefix in `script_path` when `working_directory` is set
 - Hardcoded paths, IPs, or credentials anywhere in scripts
 - Assuming parameters always exist — always provide defaults
