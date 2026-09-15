@@ -26,8 +26,26 @@ services:
     cap_add:
       - NET_RAW
       - NET_ADMIN
+    # Every custom operating-file requirement lives on an explicit host
+    # bind mount under /share/... -- nothing container-local, nothing
+    # relative to this compose file's own location. This is the template
+    # for future installations, not a live migration: /share/... paths
+    # are the intended layout, not a reflection of any already-populated
+    # data (see individual ss_* repo READMEs for what each path holds).
     volumes:
-      - ./conf:/app/conf
-      - ./logs:/app/logs
-      - ./scripts:/app/scripts
-      - ./data:/app/data
+      - /share/conf:/app/conf
+      - /share/logs:/app/logs
+      - /share/scripts:/app/scripts
+      - /share/data:/app/data
+      # Read-only media/data library mounts for the ss_* sibling repos
+      # (ss_health_management, ss_movie_file_management,
+      # ss_music_file_management, ss_photo_file_management). Each repo's
+      # own README documents its container-side path convention; these are
+      # the host side of that convention. Catalog/audit output for the
+      # movie/music/photo repos already lands under the /share/data:/app/data
+      # mount above (no separate entry needed) - only the read-only
+      # library paths below were missing.
+      - /share/health:/app/health
+      - /share/movies:/app/movies
+      - /share/pictures:/app/pictures
+      - /share/music:/app/music
