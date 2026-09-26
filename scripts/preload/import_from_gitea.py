@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
 # Name: preload/import_from_gitea.py
-# Version: 2.0.0
+# Version: 2.1.0
 # Description: preload_script for conf/runners/import_from_gitea.json - checks whether a Gitea
-#              URL and token are configured in the Secrets Store before the form even loads.
-#              With no URL, or no token, tells the user what to add via Secrets Manager. With a
-#              URL and exactly one token, actually tries connecting and reports success (as
-#              which user, how many repos) or failure (with the real reason) - genuinely
-#              different job from the main script (a readiness/connectivity check, not an
-#              import), per CLAUDE.md's preload_script guidance. Preload scripts receive no
+#              URL and token are configured in the Secrets Store before the form even loads. With
+#              no URL, or no token, shows secrets_store.missing_secret_banner_html()'s themed
+#              banner with a one-click deep link straight into Secrets Manager (New Product/New
+#              Key already filled in) - the reference example for the pattern documented in
+#              CLAUDE.md/SCRIPTING.md's Secrets Store section: every script that needs a secret
+#              checks for it itself, in its own preload, rather than relying on any centralized
+#              discovery. With a URL and exactly one token, actually tries connecting and reports
+#              success (as which user, how many repos) or failure (with the real reason) -
+#              genuinely different job from the main script (a readiness/connectivity check, not
+#              an import), per CLAUDE.md's preload_script guidance. Preload scripts receive no
 #              parameter values at all (see CLAUDE.md) - this is exactly why the URL lives in
 #              the Secrets Store rather than a runner form field: a value typed into the form
 #              could never reach this banner anyway, so storing it means the preload always
@@ -22,7 +26,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(
 from gitea_client import (  # noqa: E402
     GiteaApiError, get_authenticated_user, list_gitea_tokens, list_user_repos, resolve_gitea_url,
 )
-from secrets_store import get_secret  # noqa: E402
+from secrets_store import get_secret, missing_secret_banner_html  # noqa: E402
 
 STYLE = """
 <style>
@@ -60,6 +64,11 @@ def error_banner(message):
 def main():
     print(STYLE)
 
+    url_banner = missing_secret_banner_html('gitea', 'URL', 'the Gitea instance to import from')
+    if url_banner:
+        print(url_banner)
+        return
+
     try:
         gitea_url = resolve_gitea_url()
     except GiteaApiError as e:
@@ -69,11 +78,10 @@ def main():
     tokens = list_gitea_tokens()
 
     if not tokens:
-        error_banner(
-            'No Gitea token is configured yet. Add one via <b>Secrets Manager</b> (product '
-            '<span class="mono">gitea</span>, e.g. key <span class="mono">TOKEN</span>) before '
-            'importing from a private repo.'
-        )
+        print(missing_secret_banner_html(
+            'gitea', 'TOKEN',
+            'needed before importing from a private repo - a public repo needs no token',
+        ))
         return
 
     if len(tokens) > 1:

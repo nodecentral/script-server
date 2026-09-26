@@ -40,13 +40,29 @@
 #   among several stored keys for one product, e.g. Import from Gitea picking
 #   which stored "gitea" token to use when more than one exists
 #   (see conf/runners/import_from_gitea.json)
+#
+# Every script that consumes a secret owns checking for it itself, in its own
+# preload (see missing_secret_banner_html() below) - there is no centralized
+# scanner that guesses what a script needs from its source. This mirrors how
+# Import from Gitea's own preload (scripts/preload/import_from_gitea.py) has
+# always checked gitea.URL/gitea.TOKEN before that dropdown even loads.
 
+import html
 import json
 import os
 import sys
 import time
+from urllib.parse import urlencode
 
 STORE_PATH = '/app/data/secrets.json'
+
+# Script-Server's own SPA router (confirmed in web-src/src/main-app/store/scripts.js and
+# store/index.js): the URL's query string is read once on page load as "predefinedParameters"
+# and fed straight into the script form as initial parameter values, keyed by each query key
+# matching a parameter's "name" - a real, native deep-link mechanism, not something built here.
+# scriptNameToHash() (web-src/src/main-app/utils/model_helper.js) is just encodeURIComponent(name)
+# - Secrets Manager's runner "name" is literally "Secrets Manager".
+SECRETS_MANAGER_HASH = 'Secrets%20Manager'
 
 # The "expected secrets" checklist - product/key/description entries this fork already has (or
 # expects to have) a consuming script for, so Secrets Manager's dropdown and Secrets Viewer can
@@ -118,6 +134,57 @@ def get_secret(product, key):
     store = load_store()
     entry = store.get(product, {}).get(key)
     return entry.get('value') if entry else None
+
+
+def missing_secret_link(product, key):
+    """A deep link straight into Secrets Manager with New Product/New Key pre-filled via
+    Script-Server's own predefinedParameters mechanism (see the module docstring) - the "Add it"
+    link a missing-secret banner should point at. Always includes target="_top": this is meant
+    to be embedded inside a preload's own html/html_iframe output, and for html_iframe that's a
+    same-origin <iframe> with no router of its own - without target="_top" the link would try
+    (and fail) to navigate the iframe itself instead of the actual app."""
+    query = urlencode({'entry': NEW_ENTRY_SENTINEL, 'new_product': product, 'new_key': key})
+    return f'/#/{SECRETS_MANAGER_HASH}?{query}'
+
+
+def missing_secret_banner_html(product, key, purpose=''):
+    """Returns an HTML snippet warning that product.key isn't configured yet, with a deep link
+    into Secrets Manager (New Product/New Key already filled in - just Value left to type) - or
+    '' if it's already set, so a caller can just do `banner = missing_secret_banner_html(...);
+    if banner: print(banner)`. Every script that needs a secret should check for it this way, in
+    its own preload (see CLAUDE.md/SCRIPTING.md's Secrets Store section) - there's no centralized
+    mechanism that discovers this for you.
+
+    Uses inline styles for a themed warning banner under html_iframe. Under plain "html" output
+    format, Script-Server's own sanitizer strips both <style> blocks AND inline style=
+    attributes (confirmed in CLAUDE.md's Output Formats section) - this degrades to plain,
+    unstyled text there, but the link itself still works either way. Use html_iframe if the
+    styling matters, matching this fork's existing "html can't do custom CSS" convention."""
+    if get_secret(product, key) is not None:
+        return ''
+    link = missing_secret_link(product, key)
+    purpose_html = f' - {html.escape(purpose)}' if purpose else ''
+    return (
+        '<div style="background:#ffebee;border-left:4px solid #c62828;border-radius:2px;'
+        'padding:12px 16px;font-size:0.9rem;font-family:\'Roboto\',\'Helvetica Neue\',Arial,'
+        'sans-serif;">'
+        f'Missing secret: <span style="font-family:\'Roboto Mono\',\'Courier New\',monospace;">'
+        f'{html.escape(product)}.{html.escape(key)}</span>{purpose_html}. '
+        f'<a href="{link}" target="_top" style="font-weight:500;">Add it in Secrets Manager</a>'
+        '</div>'
+    )
+
+
+def missing_secrets_banner_html(requirements):
+    """Convenience wrapper for a script needing more than one secret. requirements: an iterable
+    of (product, key) or (product, key, purpose) tuples. Returns the concatenated HTML for every
+    one NOT yet configured - '' if everything's already set."""
+    parts = []
+    for product, key, *rest in requirements:
+        banner = missing_secret_banner_html(product, key, rest[0] if rest else '')
+        if banner:
+            parts.append(banner)
+    return '\n'.join(parts)
 
 
 def set_secret(product, key, value, description=''):

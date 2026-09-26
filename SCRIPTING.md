@@ -1,7 +1,7 @@
 # SCRIPTING.md — Script-Server Scripting Conventions (Focused)
 
-Version: 1.6.0
-Last updated: 2026-09-10
+Version: 1.7.0
+Last updated: 2026-09-26
 
 This is the **focused** convention doc for any Claude session writing
 scripts/runners destined for import into `nodecentral/script-server` —
@@ -404,6 +404,28 @@ in order of preference for most cases:
    `get_secret()` for, and if it's new, that's a learning to flag (see
    Learning & Sharing above) so it gets added to `conf/secrets_defaults.json`
    and shows up in Secrets Manager/Viewer's readiness checklist.
+
+   **Your script owns checking for its own secret - do this in its
+   preload, not by hoping someone notices it's missing.** There is no
+   central scanner that discovers what a script needs from its source;
+   the platform's whole answer to "is my secret configured" is each
+   script checking for itself:
+   ```python
+   from secrets_store import missing_secret_banner_html
+
+   banner = missing_secret_banner_html('sonarr', 'IP_PORT', 'used by Media Library Scan')
+   if banner:
+       print(banner)  # a themed warning with a one-click "Add it in Secrets Manager" link
+   ```
+   `banner` is `''` if already set. The link is a real deep link (New
+   Product/New Key pre-filled, just Value left to type), not a plain
+   pointer - see CLAUDE.md's Secrets Store section for exactly how and
+   why, and `scripts/preload/import_from_gitea.py` in the main repo for
+   a working reference. Use `missing_secrets_banner_html([(product, key,
+   purpose), ...])` for a script needing more than one secret. Always
+   use `output_format: html_iframe` for the preload if you want the
+   warning styled - plain `html` strips the inline styles (link still
+   works, just unstyled).
 
    **Security posture:** plaintext on disk (`chmod 600` best-effort),
    same risk tier as a Docker environment block — not an encrypted

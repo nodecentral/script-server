@@ -1,7 +1,7 @@
 # Script-Server.md — Platform Context
 
-Version: 1.31.0
-Last updated: 2026-09-10
+Version: 1.32.0
+Last updated: 2026-09-26
 
 ## Platform Overview
 
@@ -749,6 +749,82 @@ private Gitea repo (see Import from Gitea) are the case that bites here:
 their source isn't visible from outside the NAS, so confirm the exact
 `os.environ.get(...)` / `get_secret(...)` calls in the real script — by
 reading it directly or grepping the imported copy under `/app/scripts` —
+
+### Every script owns checking for its own secret — no centralized discovery
+
+The essence of this platform is running scripts, so a script that needs a
+secret should proactively confirm it's there and, if not, point straight
+at how to add it — **in its own preload**, not via any central scanner
+that tries to guess what every script under `scripts/` needs. A design
+that scanned script source for `get_secret()` calls and auto-generated
+placeholders was considered and explicitly rejected: adding a secret that
+isn't tied to a real, currently-installed script is a strange state for
+the store to be in, and per-script ownership (each preload checks exactly
+what its own main script actually calls) is simpler and never drifts from
+reality the way a static scan could. This applies uniformly regardless of
+how the script arrived - imported from Gitea or added by any other means,
+the same preload-checks-itself pattern is the answer either way.
+
+`secrets_store.py` provides the building blocks so no script hand-rolls
+this:
+
+```python
+from secrets_store import missing_secret_banner_html
+
+banner = missing_secret_banner_html('sonarr', 'IP_PORT', 'used by Media Library Scan')
+if banner:
+    print(banner)
+    # return here if nothing downstream in this preload can proceed without it
+```
+
+`missing_secret_banner_html(product, key, purpose='')` returns `''` if the
+secret is already set (so the `if banner:` guard is all a caller needs),
+otherwise a themed warning `<div>` with a genuine, one-click **"Add it in
+Secrets Manager"** link. `missing_secrets_banner_html([(product, key,
+purpose), ...])` is the same for a script needing more than one secret,
+concatenating whatever's still missing.
+
+**The deep link is real, not a plain "go check Secrets Manager" pointer**
+- confirmed directly in the frontend source, not assumed: Script-Server's
+own SPA router reads the page URL's query string once on load
+(`web-src/src/main-app/store/scripts.js`'s `selectScriptByHash` /
+`store/index.js`'s `predefinedParameters` watcher) and feeds it straight
+into the script form as initial parameter values, keyed by each query key
+matching a parameter's `name`. `missing_secret_link()` builds
+`/#/Secrets%20Manager?entry=<the current NEW_ENTRY_SENTINEL>&new_product=
+<product>&new_key=<key>` - clicking it lands on Secrets Manager with
+`+ CREATE NEW ENTRY` already selected and **New Product**/**New Key**
+already filled in, leaving only Value to type. Always imports
+`NEW_ENTRY_SENTINEL` from `secrets_store.py` rather than hardcoding the
+sentinel text, so the link can't silently break if that sentinel's
+wording ever changes again (it already has, twice, this fork's history).
+
+**`target="_top"` on the link is required, not decorative.** A preload
+using `output_format: html_iframe` renders inside a same-origin
+`<iframe>` with no router of its own - a plain link would try to navigate
+the iframe itself and just fail silently. `missing_secret_banner_html()`
+already sets this; if you ever hand-build a similar link, don't forget it.
+
+**Styling degrades gracefully under plain `html` output, not broken -
+just plain.** The banner uses inline `style=` attributes for its
+red-warning theme; Script-Server's `html` sanitizer strips those (see
+Output Formats above), so under `output_format: html` this renders as
+unstyled text with a working link, not a colourful banner. Use
+`html_iframe` if the styling matters, same as any other custom-CSS need
+in this fork.
+
+**Reference implementation:** `scripts/preload/import_from_gitea.py` -
+checks `gitea.URL` and `gitea.TOKEN` this way before its own
+Gitea-specific logic (multi-token picker, live connectivity test) even
+runs. Retrofitted from hand-written banner HTML with no link at all to
+prove the shared helper works end-to-end, not written from scratch
+alongside it.
+
+**Where this leaves `secret_ingredients_check.py`:** still useful, but as
+a secondary, administrative audit - "did any script forget to implement
+this check on itself" - not the primary mechanism. It's a periodic report
+a human runs on demand, not something proactively shown to the person
+about to run the script that actually needs the secret.
 
 ### Letting a runner pick among several stored keys for one product
 

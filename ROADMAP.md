@@ -412,9 +412,45 @@ change is in this repo:
      than one being simply wrong - not resolved from this session alone. Needs a live check
      (`docker exec` into the actual running container, try a bare `pip install` for a package not
      already present) before either doc says anything about this one way or the other.
+- **Per-script missing-secret banner + one-click deep link into Secrets Manager** — direct user
+  design decision, made after an earlier centralized-auto-discovery-scanner idea was floated and
+  explicitly rejected ("having the ability to add secrets that are not part of a script seems
+  strange"): every script that needs a secret should check for it itself, in its own preload -
+  same principle Import from Gitea's preload already used for `gitea.URL`/`gitea.TOKEN`, now
+  formalized as the platform-wide pattern rather than a one-off. `secrets_store.py` gained
+  `missing_secret_banner_html(product, key, purpose='')` (returns `''` if already set, otherwise
+  a themed warning with an "Add it in Secrets Manager" link) and `missing_secrets_banner_html()`
+  for a script needing more than one. The link is a genuine deep link, not a plain pointer -
+  confirmed directly in `web-src/src/main-app/store/scripts.js`/`store/index.js` that
+  Script-Server's own router reads the page URL's query string once on load and feeds it into
+  the script form as initial parameter values keyed by parameter name (a real, native mechanism,
+  not built here) - so `/#/Secrets%20Manager?entry=<NEW_ENTRY_SENTINEL>&new_product=X&new_key=Y`
+  lands with `+ CREATE NEW ENTRY` already selected and New Product/New Key already filled in,
+  just Value left to type. Two real details that would've silently broken this without checking:
+  `target="_top"` is required on the link (an `html_iframe` preload renders in a same-origin
+  iframe with no router of its own - a plain link tries to navigate the iframe and fails
+  silently), and the sentinel text is imported from `secrets_store.NEW_ENTRY_SENTINEL` rather
+  than hardcoded, so a future sentinel wording change (already happened twice) can't silently
+  break every banner using the old text. Retrofitted `scripts/preload/import_from_gitea.py` to
+  use the new helper for its two generic "missing" cases (replacing hand-written banner HTML with
+  no link at all), proving the pattern end-to-end rather than shipping it untested alongside a
+  brand new example. Verified standalone against a controlled temp store: banner correctly empty
+  once a secret is set, correct product/key/link content in both "no URL" and "URL set, no
+  token" cases. Documented as the standard pattern in both `CLAUDE.md` and `SCRIPTING.md`'s
+  Secrets Store sections - this is arguably the single most useful pattern for a sibling-repo
+  script author, since it's the actual answer to "how do I make sure my new script's secret is
+  easy to add." `secrets_store.py`, `scripts/preload/import_from_gitea.py` -> 2.1.0,
+  `conf/runners/import_from_gitea.json` -> 4.2.0.
+  **Still needs a live-NAS check** - the deep link's query-param pre-fill has only been verified
+  by reading the frontend source, not by actually clicking a generated link in a real browser.
 
 ## In Progress
 
+- **Needs a live-browser check**: the missing-secret banner's deep link into Secrets Manager
+  (see Done above) - click a generated "Add it in Secrets Manager" link on the real NAS and
+  confirm New Product/New Key actually arrive pre-filled, not just that the URL is well-formed.
+  Easiest real test: delete `gitea.URL` via Secrets Manager, reopen Import from Gitea, click the
+  banner's link.
 - **Needs a live check on the real NAS container**: does a bare `pip install X` actually fail
   with "externally-managed-environment" inside Script-Server's own image, or was that only ever
   seen in a different (dev sandbox) environment? Contradicts `install_package.py`'s own
@@ -471,11 +507,13 @@ change is in this repo:
    code changes for automatic light/dark; a manual in-UI toggle would be a Core change on top of this.
 
 4. **Hook Secret Ingredients Check into Import from Gitea's apply step** — *Admin script edit*.
-   The standalone runner is done (see Done above) and covers the on-demand case; this closes the
-   "whenever something is added or updated" half of the original ask by running the same scan as
-   an extra step at the end of `import_from_gitea.py --apply`, since that's the actual point in
-   this fork's workflow where scripts get added/changed - append its findings to that run's own
-   output rather than duplicating the scan logic.
+   Lower priority now than when this was written: the per-script preload pattern (see Done below
+   - every script proactively checks its own required secret and shows a one-click "Add it" link)
+   is now the primary mechanism for surfacing a missing secret, at the actual moment it matters,
+   to the actual person about to run the script. This item is now purely a secondary safety net -
+   catching a script that *didn't* implement its own preload check - not something closing a real
+   gap on its own. Still worth doing eventually: run Secret Ingredients Check's scan as an extra
+   step at the end of `import_from_gitea.py --apply` and append its findings to that run's output.
 
 ## Ideas / Backlog (need more design discussion before committing)
 
