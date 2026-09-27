@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Name: secrets_manager.py
-# Version: 1.5.0
+# Version: 1.6.0
 # Description: Sets, updates, or deletes an entry in the categorized secrets
 #              store (/app/data/secrets.json via scripts/shared/secrets_store.py)
 #              - e.g. product "gitea" holding TOKEN, product "finnhub" holding
@@ -15,7 +15,11 @@
 #              text (what this secret is for / how it's used) - leave it
 #              blank on an update and whatever was there before is kept, so
 #              re-setting just the value never silently wipes a description
-#              out. Values are never echoed back - only a character count
+#              out. Deleting a "not set yet" entry that a script registered
+#              itself (get_secret() on a miss) removes that placeholder - it
+#              comes back if a script still asks for it. Deleting a set
+#              secret leaves any placeholder alone, so a script that still
+#              needs it keeps showing as "not set yet". Values are never echoed back - only a character count
 #              confirms what was set. After every run (success or error) this
 #              re-renders the current store (same view as Secrets Viewer) so
 #              the result is immediately visible and the next entry can be
@@ -31,7 +35,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'shared'))
-from secrets_store import NEW_ENTRY_SENTINEL, delete_secret, set_secret  # noqa: E402
+from secrets_store import NEW_ENTRY_SENTINEL, delete_secret, remove_placeholder, set_secret  # noqa: E402
 import secrets_viewer  # noqa: E402
 
 
@@ -84,8 +88,13 @@ def main():
     if args.action == 'delete':
         if delete_secret(product, key):
             render_result(True, f'Deleted {product}.{key}')
+        elif remove_placeholder(product, key):
+            render_result(True, f'Removed placeholder {product}.{key} - it will come back if a '
+                                'script still asks for it.')
         else:
-            fail(f'No secret found for {product}.{key} - nothing to delete.')
+            fail(f'No secret or script-registered placeholder found for {product}.{key} - nothing '
+                 'to delete. (A placeholder from conf/secrets_defaults.json can only be removed by '
+                 'editing that file.)')
         return
 
     if not args.value:

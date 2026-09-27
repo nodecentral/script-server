@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Name: secrets_viewer.py
-# Version: 1.5.0
+# Version: 1.6.0
 # Description: Renders the categorized secrets store (/app/data/secrets.json,
 #              managed via Secrets Manager) as a styled HTML page - product,
 #              key, description, and when it was last set. Never shows
@@ -9,15 +9,16 @@
 #              (web-src/src/assets/css/shared.css's --primary-color,
 #              --surface-color etc.) since output_format html_iframe
 #              renders in an isolated document that doesn't inherit the
-#              app's stylesheet. Also lists known integrations (see
-#              secrets_store.KNOWN_INTEGRATIONS_PATH,
-#              conf/secrets_defaults.json) that don't have a value set yet,
-#              so a missing secret is visible before a consuming script
-#              fails on it - that checklist is checked-in DATA, not
-#              secrets.json itself, and this page says so explicitly (both
-#              as a banner when secrets.json doesn't exist at all, and as a
-#              permanent caption on the Not Yet Configured section) since
-#              it's easy to mistake for real stored data otherwise.
+#              app's stylesheet. Also lists every expected secret that
+#              doesn't have a value yet - curated ones from
+#              conf/secrets_defaults.json plus ones a script registered
+#              itself by calling get_secret() and missing
+#              (/app/data/secrets_discovered.json) - so a missing secret is
+#              visible and ready to fill in. Neither source is secrets.json
+#              itself, and this page says so explicitly (both as a banner
+#              when secrets.json doesn't exist at all, and as a permanent
+#              caption on the Not Yet Configured section) since it's easy
+#              to mistake for real stored data otherwise.
 #              render_body() is reused directly by secrets_manager.py to
 #              show the up-to-date store right after a change, alongside
 #              its own confirmation banner. Run standalone
@@ -188,27 +189,31 @@ def render_file_status_banner():
         return
     print(
         '<div class="info-banner">'
-        f'No file exists yet at <span class="mono">{html.escape(STORE_PATH)}</span> - nothing has '
-        'ever been saved. Everything below is a hardcoded checklist of known integrations built '
-        'into <span class="mono">secrets_store.py</span>, not data read from disk. Use '
-        '<b>Secrets Manager</b> to set a real value - that is what actually creates the file.'
+        f'No file exists yet at <span class="mono">{html.escape(STORE_PATH)}</span> - no value has '
+        'ever been saved. Everything below is a list of placeholders - secrets scripts expect - '
+        'not stored values. Use <b>Secrets Manager</b> to set a real value - that is what '
+        'actually creates the file.'
         '</div>'
     )
 
 
 def render_placeholders_group(placeholders):
     print(f'<details class="group" open><summary>Not Yet Configured ({len(placeholders)})</summary>')
-    print('<div class="section-note">This list comes from conf/secrets_defaults.json (checked '
-          'into git) - not from secrets.json. It shows what scripts expect, whether or not '
-          'secrets.json exists yet.</div>')
+    print('<div class="section-note">Placeholders, not stored values - from '
+          'conf/secrets_defaults.json (curated, checked into git) and from scripts that asked for '
+          'a secret via get_secret() and found it missing (/app/data/secrets_discovered.json). '
+          'Pick one in Secrets Manager to set its value.</div>')
     print('<div class="table-scroll"><table><thead><tr>'
-          '<th>Product</th><th>Key</th><th>Value</th><th>Needed For</th></tr></thead><tbody>')
-    for product, key, description in placeholders:
+          '<th>Product</th><th>Key</th><th>Value</th><th>Source</th><th>Needed For</th>'
+          '</tr></thead><tbody>')
+    for product, key, description, source in placeholders:
+        source_label = 'requested by a script' if source == 'requested' else 'defaults'
         print(
             '<tr>'
             f'<td class="mono">{html.escape(product)}</td>'
             f'<td class="mono">{html.escape(key)}</td>'
             f'<td><span class="unset-chip">not set</span></td>'
+            f'<td>{source_label}</td>'
             f'<td>{html.escape(description)}</td>'
             '</tr>'
         )
@@ -236,7 +241,7 @@ def render_body():
              f'across {len(groups)} product{"" if len(groups) == 1 else "s"} actually stored in '
              f'<span class="mono">{html.escape(STORE_PATH)}</span>.')
     if placeholders:
-        intro += (f' <span class="missing">{len(placeholders)} known integration(s) '
+        intro += (f' <span class="missing">{len(placeholders)} expected secret(s) '
                   'not yet configured.</span>')
     intro += ' Values are never shown here - use Secrets Manager to change one.'
     print(f'<div class="intro">{intro}</div>')

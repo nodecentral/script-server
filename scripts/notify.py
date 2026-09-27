@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Name: notify.py
-# Version: 1.1.0
+# Version: 1.2.0
 # Description: Sends a push notification via Pushover or Prowl. Designed to
 #              be run manually, or shelled out to from another script (e.g.
 #              python3 /app/scripts/notify.py --service pushover --message
@@ -10,7 +10,10 @@
 #              (pushover.TOKEN / pushover.USER_KEY / prowl.TOKEN via
 #              scripts/shared/secrets_store.py - see Secrets Manager) when
 #              left blank, so credentials don't need re-entering every run.
-#              An explicit --token/--user-key still overrides the store.
+#              An explicit --token/--user-key still overrides the store. A
+#              miss registers a placeholder in Secrets Manager (get_secret()
+#              with a purpose), and preload/notify.py shows which services
+#              are ready before the form is even submitted.
 #
 #              NOTE: built from Pushover's and Prowl's long-stable public
 #              API docs, but not verified against a live account - test
@@ -88,15 +91,15 @@ def main():
     log_debug(f'service={args.service} title={args.title!r} message={args.message!r}')
 
     if args.service == 'pushover':
-        token = args.token or get_secret('pushover', 'TOKEN') or ''
-        user_key = args.user_key or get_secret('pushover', 'USER_KEY') or ''
+        token = args.token or get_secret('pushover', 'TOKEN', 'Send Notification via Pushover') or ''
+        user_key = args.user_key or get_secret('pushover', 'USER_KEY', 'Send Notification via Pushover') or ''
         if not token or not user_key:
             print('Pushover requires both a token and a user key - pass --token/--user-key, or '
                   'set pushover.TOKEN / pushover.USER_KEY via Secrets Manager.', file=sys.stderr)
             sys.exit(1)
         send_pushover(token, user_key, args.title, args.message)
     elif args.service == 'prowl':
-        token = args.token or get_secret('prowl', 'TOKEN') or ''
+        token = args.token or get_secret('prowl', 'TOKEN', 'Send Notification via Prowl') or ''
         if not token:
             print('Prowl requires a token - pass --token, or set prowl.TOKEN via '
                   'Secrets Manager.', file=sys.stderr)

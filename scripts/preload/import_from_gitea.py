@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Name: preload/import_from_gitea.py
-# Version: 2.1.0
+# Version: 2.1.1
 # Description: preload_script for conf/runners/import_from_gitea.json - checks whether a Gitea
 #              URL and token are configured in the Secrets Store before the form even loads. With
 #              no URL, or no token, shows secrets_store.missing_secret_banner_html()'s themed
@@ -78,10 +78,9 @@ def main():
     tokens = list_gitea_tokens()
 
     if not tokens:
-        print(missing_secret_banner_html(
-            'gitea', 'TOKEN',
-            'needed before importing from a private repo - a public repo needs no token',
-        ))
+        # product/key kept on the call's own line so Secret Ingredients Check's per-line scan sees it
+        print(missing_secret_banner_html('gitea', 'TOKEN', (
+            'needed before importing from a private repo - a public repo needs no token')))
         return
 
     if len(tokens) > 1:

@@ -443,6 +443,37 @@ change is in this repo:
   `conf/runners/import_from_gitea.json` -> 4.2.0.
   **Still needs a live-NAS check** - the deep link's query-param pre-fill has only been verified
   by reading the frontend source, not by actually clicking a generated link in a real browser.
+- **`get_secret()` self-registers a placeholder on a miss** (was Planned #5) — direct user design
+  requirement: every script that needs a secret, whatever it is, prepares for its own `get` to
+  succeed. `get_secret(product, key, purpose='', register=True)` (and the CLI's
+  `get <product> <key> [purpose]`) now records a placeholder - product, key, requesting script,
+  purpose; never a value - in a new NAS-local, gitignored `/app/data/secrets_discovered.json` when
+  nothing is set. `list_known_placeholders()` merges it with `conf/secrets_defaults.json` (curated
+  wins on a duplicate) so Secrets Manager's dropdown and Secrets Viewer's Not Yet Configured list
+  (now with a Source column) show it, ready for a value. `missing_secret_banner_html()` goes
+  through `get_secret()`, so a preload banner registers too - before the script is ever run.
+  Writes only when something is new, per-process tmp file + atomic replace (preloads/dropdowns
+  can run concurrently), never raises. `register=False` for non-requirement lookups
+  (`gitea_client.resolve_gitea_token()`'s stale-dropdown-pick case). Secrets Manager's delete now
+  removes a script-registered placeholder (comes back if a script still asks); deleting a *set*
+  secret leaves its placeholder alone. Also: `notify.py` passes purposes and got its own preload
+  (`scripts/preload/notify.py`, alternatives-aware: red banners only if neither Pushover nor Prowl
+  is configured); `data/secrets.json` + `data/secrets_discovered.json` added to `.gitignore`
+  (the docs already claimed `secrets.json` was ignored - it wasn't). CLAUDE.md/SCRIPTING.md
+  rewritten to state the same three per-script rules (purpose-carrying `get_secret()`, preload
+  banner, fail clearly on `None`) and to reconcile this with the earlier rejection of
+  *static-scan* auto-placeholders. Same session fixed: Secret Ingredients Check's false positive
+  (`finnhub.API_KEY` "referenced by" `secrets_store.py`'s own header comment - whole-line comments
+  now skipped), its blindness to preload banner calls, and its report printing the intro/limitation
+  note *below* the tables (`render_html()` returned the header but printed the groups directly); CLAUDE.md's leftover
+  `get_secret('finance', 'FINNHUB_API_KEY')` examples and a truncated sentence; Secrets Viewer
+  still calling the checklist "hardcoded in `secrets_store.py`". Verified standalone against a
+  temp store/discovered file: registration + requester naming, no rewrite on a repeat miss,
+  curated-vs-requested merge, dropdown line, set/delete/remove-placeholder via Secrets Manager's
+  `main()`, Viewer rendering, CLI path, unwritable path, all three notify preload states.
+  `secrets_manager.py` -> 1.6.0 / runner 1.7.0, `secrets_viewer.py` -> 1.6.0 / runner 1.5.0,
+  `secret_ingredients_check.py` -> 1.1.0, `notify.py` -> 1.2.0 / runner 1.2.0,
+  `preload/import_from_gitea.py` -> 2.1.1, `SCRIPTING.md` -> 1.8.0.
 
 ## In Progress
 
@@ -481,13 +512,23 @@ change is in this repo:
   banner on the NAS, and `editable_list`'s autocomplete-suggest-but-still-type-new behavior
   specifically hasn't been visually confirmed in a real browser. No rebuild needed (Python + JSON
   only, no `web-src/` touched) - just restart the container and try creating a new entry.
+- **Needs a live-NAS check**: placeholder self-registration (see Done above). Confirm
+  `/app/data/secrets_discovered.json` gets created and is writable by the Script-Server process,
+  then open Send Notification with Pushover/Prowl unset (red banners, placeholders listed as
+  `requested by a script` in Secrets Viewer) and delete one via Secrets Manager. Still open from the
+  original spec: whether script-registered placeholders need
+  a "promote to `conf/secrets_defaults.json`" action, or living in the discovered file is enough.
 - **Cross-repo change needed, outside this session's access**: `ss_finance_management`'s
   `Portfolio Setup/Update Prices` script calls `get_secret('finance', 'EOD_API_KEY')` (the old
   grouped-category name, now removed from this store) - it needs updating to
   `get_secret('eod', 'API_KEY')` to match the Category-to-Product rework below. Flag this to
   whoever picks up that repo next; until it's updated, that script's EOD Historical Data fallback
   will silently find no secret (returns `None`, same as "never configured") rather than erroring
-  loudly - worth a quick manual check there after the rename lands.
+  loudly - worth a quick manual check there after the rename lands. With self-registration, its
+  old call will now also leave a stray `finance.EOD_API_KEY` placeholder in Secrets Manager - a
+  visible sign that repo still needs the update (delete it once it's done). While in there, pass a
+  purpose and add the preload check, per CLAUDE.md's "Every script owns preparing for its own
+  secret".
 
 ## Planned
 
@@ -514,45 +555,6 @@ change is in this repo:
    catching a script that *didn't* implement its own preload check - not something closing a real
    gap on its own. Still worth doing eventually: run Secret Ingredients Check's scan as an extra
    step at the end of `import_from_gitea.py --apply` and append its findings to that run's output.
-
-5. **`get_secret()` self-registers a placeholder the moment it misses - no separate call needed**
-   — *`scripts/shared/secrets_store.py` + Secrets Manager/Viewer*. Direct user design requirement,
-   intended for a dedicated focused session on secrets management (not bundled into unrelated
-   work). Today, a script gets a proactive banner+link only if it explicitly calls
-   `missing_secret_banner_html()` in its own preload (see Done above) - if a script author forgets
-   that call, or a script has no preload at all, a missing secret is invisible anywhere until the
-   script is actually run and fails. The fix: extend `get_secret(product, key, purpose=None)` so
-   that when it returns `None` and a `purpose` was given, it auto-writes a placeholder entry
-   (`product`, `key`, `purpose`) - **every script gets this for free the moment it calls
-   `get_secret()` normally**, no extra helper call to remember, no way to forget it.
-
-   **Resolves the earlier "is this a security concern" question - it isn't, and here's why,
-   verbatim from the user's own reasoning:** a placeholder (product + key + purpose text) carries
-   no sensitive content at all - the only thing that ever needs protecting is the *value*, which
-   already lives exactly where it should (`/app/data/secrets.json`, gitignored, chmod 600
-   best-effort, NAS-local, never touched by this). Don't let "is it safe to write this file"
-   caution block a feature whose entire payload is non-secret metadata - focus any real security
-   thinking on the values, which this doesn't change at all.
-
-   **Where auto-registered placeholders should live - not `conf/secrets_defaults.json`, but not
-   for a security reason either:** that file is checked into git and hand-curated (real
-   descriptions, reviewed before merging); auto-writing into it from a running NAS instance risks
-   a *practical* problem, not a security one - a future `git pull`/zip-deploy that copies down an
-   updated `conf/secrets_defaults.json` would silently overwrite and lose any auto-discovered
-   entry that hadn't been promoted into it yet. Cleaner: a second, NAS-local, gitignored file
-   (e.g. `/app/data/secrets_discovered.json`, alongside `secrets.json` itself) that `get_secret()`
-   appends to. `list_known_placeholders()` then merges three sources instead of one:
-   `conf/secrets_defaults.json` (curated) + the new discovered file (auto-found) + excludes
-   anything already actually set in `secrets.json` - Secrets Manager's dropdown and Secrets
-   Viewer's "Not Yet Configured" section pick this up automatically, no changes needed there
-   beyond the merge itself.
-
-   **Open question for that dedicated session to resolve, not answered here:** should there be a
-   "promote to `conf/secrets_defaults.json`" action (so a human/Claude session can give an
-   auto-discovered entry a properly-written description and make it permanent/git-tracked once
-   confirmed real), or is living in the discovered file indefinitely good enough? Worth deciding
-   before writing the promote UI, not before writing `get_secret()`'s side of this - the core
-   mechanism doesn't depend on the answer.
 
 ## Ideas / Backlog (need more design discussion before committing)
 

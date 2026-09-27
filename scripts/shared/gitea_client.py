@@ -44,7 +44,7 @@ class GiteaApiError(Exception):
 def resolve_gitea_url():
     """Returns the configured Gitea base URL (no trailing slash). Raises GiteaApiError if
     none is set - the "gitea" product's reserved "URL" key, via Secrets Manager."""
-    url = get_secret('gitea', 'URL')
+    url = get_secret('gitea', 'URL', 'the Gitea instance Import from Gitea imports from')
     if not url:
         raise GiteaApiError('No Gitea URL configured - add one via Secrets Manager (product '
                              'gitea, key URL, e.g. http://192.168.102.148:3011).')
@@ -71,7 +71,8 @@ def resolve_gitea_token(explicit_token, token_key):
         # dropdown-tokens prints "KEY | last set <date>" - the selected value is that whole
         # line, not just the key, so pull the key back out before looking it up.
         key = token_key.split('|')[0].strip()
-        value = get_secret('gitea', key)
+        # register=False: a miss here is a stale dropdown pick, not a secret any script needs.
+        value = get_secret('gitea', key, register=False)
         if value is None:
             raise GiteaApiError(f'No stored Gitea token found for gitea.{key} - check Secrets Manager.')
         return value, f'gitea.{key} (Secrets Store)'

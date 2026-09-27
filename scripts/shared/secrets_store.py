@@ -18,11 +18,12 @@
 #   import sys
 #   sys.path.insert(0, '/app/scripts/shared')
 #   from secrets_store import get_secret
-#   api_key = get_secret('finnhub', 'API_KEY')
+#   api_key = get_secret('finnhub', 'API_KEY', 'used by Portfolio Prices')
 #
 # Consuming a secret from Lua/bash (or anything that can shell out):
-#   python3 /app/scripts/shared/secrets_store.py get finnhub API_KEY
-# prints just the raw value to stdout (nothing else), exit code 1 if unset -
+#   python3 /app/scripts/shared/secrets_store.py get finnhub API_KEY "used by Portfolio Prices"
+# prints just the raw value to stdout (nothing else), exit code 1 if unset (and
+# registers a placeholder, same as get_secret() - the purpose argument is optional) -
 # same "shell out to a Python helper" pattern used for JSON in Lua elsewhere
 # in this repo (see CLAUDE.md's "Lua has no JSON library" note).
 #
@@ -41,11 +42,18 @@
 #   which stored "gitea" token to use when more than one exists
 #   (see conf/runners/import_from_gitea.json)
 #
-# Every script that consumes a secret owns checking for it itself, in its own
-# preload (see missing_secret_banner_html() below) - there is no centralized
-# scanner that guesses what a script needs from its source. This mirrors how
-# Import from Gitea's own preload (scripts/preload/import_from_gitea.py) has
-# always checked gitea.URL/gitea.TOKEN before that dropdown even loads.
+# Every script that consumes a secret owns preparing for it itself - there is no
+# centralized scanner that guesses what a script needs from its source. Two
+# per-script layers, both built on get_secret():
+# - get_secret(product, key, purpose) self-registers a placeholder on a miss
+#   (DISCOVERED_PATH below), so the missing secret shows up in Secrets
+#   Manager's dropdown and Secrets Viewer's "Not Yet Configured" list, ready
+#   for a value - the script's own request is what puts it there, so it's
+#   always tied to a real, installed script asking for it.
+# - missing_secret_banner_html() in the script's preload shows a banner with a
+#   one-click deep link into Secrets Manager (and registers the placeholder
+#   too, since it goes through get_secret()) - before the script is even run.
+#   Reference: scripts/preload/import_from_gitea.py.
 
 import html
 import json
@@ -73,6 +81,14 @@ SECRETS_MANAGER_HASH = 'Secrets%20Manager'
 # Add an entry here whenever a script is wired to call get_secret() for a product/key that isn't
 # in this list yet.
 KNOWN_INTEGRATIONS_PATH = '/app/conf/secrets_defaults.json'
+
+# Placeholders self-registered at runtime by get_secret() on a miss - {product: {key:
+# {first_seen, requested_by: {script: purpose}}}}. NAS-local and gitignored, alongside
+# secrets.json, rather than written into conf/secrets_defaults.json: that file is checked into
+# git and hand-curated, so a later git pull/deploy of it would silently wipe any entry
+# auto-written there. Holds no secret values at all (names + purpose text only) - the only thing
+# that needs protecting is a value, and values only ever live in STORE_PATH.
+DISCOVERED_PATH = '/app/data/secrets_discovered.json'
 
 # Deliberately loud and self-explanatory, not just "-- new entry --": Script-Server has no way to
 # hide the New Product/New Key fields unless this exact sentinel is picked, so the dropdown option
@@ -129,11 +145,83 @@ def load_known_integrations():
     ]
 
 
-def get_secret(product, key):
-    """Returns the raw secret value, or None if the product/key doesn't exist."""
+def get_secret(product, key, purpose='', register=True):
+    """Returns the raw secret value, or None if the product/key doesn't exist.
+
+    On a miss, also self-registers a placeholder (see register_placeholder()) so the secret shows
+    up in Secrets Manager/Viewer ready to be filled in - pass a short purpose (what it's needed
+    for) so whoever fills it in knows why. Pass register=False only for a lookup that isn't a real
+    requirement, e.g. resolving a key the user just picked from a dropdown of existing keys (a miss
+    there means a stale pick, not a secret any script needs)."""
     store = load_store()
     entry = store.get(product, {}).get(key)
-    return entry.get('value') if entry else None
+    value = entry.get('value') if entry else None
+    if value is None and register:
+        register_placeholder(product, key, purpose)
+    return value
+
+
+def _requesting_script():
+    """Best-effort name of the script asking for a secret - the running Python entry point,
+    relative to /app/scripts when it lives there (e.g. "notify.py", "preload/import_from_gitea.py").
+    A Lua/bash shell-out runs this module's own CLI, so the real caller isn't knowable here."""
+    path = os.path.abspath(sys.argv[0]) if sys.argv and sys.argv[0] else ''
+    if not path or os.path.basename(path) == 'secrets_store.py':
+        return 'a Lua/bash script (via secrets_store.py get)'
+    scripts_dir = '/app/scripts/'
+    return path[len(scripts_dir):] if path.startswith(scripts_dir) else os.path.basename(path)
+
+
+def load_discovered():
+    if not os.path.exists(DISCOVERED_PATH):
+        return {}
+    with open(DISCOVERED_PATH) as f:
+        try:
+            return json.load(f)
+        except json.JSONDecodeError:
+            return {}
+
+
+def _save_discovered(discovered):
+    os.makedirs(os.path.dirname(DISCOVERED_PATH), exist_ok=True)
+    # Per-process tmp name: preloads and dropdown scripts can call get_secret() concurrently.
+    tmp_path = f'{DISCOVERED_PATH}.{os.getpid()}.tmp'
+    with open(tmp_path, 'w') as f:
+        json.dump(discovered, f, indent=2, sort_keys=True)
+    os.replace(tmp_path, DISCOVERED_PATH)
+
+
+def register_placeholder(product, key, purpose='', requested_by=None):
+    """Records that a script needs product.key, so it appears as a "not set yet" entry in
+    Secrets Manager/Viewer. Only writes when something is actually new (a new product/key, a new
+    requesting script, or a purpose where there was none), not on every miss. Never raises -
+    this runs inside get_secret(), and failing to record a placeholder (e.g. run standalone with
+    no /app/data) must never break the actual lookup."""
+    try:
+        requested_by = requested_by or _requesting_script()
+        discovered = load_discovered()
+        entry = discovered.setdefault(product, {}).setdefault(key, {})
+        requesters = entry.setdefault('requested_by', {})
+        if requested_by in requesters and (requesters[requested_by] or not purpose):
+            return
+        requesters[requested_by] = purpose or ''
+        entry.setdefault('first_seen', time.strftime('%Y-%m-%d %H:%M:%S'))
+        _save_discovered(discovered)
+    except Exception:
+        pass
+
+
+def remove_placeholder(product, key):
+    """Removes a self-registered placeholder. Returns True if one existed. A script that still
+    calls get_secret() for it will simply register it again on its next run."""
+    discovered = load_discovered()
+    if product in discovered and key in discovered[product]:
+        del discovered[product][key]
+        if not discovered[product]:
+            del discovered[product]
+        _save_discovered(discovered)
+        return True
+    return False
 
 
 def missing_secret_link(product, key):
@@ -152,15 +240,16 @@ def missing_secret_banner_html(product, key, purpose=''):
     into Secrets Manager (New Product/New Key already filled in - just Value left to type) - or
     '' if it's already set, so a caller can just do `banner = missing_secret_banner_html(...);
     if banner: print(banner)`. Every script that needs a secret should check for it this way, in
-    its own preload (see CLAUDE.md/SCRIPTING.md's Secrets Store section) - there's no centralized
-    mechanism that discovers this for you.
+    its own preload (see CLAUDE.md/SCRIPTING.md's Secrets Store section).
 
     Uses inline styles for a themed warning banner under html_iframe. Under plain "html" output
     format, Script-Server's own sanitizer strips both <style> blocks AND inline style=
     attributes (confirmed in CLAUDE.md's Output Formats section) - this degrades to plain,
     unstyled text there, but the link itself still works either way. Use html_iframe if the
     styling matters, matching this fork's existing "html can't do custom CSS" convention."""
-    if get_secret(product, key) is not None:
+    # Goes through get_secret() on purpose, so a preload showing this banner also registers the
+    # placeholder - the secret is in Secrets Manager's dropdown before the script is ever run.
+    if get_secret(product, key, purpose) is not None:
         return ''
     link = missing_secret_link(product, key)
     purpose_html = f' - {html.escape(purpose)}' if purpose else ''
@@ -225,14 +314,31 @@ def list_product_keys(product):
 
 
 def list_known_placeholders():
-    """Known integrations (see load_known_integrations()) that don't have a value set yet -
-    (product, key, description) tuples."""
+    """Every secret expected but not set yet - (product, key, description, source) tuples, where
+    source is 'defaults' (curated, conf/secrets_defaults.json) or 'requested' (self-registered by
+    a script's get_secret() call, DISCOVERED_PATH). Curated entries win on a duplicate - their
+    description is hand-written - but a script that registered itself is still named alongside."""
     store = load_store()
-    return [
-        (product, key, description)
-        for product, key, description in load_known_integrations()
-        if key not in store.get(product, {})
-    ]
+    discovered = load_discovered()
+
+    def requested_by_text(product, key):
+        requesters = discovered.get(product, {}).get(key, {}).get('requested_by', {})
+        return '; '.join(f'{script}: {purpose}' if purpose else script
+                         for script, purpose in sorted(requesters.items()))
+
+    result, seen = [], set()
+    for product, key, description in load_known_integrations():
+        if (product, key) in seen:
+            continue
+        seen.add((product, key))
+        result.append((product, key, description, 'defaults'))
+    for product, keys in discovered.items():
+        for key in keys:
+            if (product, key) not in seen:
+                seen.add((product, key))
+                result.append((product, key, 'requested by ' + requested_by_text(product, key),
+                               'requested'))
+    return [entry for entry in result if entry[1] not in store.get(entry[0], {})]
 
 
 def list_entries_metadata():
@@ -250,12 +356,14 @@ def list_entries_metadata():
 
 
 def _cmd_get(args):
-    if len(args) != 2:
-        print('Usage: secrets_store.py get <product> <key>', file=sys.stderr)
+    if len(args) not in (2, 3):
+        print('Usage: secrets_store.py get <product> <key> [purpose]', file=sys.stderr)
         sys.exit(1)
-    value = get_secret(args[0], args[1])
+    purpose = args[2] if len(args) == 3 else ''
+    value = get_secret(args[0], args[1], purpose)
     if value is None:
-        print(f'No secret set for {args[0]}.{args[1]}', file=sys.stderr)
+        print(f'No secret set for {args[0]}.{args[1]} - a placeholder has been added; set its '
+              f'value via Secrets Manager.', file=sys.stderr)
         sys.exit(1)
     print(value, end='')
 
@@ -270,7 +378,7 @@ def _cmd_dropdown_entries(_args):
     for product, key, updated_at, _length, description in list_entries_metadata():
         suffix = f' - {description}' if description else ''
         print(f'{product} | {key} | ✓ set - last updated {updated_at}{suffix}')
-    for product, key, description in list_known_placeholders():
+    for product, key, description, _source in list_known_placeholders():
         print(f'{product} | {key} | ○ not set yet - {description}')
 
 

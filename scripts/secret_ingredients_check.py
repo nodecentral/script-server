@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Name: secret_ingredients_check.py
-# Version: 1.0.0
+# Version: 1.1.0
 # Description: Secret Ingredients Check - scans every script under scripts/
 #              for get_secret(...) calls (Python) and secrets_store.py get
 #              <product> <key> calls (Lua/bash shelling out), then cross-
@@ -12,6 +12,10 @@
 #              Script Ingredients Check, applied to secrets instead of
 #              missing script/preload files. Also lists set secrets that no
 #              script currently references, in case they're safe to remove.
+#              Skips whole-line comments, so usage examples in a header
+#              don't count as references. Secondary audit only - the
+#              primary mechanism is each script's own get_secret() call
+#              registering a placeholder on a miss, plus its preload banner.
 #              Best-effort static scan (regex over file contents, not a real
 #              parser) - it CANNOT resolve a product/key built dynamically at
 #              runtime from a variable, so a script using that pattern won't
@@ -44,7 +48,11 @@ SELF_FILENAME = os.path.basename(__file__)
 # script's own multi-line header comment as if it were a real call). Cannot resolve a call built
 # from variables (e.g. get_secret(product_var, key_var)) - a real, accepted limitation of a
 # static regex scan, not a bug; such a script just won't show up here either way.
-PYTHON_CALL_RE = re.compile(r"""get_secret\(\s*['"]([^'"]+)['"]\s*,\s*['"]([^'"]+)['"]""")
+# Also matches missing_secret_banner_html(...)/missing_secret_link(...) - a preload checking a
+# secret is just as much a reference as a get_secret() call (import_from_gitea.py's preload
+# checks gitea.TOKEN only this way).
+PYTHON_CALL_RE = re.compile(
+    r"""(?:get_secret|missing_secret_banner_html|missing_secret_link)\(\s*['"]([^'"]+)['"]\s*,\s*['"]([^'"]+)['"]""")
 
 # Matches the Lua/bash shell-out pattern: secrets_store.py get <product> <key>, applied per-line
 # for the same reason as PYTHON_CALL_RE above.
@@ -56,6 +64,12 @@ SHELL_CALL_RE = re.compile(r"""secrets_store\.py\s+get\s+(\S+)\s+(\S+)""")
 # comment continuation, etc. - is a doc/usage string or an unresolvable variable, not a real
 # reference, and is dropped in scan_file() rather than reported as a false "missing" secret.
 VALID_TOKEN_RE = re.compile(r'^[A-Za-z0-9_]+$')
+
+# Whole-line comments in the scanned languages (Python/bash "#", Lua "--") are skipped entirely:
+# usage examples in a header comment (secrets_store.py's own, for one) are exactly the shape of a
+# real call and otherwise get reported as a secret some script needs - confirmed the hard way, a
+# first real run reported finnhub.API_KEY as "referenced by shared/secrets_store.py".
+COMMENT_PREFIXES = ('#', '--')
 
 STYLE = """
 <style>
@@ -136,6 +150,8 @@ def scan_file(path):
 
     found = []
     for line in lines:
+        if line.lstrip().startswith(COMMENT_PREFIXES):
+            continue
         for m in PYTHON_CALL_RE.finditer(line):
             product, key = m.group(1), m.group(2)
             if VALID_TOKEN_RE.match(product) and VALID_TOKEN_RE.match(key):
@@ -229,30 +245,32 @@ def render_unused_group(unused):
 
 
 def render_html():
+    """Prints the whole report. The group renderers print directly, so the header has to be
+    printed first - building it into a returned string (as 1.0.0 did) put the intro and
+    limitation note below the tables."""
     missing, unused, total_references = build_report()
 
-    parts = [STYLE]
     summary = f'{total_references} distinct secret(s) referenced across scripts/.'
     if missing:
         summary += f' <span class="missing">{len(missing)} missing.</span>'
     else:
         summary += ' All referenced secrets are configured.'
-    parts.append(f'<div class="intro">Secret Ingredients Check - {summary}</div>')
-    parts.append(
+    print(STYLE)
+    print(f'<div class="intro">Secret Ingredients Check - {summary}</div>')
+    print(
         '<div class="limitation-note">Best-effort static scan (regex over file contents) - it '
         'cannot resolve a product/key built from a variable at runtime, so this is a floor on '
-        'real issues, not an exhaustive guarantee. Doesn\'t replace actually running a script.'
-        '</div>'
+        'real issues, not an exhaustive guarantee. Doesn\'t replace actually running a script. '
+        'Scripts register what they need themselves via get_secret() - see Secrets Viewer\'s '
+        'Not Yet Configured list.</div>'
     )
 
     render_missing_group(missing)
     render_unused_group(unused)
 
-    return '\n'.join(parts)
-
 
 def main():
-    print(render_html())
+    render_html()
 
 
 if __name__ == '__main__':

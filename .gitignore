@@ -66,6 +66,9 @@ conf/theme
 conf/conf.json
 conf/.htpasswd
 conf/deleted
+# Secrets Store - real values, and names/purposes of secrets scripts have asked for (NAS-local)
+data/secrets.json
+data/secrets_discovered.json
 logs
 .idea
 temp

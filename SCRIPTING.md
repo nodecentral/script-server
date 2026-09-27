@@ -1,7 +1,7 @@
 # SCRIPTING.md — Script-Server Scripting Conventions (Focused)
 
-Version: 1.7.0
-Last updated: 2026-09-26
+Version: 1.8.0
+Last updated: 2026-09-27
 
 This is the **focused** convention doc for any Claude session writing
 scripts/runners destined for import into `nodecentral/script-server` —
@@ -365,13 +365,32 @@ in order of preference for most cases:
    sys.path.insert(0, '/app/scripts/shared')
    from secrets_store import get_secret
 
-   api_key = get_secret('finnhub', 'API_KEY')  # None if unset
+   api_key = get_secret('finnhub', 'API_KEY', 'used by Portfolio Prices')
+   if api_key is None:  # placeholder now registered in Secrets Manager
+       sys.exit('finnhub.API_KEY is not set - add it via Secrets Manager.')
    ```
 
-   **Consume from Lua/bash** (shell out to the same Python helper):
+   **Consume from Lua/bash** (shell out to the same Python helper - exit
+   code 1 if unset):
    ```bash
-   API_KEY=$(python3 /app/scripts/shared/secrets_store.py get finnhub API_KEY)
+   API_KEY=$(python3 /app/scripts/shared/secrets_store.py get finnhub API_KEY "used by Portfolio Prices") \
+     || { echo "finnhub.API_KEY is not set - add it via Secrets Manager." >&2; exit 1; }
    ```
+
+   **Every script that needs a secret, whatever it is, prepares for its
+   own `get` to succeed - three things, all required:**
+   1. **Call `get_secret()` with literal product/key names and a purpose**
+      (the third argument - same for the Lua/bash `get`). If the secret
+      isn't set, that call **registers a placeholder** in the store
+      (`/app/data/secrets_discovered.json`, names + purpose only, never a
+      value), so it appears in Secrets Manager's dropdown as `not set
+      yet` and the user just picks it and types the value.
+   2. **Check it in the script's preload** with
+      `missing_secret_banner_html()` (below) - add a preload if the script
+      has none. The preload runs as soon as the script is opened, so the
+      banner and the placeholder both exist before it's ever run.
+   3. **Fail clearly on `None`** - name the missing `product.KEY` and say
+      to set it in Secrets Manager; never crash on it or carry on silently.
 
    **Never invent a parallel secrets mechanism** (a local `.env` file, a
    custom `secrets.py` helper, etc.) — this has already happened once
@@ -386,7 +405,9 @@ in order of preference for most cases:
    script-server repo, not something you edit here):** open Secrets
    Manager. If your product/key is already listed in the dropdown - either
    as a real set entry or a `not set yet` known-integration suggestion -
-   pick it, that alone carries the product/key. Otherwise pick
+   pick it, that alone carries the product/key (a `not set yet` entry is
+   either curated in `conf/secrets_defaults.json` or was registered by a
+   script's own `get_secret()` call). Otherwise pick
    `+ CREATE NEW ENTRY` and fill in two fields together with Value in the
    same run: **New Product** (an `editable_list` - pick an existing
    product from the autocomplete, or type a brand new one, e.g. `Adobe`)
@@ -401,15 +422,17 @@ in order of preference for most cases:
    **Never guess a product/key name** for a value you're about to
    consume — a wrong guess is worse than none (looks configured while
    silently failing). Confirm the exact key your script calls
-   `get_secret()` for, and if it's new, that's a learning to flag (see
-   Learning & Sharing above) so it gets added to `conf/secrets_defaults.json`
-   and shows up in Secrets Manager/Viewer's readiness checklist.
+   `get_secret()` for. You don't need `conf/secrets_defaults.json` for a
+   new secret to show up - step 1 above registers it on the NAS the first
+   time the script (or its preload) asks. Flag a new product as a
+   learning anyway (see Learning & Sharing above) if it deserves a
+   curated, hand-written description there.
 
-   **Your script owns checking for its own secret - do this in its
-   preload, not by hoping someone notices it's missing.** There is no
-   central scanner that discovers what a script needs from its source;
-   the platform's whole answer to "is my secret configured" is each
-   script checking for itself:
+   **There is no central scanner that discovers what a script needs from
+   its source** - that design was rejected (it could invent secrets no
+   real script uses). Registration happens only through the script's own
+   `get_secret()` call, so a placeholder always belongs to a real script
+   asking for exactly that product/key. The preload check (step 2):
    ```python
    from secrets_store import missing_secret_banner_html
 
@@ -417,15 +440,17 @@ in order of preference for most cases:
    if banner:
        print(banner)  # a themed warning with a one-click "Add it in Secrets Manager" link
    ```
-   `banner` is `''` if already set. The link is a real deep link (New
-   Product/New Key pre-filled, just Value left to type), not a plain
-   pointer - see CLAUDE.md's Secrets Store section for exactly how and
-   why, and `scripts/preload/import_from_gitea.py` in the main repo for
-   a working reference. Use `missing_secrets_banner_html([(product, key,
-   purpose), ...])` for a script needing more than one secret. Always
-   use `output_format: html_iframe` for the preload if you want the
-   warning styled - plain `html` strips the inline styles (link still
-   works, just unstyled).
+   `banner` is `''` if already set (and registers the placeholder if
+   not). The link is a real deep link (New Product/New Key pre-filled,
+   just Value left to type), not a plain pointer - see CLAUDE.md's
+   Secrets Store section for exactly how and why, and
+   `scripts/preload/import_from_gitea.py` in the main repo for a working
+   reference. Use `missing_secrets_banner_html([(product, key, purpose),
+   ...])` for a script needing more than one secret, and
+   `scripts/preload/notify.py` for secrets that are alternatives (either
+   service will do). Always use `output_format: html_iframe` for the
+   preload if you want the warning styled - plain `html` strips the
+   inline styles (link still works, just unstyled).
 
    **Security posture:** plaintext on disk (`chmod 600` best-effort),
    same risk tier as a Docker environment block — not an encrypted

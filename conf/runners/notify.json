@@ -1,10 +1,14 @@
 {
-  "_version": "1.1.0",
+  "_version": "1.2.0",
   "name": "Send Notification",
   "group": "Admin",
-  "description": "Sends a push notification via Pushover or Prowl. Built from each service's public API docs but not verified against a live account - test with your own credentials first. Token/user key fall back to the Secrets Store (pushover.TOKEN / pushover.USER_KEY / prowl.TOKEN, set via Secrets Manager) when left blank here, so credentials don't need re-entering every run.",
+  "description": "Sends a push notification via Pushover or Prowl. Built from each service's public API docs but not verified against a live account - test with your own credentials first. Token/user key fall back to the Secrets Store (pushover.TOKEN / pushover.USER_KEY / prowl.TOKEN, set via Secrets Manager) when left blank here, so credentials don't need re-entering every run. The banner (before you click Run) shows which services are ready and links straight into Secrets Manager for any that are not.",
   "script_path": "notify.py",
   "working_directory": "/app/scripts",
+  "preload_script": {
+    "script": "/app/scripts/preload/notify.py",
+    "output_format": "html_iframe"
+  },
   "parameters": [
     {
       "name": "service",

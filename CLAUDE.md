@@ -694,7 +694,7 @@ Managed via two runners in `conf/runners/` (`secrets_manager.py` /
   Network Device Inventory. Shows product/key/last-set only, never any part
   of the actual value.
 
-### Known Integrations checklist
+### Placeholders: the "not set yet" checklist (curated + script-registered)
 
 `conf/secrets_defaults.json` - checked into git, a JSON list of
 `{"product": ..., "key": ..., "description": ...}` objects - names
@@ -706,20 +706,30 @@ diffable in git without opening a Python file, and it's a completely
 separate file from `/app/data/secrets.json` (gitignored, NAS-local, the
 real values) - nothing here is ever copied into that file, so a fresh
 `git pull` that adds a new placeholder can never clobber a real stored
-value. Secrets Manager's dropdown lists these alongside real entries — a
-`not set yet` row is selectable exactly like an already-set one, so
-filling in a known integration never requires re-typing its product/key
-by hand. Secrets Viewer surfaces the same list as a **Not Yet
-Configured** section (a Script-Ingredients-Check-style readiness check
-for secrets, not just files), so a missing credential is visible before
-a script fails on it rather than after.
+value.
 
-**When wiring a script to consume a secret, add it to
-`conf/secrets_defaults.json` in the same change** — that's what keeps the
-checklist accurate. A product without a real consuming script yet (e.g.
-`paperless` below, added ahead of an actual Paperless-ngx integration
-script) is a legitimate placeholder, but say so in its description so
-it's clear nothing reads it yet.
+**This is one of two sources of placeholders**, and the smaller one. The
+other is **self-registration**: any `get_secret(product, key, purpose)`
+call that finds nothing set records a placeholder in
+`/app/data/secrets_discovered.json` (see "Every script owns preparing for
+its own secret" below). `list_known_placeholders()` merges both — curated
+entries win on a duplicate, since their description is hand-written —
+and drops anything already set in `secrets.json`. Secrets Manager's
+dropdown lists the result alongside real entries — a `not set yet` row is
+selectable exactly like an already-set one, so filling one in never
+requires re-typing its product/key by hand. Secrets Viewer surfaces the
+same list as a **Not Yet Configured** section with a Source column
+(`defaults` or `requested by a script`), so a missing credential is
+visible and ready to fill in before a script fails on it.
+
+**Add an entry to `conf/secrets_defaults.json` when you want a
+hand-written description, or a placeholder visible before any script has
+run** (e.g. `paperless` below, added ahead of an actual Paperless-ngx
+integration script - say so in its description so it's clear nothing
+reads it yet). It's no longer the only way a secret becomes visible: a
+script that calls `get_secret()` with a purpose registers itself either
+way. Whether self-registered entries should get a "promote to
+`secrets_defaults.json`" action is still open (see `ROADMAP.md`).
 
 Confirmed real integration (`notify.py` calls these directly):
 
@@ -749,21 +759,64 @@ private Gitea repo (see Import from Gitea) are the case that bites here:
 their source isn't visible from outside the NAS, so confirm the exact
 `os.environ.get(...)` / `get_secret(...)` calls in the real script — by
 reading it directly or grepping the imported copy under `/app/scripts` —
+before telling anyone which product/key to set. Self-registration (below)
+makes this much less of a guessing game: once the script has run (or its
+preload has loaded) on the NAS, the exact product/key it asked for is
+already sitting in Secrets Manager's dropdown as `not set yet`.
 
-### Every script owns checking for its own secret — no centralized discovery
+### Every script owns preparing for its own secret — no centralized discovery
 
-The essence of this platform is running scripts, so a script that needs a
-secret should proactively confirm it's there and, if not, point straight
-at how to add it — **in its own preload**, not via any central scanner
-that tries to guess what every script under `scripts/` needs. A design
-that scanned script source for `get_secret()` calls and auto-generated
-placeholders was considered and explicitly rejected: adding a secret that
-isn't tied to a real, currently-installed script is a strange state for
-the store to be in, and per-script ownership (each preload checks exactly
-what its own main script actually calls) is simpler and never drifts from
-reality the way a static scan could. This applies uniformly regardless of
-how the script arrived - imported from Gitea or added by any other means,
-the same preload-checks-itself pattern is the answer either way.
+The essence of this platform is running scripts, so **every script that
+needs a secret, whatever it is, makes its own preparations for its
+`get` to succeed** - it declares the secret it needs so a placeholder
+exists in the store for the user to fill in, and it points straight at
+how to add it. Nothing central guesses on its behalf. This applies
+uniformly regardless of how the script arrived - imported from Gitea or
+added by any other means.
+
+**What every secret-consuming script must do:**
+
+1. **Call `get_secret()` with literal product/key names and a purpose** -
+   `get_secret('sonarr', 'API_KEY', 'used by Media Library Scan')`, or
+   `secrets_store.py get sonarr API_KEY "used by Media Library Scan"` from
+   Lua/bash. On a miss this **self-registers a placeholder** in
+   `/app/data/secrets_discovered.json` (product, key, which script asked,
+   its purpose) and returns `None` as before. The secret then appears in
+   Secrets Manager's dropdown and Secrets Viewer's Not Yet Configured
+   list, so the user only has to pick it and type the value.
+2. **Check it in the script's preload** with `missing_secret_banner_html()`
+   (below). The preload runs as soon as someone opens the script, so the
+   banner - and, because it goes through `get_secret()`, the placeholder -
+   exist before the script is ever run. Add a preload for this if the
+   script doesn't have one yet.
+3. **Fail clearly on `None`** - say which `product.KEY` is missing and to
+   set it via Secrets Manager, rather than crashing with a `TypeError` or
+   carrying on silently with no credential.
+
+**Why this is per-script, and how it squares with the rejected
+"auto-generated placeholders" idea.** A design that *statically scanned*
+script source for `get_secret()` calls and generated placeholders from
+that was considered and explicitly rejected: it could create a secret
+entry not tied to a real, currently-installed script ("having the ability
+to add secrets that are not part of a script seems strange"), and a
+regex scan drifts from what scripts actually call. Self-registration is
+the opposite design, not a variant of it - the placeholder is written by
+the script's *own* `get_secret()` call, at the moment it genuinely asks,
+so it's always tied to a real script and always the exact product/key it
+uses. The placeholder carries names and purpose text only, never a
+value, so writing it is not a security concern; it goes to a separate,
+NAS-local, gitignored file rather than `conf/secrets_defaults.json` purely
+so a later `git pull` of that curated file can't wipe it.
+
+`register=False` opts a single lookup out - only for a call that isn't a
+real requirement, e.g. `gitea_client.resolve_gitea_token()` resolving a key
+the user just picked from a dropdown of already-stored keys (a miss there
+is a stale pick, not a secret any script needs). Registration never
+raises: if the file can't be written (e.g. a standalone run with no
+`/app/data`), `get_secret()` just returns `None` as normal. Deleting a
+script-registered `not set yet` entry in Secrets Manager removes it; if a
+script still asks for it, it comes straight back on that script's next
+call - which is correct, that script still needs it.
 
 `secrets_store.py` provides the building blocks so no script hand-rolls
 this:
@@ -780,9 +833,13 @@ if banner:
 `missing_secret_banner_html(product, key, purpose='')` returns `''` if the
 secret is already set (so the `if banner:` guard is all a caller needs),
 otherwise a themed warning `<div>` with a genuine, one-click **"Add it in
-Secrets Manager"** link. `missing_secrets_banner_html([(product, key,
-purpose), ...])` is the same for a script needing more than one secret,
-concatenating whatever's still missing.
+Secrets Manager"** link - and registers the placeholder along the way.
+`missing_secrets_banner_html([(product, key, purpose), ...])` is the same
+for a script needing more than one secret, concatenating whatever's still
+missing. For alternatives (either service A *or* B will do), see
+`scripts/preload/notify.py`: red banners only when neither is configured,
+otherwise a confirmation plus plain `missing_secret_link()` links for the
+rest.
 
 **The deep link is real, not a plain "go check Secrets Manager" pointer**
 - confirmed directly in the frontend source, not assumed: Script-Server's
@@ -818,11 +875,17 @@ checks `gitea.URL` and `gitea.TOKEN` this way before its own
 Gitea-specific logic (multi-token picker, live connectivity test) even
 runs. Retrofitted from hand-written banner HTML with no link at all to
 prove the shared helper works end-to-end, not written from scratch
-alongside it.
+alongside it. `scripts/preload/notify.py` is the second, for a script whose secrets
+are alternatives rather than all required.
 
 **Where this leaves `secret_ingredients_check.py`:** still useful, but as
 a secondary, administrative audit - "did any script forget to implement
-this check on itself" - not the primary mechanism. It's a periodic report
+this check on itself" - not the primary mechanism. It scans for literal
+`get_secret(...)`, `missing_secret_banner_html(...)`/`missing_secret_link(...)`
+and `secrets_store.py get` calls, one line at a time, skipping whole-line
+comments (usage examples in a header comment otherwise look exactly like
+real calls). Keep a call's product/key on the call's own line for it to
+be seen. It's a periodic report
 a human runs on demand, not something proactively shown to the person
 about to run the script that actually needs the secret.
 
@@ -919,15 +982,19 @@ import sys
 sys.path.insert(0, '/app/scripts/shared')
 from secrets_store import get_secret
 
-api_key = get_secret('finance', 'FINNHUB_API_KEY')  # None if unset
+api_key = get_secret('finnhub', 'API_KEY', 'used by Portfolio Prices')
+if api_key is None:  # placeholder now registered in Secrets Manager
+    sys.exit('finnhub.API_KEY is not set - add it via Secrets Manager.')
 ```
 
 **Consuming a secret from Lua/bash** (same "shell out to a Python helper"
 pattern as Lua's JSON handling above) — prints just the raw value to stdout,
-exit code 1 if unset:
+exit code 1 if unset (registering the placeholder, same as Python; the
+purpose argument is optional but always worth passing):
 
 ```bash
-API_KEY=$(python3 /app/scripts/shared/secrets_store.py get finance FINNHUB_API_KEY)
+API_KEY=$(python3 /app/scripts/shared/secrets_store.py get finnhub API_KEY "used by Portfolio Prices") \
+  || { echo "finnhub.API_KEY is not set - add it via Secrets Manager." >&2; exit 1; }
 ```
 
 **Security posture — read before treating this as more than it is:**
