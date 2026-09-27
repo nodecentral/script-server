@@ -515,6 +515,45 @@ change is in this repo:
    gap on its own. Still worth doing eventually: run Secret Ingredients Check's scan as an extra
    step at the end of `import_from_gitea.py --apply` and append its findings to that run's output.
 
+5. **`get_secret()` self-registers a placeholder the moment it misses - no separate call needed**
+   — *`scripts/shared/secrets_store.py` + Secrets Manager/Viewer*. Direct user design requirement,
+   intended for a dedicated focused session on secrets management (not bundled into unrelated
+   work). Today, a script gets a proactive banner+link only if it explicitly calls
+   `missing_secret_banner_html()` in its own preload (see Done above) - if a script author forgets
+   that call, or a script has no preload at all, a missing secret is invisible anywhere until the
+   script is actually run and fails. The fix: extend `get_secret(product, key, purpose=None)` so
+   that when it returns `None` and a `purpose` was given, it auto-writes a placeholder entry
+   (`product`, `key`, `purpose`) - **every script gets this for free the moment it calls
+   `get_secret()` normally**, no extra helper call to remember, no way to forget it.
+
+   **Resolves the earlier "is this a security concern" question - it isn't, and here's why,
+   verbatim from the user's own reasoning:** a placeholder (product + key + purpose text) carries
+   no sensitive content at all - the only thing that ever needs protecting is the *value*, which
+   already lives exactly where it should (`/app/data/secrets.json`, gitignored, chmod 600
+   best-effort, NAS-local, never touched by this). Don't let "is it safe to write this file"
+   caution block a feature whose entire payload is non-secret metadata - focus any real security
+   thinking on the values, which this doesn't change at all.
+
+   **Where auto-registered placeholders should live - not `conf/secrets_defaults.json`, but not
+   for a security reason either:** that file is checked into git and hand-curated (real
+   descriptions, reviewed before merging); auto-writing into it from a running NAS instance risks
+   a *practical* problem, not a security one - a future `git pull`/zip-deploy that copies down an
+   updated `conf/secrets_defaults.json` would silently overwrite and lose any auto-discovered
+   entry that hadn't been promoted into it yet. Cleaner: a second, NAS-local, gitignored file
+   (e.g. `/app/data/secrets_discovered.json`, alongside `secrets.json` itself) that `get_secret()`
+   appends to. `list_known_placeholders()` then merges three sources instead of one:
+   `conf/secrets_defaults.json` (curated) + the new discovered file (auto-found) + excludes
+   anything already actually set in `secrets.json` - Secrets Manager's dropdown and Secrets
+   Viewer's "Not Yet Configured" section pick this up automatically, no changes needed there
+   beyond the merge itself.
+
+   **Open question for that dedicated session to resolve, not answered here:** should there be a
+   "promote to `conf/secrets_defaults.json`" action (so a human/Claude session can give an
+   auto-discovered entry a properly-written description and make it permanent/git-tracked once
+   confirmed real), or is living in the discovered file indefinitely good enough? Worth deciding
+   before writing the promote UI, not before writing `get_secret()`'s side of this - the core
+   mechanism doesn't depend on the answer.
+
 ## Ideas / Backlog (need more design discussion before committing)
 
 - **Encrypted-at-rest secrets store** — *Core-adjacent*. The plaintext categorized store (Secrets
