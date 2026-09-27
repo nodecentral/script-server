@@ -46,6 +46,7 @@ def parameter_to_external(parameter):
         'max_length': parameter.max_length,
         'regex': parameter.regex,
         'values': parameter.get_ui_values(),
+        'copyFrom': parameter.copy_from,
         'secure': parameter.secure,
         'fileRecursive': parameter.file_recursive,
         'fileType': parameter.file_type,

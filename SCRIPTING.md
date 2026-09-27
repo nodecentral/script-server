@@ -1,6 +1,6 @@
 # SCRIPTING.md — Script-Server Scripting Conventions (Focused)
 
-Version: 1.9.0
+Version: 1.10.0
 Last updated: 2026-09-27
 
 This is the **focused** convention doc for any Claude session writing
@@ -317,6 +317,55 @@ itself (`echo "📁 /app/data/reports/"`) and strip the prefix before use
 | Values fetched live (API, filesystem, DB) | Dynamic values script |
 | Simple recursive file/folder picker | Native `server_file` type |
 | Complex data with UI labels known in advance | Runner-Generator Pattern |
+| A field's *value* pre-filled from another field's pick, purely for the user to see/confirm | `copy_from` (below) — not a dependent dropdown |
+
+-----
+
+## Pre-filling a Field's Value from Another Field — copy_from
+
+Different problem from Dependent Dropdowns above: that re-fetches a
+dropdown's *options*; `copy_from` sets a plain (or `editable_list`)
+field's *value* itself from a segment of another field's current value,
+purely so the user sees it echoed back rather than staring at a blank
+field. Built for Secrets Manager: picking `sonarr | API_KEY | ○ not set
+yet | needed for X` in the Entry dropdown fills **New Key** with
+`API_KEY` and **Description** with `needed for X` — nothing the user
+has to type, and nothing the *submitted* value actually depends on
+(New Key/Description are still ordinary fields; the pre-fill is a
+convenience, not a hidden coupling — the user can always overtype it):
+
+```json
+{
+  "name": "new_key",
+  "param": "--new_key",
+  "copy_from": {"parameter": "entry", "segment": 1}
+}
+```
+
+`copy_from: {parameter, segment, separator?, rest?}` — `parameter` is
+the source field to watch; `segment` (0-based) picks out one piece after
+splitting the source's current value on `separator` (default `' | '`,
+matching this fork's existing pipe-delimited dropdown-line convention —
+see `dropdown-entries`/`dropdown-tokens`/`dropdown-repos` throughout
+`scripts/shared/`); `rest: true` rejoins from `segment` to the end
+instead of taking that one piece alone, for a free-text trailing field
+that might itself contain the separator (Secrets Manager's Description
+uses this). No skip-list is needed for "don't fill this in" cases (e.g.
+Secrets Manager's `+ CREATE NEW ENTRY` sentinel, or nothing picked yet):
+a source value clears the target to `''` unless it actually contains
+`separator` at least once — checking against `segment` alone isn't
+enough on its own (splitting a value with *no* separator still yields
+one part, so for `segment: 0` that one part would otherwise pass
+straight through as if it were real — caught live in a browser, not
+just by reading the code, see CLAUDE.md's Secrets Store history).
+
+Read once at parameter-config load time server-side
+(`ParameterModel.copy_from` in `src/model/parameter_config.py`, passed
+through untouched via `parameter_to_external()`) and applied client-side
+in `web-src/src/main-app/store/scriptSetup.js`'s `setParameterValue()` /
+`deriveCopyFromValue()` — a genuine Core (frontend) change, so it needs
+`npm run build` + a Docker image rebuild to take effect, unlike every
+other change in this doc's Secrets section which is plain Python/JSON.
 
 -----
 

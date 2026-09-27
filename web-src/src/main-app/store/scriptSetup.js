@@ -108,9 +108,29 @@ export default {
             dispatch('_setAndSendParameterValues', values);
         },
 
-        setParameterValue({state, commit, dispatch}, {parameterName, value}) {
+        setParameterValue({state, commit, dispatch, rootState}, {parameterName, value}) {
             commit('UPDATE_SINGLE_VALUE', {parameterName, value});
             dispatch('sendValueToServer', {parameterName, value});
+
+            // "copy_from" is opt-in, declared per-target-parameter in the runner config (see
+            // deriveCopyFromValue() below) - most parameter changes match nothing here and this
+            // loop is a no-op. Only ever touches OTHER parameters, never the one just edited, so
+            // there's no risk of this re-triggering itself.
+            const parameters = (rootState.scriptConfig && rootState.scriptConfig.parameters) || [];
+            for (const parameter of parameters) {
+                const copyFrom = parameter.copyFrom;
+                if (isNull(copyFrom) || copyFrom.parameter !== parameterName || parameter.name === parameterName) {
+                    continue;
+                }
+
+                const derivedValue = deriveCopyFromValue(copyFrom, value);
+                if (state.parameterValues[parameter.name] === derivedValue) {
+                    continue;
+                }
+
+                commit('UPDATE_SINGLE_VALUE', {parameterName: parameter.name, value: derivedValue});
+                dispatch('sendValueToServer', {parameterName: parameter.name, value: derivedValue});
+            }
         },
 
         setParameterError({commit}, {parameterName, errorMessage}) {
@@ -199,4 +219,43 @@ export default {
             state._default_values_from_config[parameterName] = defaultValue;
         }
     }
+}
+
+// Computes a "copy_from"-configured parameter's derived value from the current value of the
+// source parameter it watches. copyFrom shape (declared per-target-parameter in the runner
+// config, see parameter.copyFrom / model.parameter_config.ParameterModel.copy_from on the
+// backend): {parameter, segment, separator?, rest?}.
+//
+// sourceValue is split on `separator` (default ' | ', matching the pipe-delimited dropdown lines
+// already used throughout this fork - see secrets_store.py's dropdown-entries) and `segment`
+// (0-based) is picked out. `rest: true` rejoins from `segment` to the end instead of taking that
+// one piece alone - for a free-text trailing field (e.g. a description) that could itself contain
+// the separator, so it isn't truncated at the first occurrence.
+//
+// No explicit "skip this value" list is needed: a source value that doesn't actually contain the
+// separator at least once (e.g. Secrets Manager's "+ CREATE NEW ENTRY ..." sentinel, or an
+// unset/blank value) is treated as "doesn't look like a real entry line" and clears the derived
+// field to '' rather than leaving a stale value from a previous pick sitting there unnoticed.
+// `parts.length < 2` is the right test for this, NOT `parts.length <= segment` - a value with no
+// separator at all still splits into exactly one part, so for segment 0 specifically
+// `parts.length <= segment` (1 <= 0) is false and would wrongly let the *whole* sentinel through
+// as if it were a valid single-segment value. Caught live: picking "+ CREATE NEW ENTRY" left the
+// full sentinel text sitting in New Key's segment-0 sibling New Product instead of clearing it.
+export function deriveCopyFromValue(copyFrom, sourceValue) {
+    if (isNull(sourceValue) || isEmptyString(sourceValue)) {
+        return '';
+    }
+
+    const separator = isEmptyString(copyFrom.separator) ? ' | ' : copyFrom.separator;
+    const segment = copyFrom.segment || 0;
+    const parts = sourceValue.split(separator);
+
+    if (parts.length < 2 || parts.length <= segment) {
+        return '';
+    }
+
+    if (copyFrom.rest) {
+        return parts.slice(segment).join(separator).trim();
+    }
+    return parts[segment].trim();
 }

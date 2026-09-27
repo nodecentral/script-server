@@ -575,6 +575,23 @@ file per service: nothing here is injected into container-level environment
 the way Docker's `env_file:` would need separate files, so a product is
 just a namespace inside one store, not a filesystem boundary.
 
+**Design evolution: from two separate worlds to scripts asking first.**
+The original design kept secrets and scripts deliberately apart — the
+store was an admin-managed area a script could *read* but never write to
+or announce itself into, on the theory that "the ability to add secrets
+that are not part of a script seems strange." In practice that separation
+meant a missing secret was invisible until the script actually failed on
+it. The design has since moved to the opposite, and now-settled, model:
+**every script looks to the store first for what it needs, and if it's
+not there, the script's own request is what puts a placeholder in the
+store** (self-registration via `get_secret(product, key, purpose)`, see
+"Every script owns preparing for its own secret" below) — not a separate
+scanner guessing from outside. The user's own framing of this: the
+"clear separation" idea was the starting point, but the platform adapted
+to a process where scripts look to the store first, and if it's not
+there, add it as a placeholder and prompt the user to fill it in. That's
+the current, intended design, not a compromise of the original one.
+
 **Terminology: "product," not "category."** A product is the actual
 service/product the secret belongs to (`gitea`, `paperless`, `finnhub`,
 `adobe`...) — **one product, one real product, always**. Do not create a
@@ -696,6 +713,20 @@ Managed via two runners in `conf/runners/` (`secrets_manager.py` /
      `product | KEY` entry to pick. `+ CREATE NEW ENTRY` stays, but only
      for an ad hoc secret no script asks for - nothing a script prints
      should ever point at it.
+  5. **Round 4's fix left New Product/New Key/Description visibly blank
+     even when picking an existing or placeholder entry** - technically
+     correct (they're genuinely unused on that path, per round 4), but
+     still looked like an incomplete form, and there was still no way to
+     confirm the picked entry's product/key at a glance without reading
+     the Entry dropdown's own text closely. Direct user request: "if
+     things are known upfront then should be pre-populated." Fixed with
+     `copy_from` (see "Pre-filling a Field's Value from Another Field" in
+     SCRIPTING.md) - New Product/New Key/Description now visually echo
+     back whatever the picked Entry line actually carries, and clear
+     themselves back to blank the moment `+ CREATE NEW ENTRY` is picked
+     instead (never left stale from a previous pick). This is a genuine
+     Core (frontend) change, the first one this "Secrets Manager UX"
+     history required - everything through round 4 was Python/JSON only.
 
   The lesson generalizes: minimizing field count is the right instinct
   when the merge doesn't hide a real distinction, but forcing two genuinely

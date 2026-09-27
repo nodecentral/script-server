@@ -89,6 +89,15 @@ class ParameterModel(object):
         self.max = config.get('max')
         self.max_length = config.get('max_length')
         self.regex = config.get('regex')
+        # Purely declarative, read once and handed to the frontend as-is (parameter_to_external())
+        # - no server-side behavior of its own. Lets a parameter's value be derived client-side
+        # from a pipe-delimited segment of another parameter's current value (e.g. Secrets
+        # Manager's "New Key" field pre-filling from the "Entry" dropdown's own "product | key |
+        # ..." line) purely for the user's visual confirmation - the actual submitted value still
+        # comes from this field, same as any other text field, so a script's own logic must not
+        # assume it was really auto-filled (a user can always overtype it). See
+        # web-src/src/main-app/store/scriptSetup.js's deriveCopyFromValue() for the frontend half.
+        self.copy_from = config.get('copy_from')
         self.secure = read_bool_from_config('secure', config, default=False)
         self.separator = config.get('separator', ',')
         self.multiselect_argument_type = read_str_from_config(

@@ -493,11 +493,50 @@ change is in this repo:
 
 ## In Progress
 
-- **Needs a live-browser check**: the missing-secret banner (see Done above) - open a script
-  with its secret unset (e.g. Send Notification with Pushover unset), confirm the banner names the
-  entry, click "Open Secrets Manager" (should navigate the whole app, not the iframe), find that
-  `product | KEY` entry in the Entry dropdown as `not set yet`, set it, reopen the script - banner
-  gone.
+- **`copy_from`: pre-fill New Product/New Key/Description from the picked Entry** — direct user
+  request: "if things are known upfront then should be pre-populated." A genuine Core (frontend)
+  change, not Python/JSON like everything else in this section — `src/model/parameter_config.py`
+  gained a plain, non-reactive `copy_from` attribute (read once, handed to the frontend as-is via
+  `external_model.py`'s `parameter_to_external()`); `web-src/src/main-app/store/scriptSetup.js`'s
+  `setParameterValue()` derives and sets any parameter that declares `copy_from: {parameter,
+  segment, separator?, rest?}` targeting the one just changed (`deriveCopyFromValue()`).
+  `secrets_manager.json`'s `new_product`/`new_key`/`description` now declare this against `entry`
+  (segments 0/1/3). Required restructuring `secrets_store.py`'s `dropdown-entries` output to a
+  clean 4-pipe-segment format (product | key | status | description) so description is a real,
+  cleanly-extractable segment rather than folded into the status text.
+
+  **Verified end-to-end in a real running instance, not just standalone/unit-tested** — the first
+  time this session used that level of rigor rather than stopping at "the code compiled" or "a
+  temp-store unit test passed": `npm install` + `npm run build` (with `NODE_OPTIONS=
+  --openssl-legacy-provider`, needed for this Webpack 4 setup under Node 20's OpenSSL 3 - unrelated
+  pre-existing issue, not caused by this change), confirmed the compiled output actually contains
+  the new logic (grepped the built bundle, found it in `index.7ca74592.js`'s "index" chunk, not
+  `admin.js` - the two are separate bundles), then ran the real Python/Tornado backend + built
+  frontend together in a live instance (Playwright + system Chromium, both already documented as
+  available for this exact purpose) against a scratch `/app/{conf,scripts,data}` (symlinked to the
+  checkout). **This caught a real bug that reading the code missed**: the "clear if not enough
+  segments" guard (`parts.length <= segment`) was wrong specifically for `segment: 0` - a value
+  with zero occurrences of the separator still yields exactly one part, and `1 <= 0` is false, so
+  New Product wasn't clearing on `+ CREATE NEW ENTRY`, it was showing the entire sentinel text.
+  Fixed (`parts.length < 2 || parts.length <= segment`), rebuilt, re-verified live - picking a
+  placeholder now correctly fills New Product/New Key/Description, switching to `+ CREATE NEW
+  ENTRY` now correctly clears all three, and a full Set (real value, real Execute click) correctly
+  wrote to `/app/data/secrets.json` and made the entry disappear from Secrets Viewer's Not Yet
+  Configured list - all confirmed via screenshot, not assumed.
+
+  **Also resolves the separate "missing-secret banner deep link" live-browser check** (previously
+  its own In Progress item, now folded in here since it was verified in the same session): opened
+  Send Notification with all its secrets unset, confirmed the red banners name the correct
+  `product | KEY` entry, and confirmed clicking "Open Secrets Manager" genuinely navigates the
+  whole app (URL bar changed to `#/Secrets%20Manager`), not just the `html_iframe` preload.
+
+  `parameter_config.py`, `external_model.py`, `scriptSetup.js`, `secrets_store.py`,
+  `secrets_manager.json` -> 1.8.0, `SCRIPTING.md` -> 1.10.0.
+
+  **Still needs the real NAS deployment step**, separate from the verification above: this repo's
+  own image needs rebuilding (`docker compose up -d --build`) to pick up the compiled frontend -
+  a plain file copy (like every other change in this file) is NOT enough for a Core change. Not yet
+  done/confirmed on the actual physical NAS, only in this equivalent local instance.
 - **Needs a live check on the real NAS container**: does a bare `pip install X` actually fail
   with "externally-managed-environment" inside Script-Server's own image, or was that only ever
   seen in a different (dev sandbox) environment? Contradicts `install_package.py`'s own

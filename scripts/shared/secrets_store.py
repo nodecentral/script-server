@@ -399,12 +399,17 @@ def _cmd_list_products(_args):
 
 
 def _cmd_dropdown_entries(_args):
+    # Four pipe-delimited fields, always in this order, even when description is empty (a
+    # trailing " | " with nothing after it) - Secrets Manager's runner JSON relies on this fixed
+    # shape via "copy_from" (segment 0 = product, 1 = key, 3 = description) to pre-fill New
+    # Product/New Key/Description from whichever entry is picked. Don't fold description back
+    # into the status text (segment 2) the way an earlier version did - that made it unreachable
+    # as a clean segment for copy_from to pick out.
     print(NEW_ENTRY_SENTINEL)
     for product, key, updated_at, _length, description in list_entries_metadata():
-        suffix = f' - {description}' if description else ''
-        print(f'{product} | {key} | ✓ set - last updated {updated_at}{suffix}')
+        print(f'{product} | {key} | ✓ set - last updated {updated_at} | {description}')
     for product, key, description, _source in list_known_placeholders():
-        print(f'{product} | {key} | ○ not set yet - {description}')
+        print(f'{product} | {key} | ○ not set yet | {description}')
 
 
 def _cmd_dropdown_product(args):
