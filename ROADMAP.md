@@ -441,8 +441,8 @@ change is in this repo:
   script author, since it's the actual answer to "how do I make sure my new script's secret is
   easy to add." `secrets_store.py`, `scripts/preload/import_from_gitea.py` -> 2.1.0,
   `conf/runners/import_from_gitea.json` -> 4.2.0.
-  **Still needs a live-NAS check** - the deep link's query-param pre-fill has only been verified
-  by reading the frontend source, not by actually clicking a generated link in a real browser.
+  **Superseded** - the pre-filled Create New Entry link was the wrong workflow, see the entry
+  below ("Missing-secret banner: pick the placeholder, don't re-create it").
 - **`get_secret()` self-registers a placeholder on a miss** (was Planned #5) — direct user design
   requirement: every script that needs a secret, whatever it is, prepares for its own `get` to
   succeed. `get_secret(product, key, purpose='', register=True)` (and the CLI's
@@ -474,14 +474,30 @@ change is in this repo:
   `secrets_manager.py` -> 1.6.0 / runner 1.7.0, `secrets_viewer.py` -> 1.6.0 / runner 1.5.0,
   `secret_ingredients_check.py` -> 1.1.0, `notify.py` -> 1.2.0 / runner 1.2.0,
   `preload/import_from_gitea.py` -> 2.1.1, `SCRIPTING.md` -> 1.8.0.
+- **Missing-secret banner: pick the placeholder, don't re-create it** — found in the first real NAS
+  test of the entry above: the banner's link pre-selected `+ CREATE NEW ENTRY` with New Product/New
+  Key pre-filled, which skipped the placeholder the script's own `get_secret()` had just written
+  and had the user create the same entry again by hand. User's rule, now the only documented
+  flow: **a script's request writes the placeholder, it shows in Secrets Manager's Entry dropdown
+  as `not set yet`, the user picks it there and sets the value.** `missing_secret_link()` replaced
+  by `secrets_manager_link()` (plain `/#/Secrets%20Manager`, nothing pre-filled - the
+  `predefinedParameters` mechanism is deliberately no longer used); banner now names the exact
+  `product | KEY` entry to pick (`dropdown_entry_label()`), after confirming it really is listed
+  (`is_placeholder_listed()`) - if registration failed it says the discovered file isn't writable
+  instead of falling back to manual entry. Error messages in `notify.py`, `gitea_client.py`,
+  `import_from_gitea.py` and the CLI `get` now name the entry to pick too. `+ CREATE NEW ENTRY`
+  kept, documented as ad hoc only. Recorded as round 4 of CLAUDE.md's "Real confusion" history;
+  SCRIPTING.md -> 1.9.0. Verified standalone: banner text/href, the named label matching a real
+  `dropdown-entries` line, curated placeholder, unwritable-file wording, CLI message, notify
+  preload.
 
 ## In Progress
 
-- **Needs a live-browser check**: the missing-secret banner's deep link into Secrets Manager
-  (see Done above) - click a generated "Add it in Secrets Manager" link on the real NAS and
-  confirm New Product/New Key actually arrive pre-filled, not just that the URL is well-formed.
-  Easiest real test: delete `gitea.URL` via Secrets Manager, reopen Import from Gitea, click the
-  banner's link.
+- **Needs a live-browser check**: the missing-secret banner (see Done above) - open a script
+  with its secret unset (e.g. Send Notification with Pushover unset), confirm the banner names the
+  entry, click "Open Secrets Manager" (should navigate the whole app, not the iframe), find that
+  `product | KEY` entry in the Entry dropdown as `not set yet`, set it, reopen the script - banner
+  gone.
 - **Needs a live check on the real NAS container**: does a bare `pip install X` actually fail
   with "externally-managed-environment" inside Script-Server's own image, or was that only ever
   seen in a different (dev sandbox) environment? Contradicts `install_package.py`'s own

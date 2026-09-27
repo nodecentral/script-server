@@ -46,8 +46,8 @@ def resolve_gitea_url():
     none is set - the "gitea" product's reserved "URL" key, via Secrets Manager."""
     url = get_secret('gitea', 'URL', 'the Gitea instance Import from Gitea imports from')
     if not url:
-        raise GiteaApiError('No Gitea URL configured - add one via Secrets Manager (product '
-                             'gitea, key URL, e.g. http://192.168.102.148:3011).')
+        raise GiteaApiError('No Gitea URL configured - pick "gitea | URL" from Secrets Manager\'s '
+                             'Entry dropdown and set it (e.g. http://192.168.102.148:3011).')
     return url.rstrip('/')
 
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Name: notify.py
-# Version: 1.2.0
+# Version: 1.2.1
 # Description: Sends a push notification via Pushover or Prowl. Designed to
 #              be run manually, or shelled out to from another script (e.g.
 #              python3 /app/scripts/notify.py --service pushover --message
@@ -95,14 +95,15 @@ def main():
         user_key = args.user_key or get_secret('pushover', 'USER_KEY', 'Send Notification via Pushover') or ''
         if not token or not user_key:
             print('Pushover requires both a token and a user key - pass --token/--user-key, or '
-                  'set pushover.TOKEN / pushover.USER_KEY via Secrets Manager.', file=sys.stderr)
+                  'pick "pushover | TOKEN" / "pushover | USER_KEY" from Secrets Manager\'s Entry '
+                  'dropdown and set their values.', file=sys.stderr)
             sys.exit(1)
         send_pushover(token, user_key, args.title, args.message)
     elif args.service == 'prowl':
         token = args.token or get_secret('prowl', 'TOKEN', 'Send Notification via Prowl') or ''
         if not token:
-            print('Prowl requires a token - pass --token, or set prowl.TOKEN via '
-                  'Secrets Manager.', file=sys.stderr)
+            print('Prowl requires a token - pass --token, or pick "prowl | TOKEN" from Secrets '
+                  'Manager\'s Entry dropdown and set its value.', file=sys.stderr)
             sys.exit(1)
         send_prowl(token, args.title, args.message)
     else:

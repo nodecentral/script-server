@@ -591,9 +591,10 @@ Managed via two runners in `conf/runners/` (`secrets_manager.py` /
 `scripts/shared/secrets_store.py`:
 
 - **Secrets Manager** — set, update, or delete one entry. Pick an existing
-  or known-but-unset entry from a dynamic dropdown (product/key already
-  carried by the selection, nothing else to fill in), or choose the
-  sentinel `+ CREATE NEW ENTRY` and fill in **New Product** (an
+  or `not set yet` placeholder from a dynamic dropdown (product/key already
+  carried by the selection, nothing else to fill in) - **this is how every
+  secret a script needs gets set**. Only for an ad hoc secret no script
+  asks for, choose the sentinel `+ CREATE NEW ENTRY` and fill in **New Product** (an
   `editable_list` field - suggests every existing product via autocomplete,
   but still accepts a typed new one, e.g. `Adobe`) and **New Key** (plain
   text, e.g. `API_KEY`) together with Value, all in the same run. The value
@@ -682,6 +683,20 @@ Managed via two runners in `conf/runners/` (`secrets_manager.py` /
      `conf/secrets_defaults.json`'s entry for `eod` and in `ROADMAP.md` for
      whoever picks up that repo next.
 
+  4. **The missing-secret banner's link sent the user to `+ CREATE NEW
+     ENTRY`** - a query-string deep link pre-selected that sentinel and
+     pre-filled New Product/New Key, found wrong in the first real NAS
+     test. By then the script's own `get_secret()` call had already
+     written the placeholder, and it was sitting in the Entry dropdown as
+     `not set yet`; the link skipped past it and had the user create the
+     same entry again by hand. Fixed by making the flow one path only:
+     **a script's request writes the placeholder, the user picks it from
+     the Entry dropdown, types the value.** The link now just opens
+     Secrets Manager (nothing pre-filled) and the banner names the exact
+     `product | KEY` entry to pick. `+ CREATE NEW ENTRY` stays, but only
+     for an ad hoc secret no script asks for - nothing a script prints
+     should ever point at it.
+
   The lesson generalizes: minimizing field count is the right instinct
   when the merge doesn't hide a real distinction, but forcing two genuinely
   different concepts (a product name and a key name) into one delimited
@@ -689,7 +704,9 @@ Managed via two runners in `conf/runners/` (`secrets_manager.py` /
   just moves the confusion into string-parsing. When a rename like
   "Category" → "Product" doesn't cleanly apply to every existing value,
   that's a signal the underlying data model has an exception worth fixing,
-  not just a label worth avoiding.
+  not just a label worth avoiding. And round 4's version: when a
+  mechanism already put the data where the user will look for it, send
+  them there to pick it - don't build a shortcut that re-creates it.
 - **Secrets Viewer** — read-only, `output_format html_iframe`, themed like
   Network Device Inventory. Shows product/key/last-set only, never any part
   of the actual value.
@@ -776,6 +793,12 @@ added by any other means.
 
 **What every secret-consuming script must do:**
 
+**The workflow is always the same, for every secret:** the script's
+request writes a placeholder → it shows in Secrets Manager's Entry
+dropdown as `not set yet` → the user picks it there and types the value.
+A script never sends the user to `+ CREATE NEW ENTRY` or asks them to
+type the product/key themselves (see round 4 of "Real confusion" above).
+
 1. **Call `get_secret()` with literal product/key names and a purpose** -
    `get_secret('sonarr', 'API_KEY', 'used by Media Library Scan')`, or
    `secrets_store.py get sonarr API_KEY "used by Media Library Scan"` from
@@ -789,9 +812,11 @@ added by any other means.
    banner - and, because it goes through `get_secret()`, the placeholder -
    exist before the script is ever run. Add a preload for this if the
    script doesn't have one yet.
-3. **Fail clearly on `None`** - say which `product.KEY` is missing and to
-   set it via Secrets Manager, rather than crashing with a `TypeError` or
-   carrying on silently with no credential.
+3. **Fail clearly on `None`** - say which entry to pick (`"sonarr |
+   API_KEY"` from Secrets Manager's Entry dropdown) and to set its value,
+   rather than crashing with a `TypeError` or carrying on silently with no
+   credential. `secrets_store.dropdown_entry_label(product, key)` gives the
+   exact text.
 
 **Why this is per-script, and how it squares with the rejected
 "auto-generated placeholders" idea.** A design that *statically scanned*
@@ -832,29 +857,28 @@ if banner:
 
 `missing_secret_banner_html(product, key, purpose='')` returns `''` if the
 secret is already set (so the `if banner:` guard is all a caller needs),
-otherwise a themed warning `<div>` with a genuine, one-click **"Add it in
-Secrets Manager"** link - and registers the placeholder along the way.
+otherwise a themed warning `<div>` that registers the placeholder along
+the way, then tells the user to **open Secrets Manager** (a link) and
+**pick `product | KEY` from the Entry dropdown**. It checks the
+placeholder really is listed (`is_placeholder_listed()`) before saying
+so; if registration failed (e.g. `/app/data/secrets_discovered.json` not
+writable), it says that instead - it never falls back to telling the user
+to create the entry by hand.
 `missing_secrets_banner_html([(product, key, purpose), ...])` is the same
 for a script needing more than one secret, concatenating whatever's still
 missing. For alternatives (either service A *or* B will do), see
 `scripts/preload/notify.py`: red banners only when neither is configured,
-otherwise a confirmation plus plain `missing_secret_link()` links for the
-rest.
+otherwise a confirmation plus the other service's entries to pick.
 
-**The deep link is real, not a plain "go check Secrets Manager" pointer**
-- confirmed directly in the frontend source, not assumed: Script-Server's
-own SPA router reads the page URL's query string once on load
-(`web-src/src/main-app/store/scripts.js`'s `selectScriptByHash` /
-`store/index.js`'s `predefinedParameters` watcher) and feeds it straight
-into the script form as initial parameter values, keyed by each query key
-matching a parameter's `name`. `missing_secret_link()` builds
-`/#/Secrets%20Manager?entry=<the current NEW_ENTRY_SENTINEL>&new_product=
-<product>&new_key=<key>` - clicking it lands on Secrets Manager with
-`+ CREATE NEW ENTRY` already selected and **New Product**/**New Key**
-already filled in, leaving only Value to type. Always imports
-`NEW_ENTRY_SENTINEL` from `secrets_store.py` rather than hardcoding the
-sentinel text, so the link can't silently break if that sentinel's
-wording ever changes again (it already has, twice, this fork's history).
+**The link deliberately pre-fills nothing.** `secrets_manager_link()` is
+just `/#/Secrets%20Manager`. Script-Server's router *can* pre-fill a form
+from the URL's query string (`web-src/src/main-app/store/scripts.js`'s
+`selectScriptByHash` / `store/index.js`'s `predefinedParameters` watcher,
+keyed by parameter `name`) - an earlier version used exactly that to
+pre-select `+ CREATE NEW ENTRY` with New Product/New Key filled in, and
+that was the wrong workflow (round 4 above). Don't reintroduce it, for
+that entry or to pre-select the placeholder: the user picks the entry from
+the dropdown themselves.
 
 **`target="_top"` on the link is required, not decorative.** A preload
 using `output_format: html_iframe` renders inside a same-origin
@@ -881,8 +905,7 @@ are alternatives rather than all required.
 **Where this leaves `secret_ingredients_check.py`:** still useful, but as
 a secondary, administrative audit - "did any script forget to implement
 this check on itself" - not the primary mechanism. It scans for literal
-`get_secret(...)`, `missing_secret_banner_html(...)`/`missing_secret_link(...)`
-and `secrets_store.py get` calls, one line at a time, skipping whole-line
+`get_secret(...)`, `missing_secret_banner_html(...)` and `secrets_store.py get` calls, one line at a time, skipping whole-line
 comments (usage examples in a header comment otherwise look exactly like
 real calls). Keep a call's product/key on the call's own line for it to
 be seen. It's a periodic report
@@ -984,7 +1007,7 @@ from secrets_store import get_secret
 
 api_key = get_secret('finnhub', 'API_KEY', 'used by Portfolio Prices')
 if api_key is None:  # placeholder now registered in Secrets Manager
-    sys.exit('finnhub.API_KEY is not set - add it via Secrets Manager.')
+    sys.exit('finnhub.API_KEY is not set - pick "finnhub | API_KEY" from Secrets Manager\'s Entry dropdown and set its value.')
 ```
 
 **Consuming a secret from Lua/bash** (same "shell out to a Python helper"
@@ -994,7 +1017,7 @@ purpose argument is optional but always worth passing):
 
 ```bash
 API_KEY=$(python3 /app/scripts/shared/secrets_store.py get finnhub API_KEY "used by Portfolio Prices") \
-  || { echo "finnhub.API_KEY is not set - add it via Secrets Manager." >&2; exit 1; }
+  || { echo "finnhub.API_KEY is not set - pick 'finnhub | API_KEY' from Secrets Manager's Entry dropdown and set its value." >&2; exit 1; }
 ```
 
 **Security posture — read before treating this as more than it is:**

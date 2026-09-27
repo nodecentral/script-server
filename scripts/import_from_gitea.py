@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Name: import_from_gitea.py
-# Version: 4.0.0
+# Version: 4.0.1
 # Description: Clones a Gitea repo (expected to have its own top-level
 #              scripts/ and runners/ folders) and mirrors scripts/ into
 #              /app/scripts and runners/ into /app/conf/runners: existing
@@ -134,8 +134,8 @@ def clone_repo(gitea_url, owner, repo, branch, token, clone_dir):
     if result.returncode != 0:
         print(result.stderr, file=sys.stderr)
         if 'could not read Username' in result.stderr or 'Authentication failed' in result.stderr:
-            print('This repo needs a Gitea access token - add one via Secrets Manager '
-                  '(product gitea) or fill in the manual "token" field directly '
+            print('This repo needs a Gitea access token - pick "gitea | TOKEN" from Secrets '
+                  'Manager\'s Entry dropdown and set it, or fill in the manual "token" field directly '
                   '(Gitea > Settings > Applications > Generate New Token, needs read '
                   'access to the repo).', file=sys.stderr)
         else:

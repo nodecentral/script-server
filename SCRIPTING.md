@@ -1,6 +1,6 @@
 # SCRIPTING.md — Script-Server Scripting Conventions (Focused)
 
-Version: 1.8.0
+Version: 1.9.0
 Last updated: 2026-09-27
 
 This is the **focused** convention doc for any Claude session writing
@@ -367,15 +367,23 @@ in order of preference for most cases:
 
    api_key = get_secret('finnhub', 'API_KEY', 'used by Portfolio Prices')
    if api_key is None:  # placeholder now registered in Secrets Manager
-       sys.exit('finnhub.API_KEY is not set - add it via Secrets Manager.')
+       sys.exit('finnhub.API_KEY is not set - pick "finnhub | API_KEY" from Secrets Manager\'s Entry dropdown and set its value.')
    ```
 
    **Consume from Lua/bash** (shell out to the same Python helper - exit
    code 1 if unset):
    ```bash
    API_KEY=$(python3 /app/scripts/shared/secrets_store.py get finnhub API_KEY "used by Portfolio Prices") \
-     || { echo "finnhub.API_KEY is not set - add it via Secrets Manager." >&2; exit 1; }
+     || { echo "finnhub.API_KEY is not set - pick 'finnhub | API_KEY' from Secrets Manager's Entry dropdown and set its value." >&2; exit 1; }
    ```
+
+   **The workflow, for every secret a script needs:** the script's request
+   writes a placeholder → it shows in Secrets Manager's **Entry** dropdown
+   as `not set yet` → the user picks it there and types the value. Never
+   send the user to `+ CREATE NEW ENTRY` or ask them to type the
+   product/key themselves - that was tried (a link pre-filling Create New
+   Entry) and found wrong in the first real test: it bypassed the
+   placeholder the script had already written.
 
    **Every script that needs a secret, whatever it is, prepares for its
    own `get` to succeed - three things, all required:**
@@ -389,8 +397,9 @@ in order of preference for most cases:
       `missing_secret_banner_html()` (below) - add a preload if the script
       has none. The preload runs as soon as the script is opened, so the
       banner and the placeholder both exist before it's ever run.
-   3. **Fail clearly on `None`** - name the missing `product.KEY` and say
-      to set it in Secrets Manager; never crash on it or carry on silently.
+   3. **Fail clearly on `None`** - tell the user which entry to pick
+      (`"finnhub | API_KEY"` from Secrets Manager's Entry dropdown) and to
+      set its value; never crash on it or carry on silently.
 
    **Never invent a parallel secrets mechanism** (a local `.env` file, a
    custom `secrets.py` helper, etc.) — this has already happened once
@@ -401,13 +410,13 @@ in order of preference for most cases:
    checked-in data, not a Python file) before building anything of your
    own.
 
-   **Adding a new secret, via Secrets Manager (a runner in the main
+   **Setting a secret, via Secrets Manager (a runner in the main
    script-server repo, not something you edit here):** open Secrets
-   Manager. If your product/key is already listed in the dropdown - either
-   as a real set entry or a `not set yet` known-integration suggestion -
-   pick it, that alone carries the product/key (a `not set yet` entry is
-   either curated in `conf/secrets_defaults.json` or was registered by a
-   script's own `get_secret()` call). Otherwise pick
+   Manager and pick the entry from the Entry dropdown - a set entry to
+   update it, or a `not set yet` placeholder (curated in
+   `conf/secrets_defaults.json`, or registered by a script's own
+   `get_secret()` call) to fill it in. That alone carries the product/key.
+   Only for an ad hoc secret that no script asks for, pick
    `+ CREATE NEW ENTRY` and fill in two fields together with Value in the
    same run: **New Product** (an `editable_list` - pick an existing
    product from the autocomplete, or type a brand new one, e.g. `Adobe`)
@@ -416,8 +425,8 @@ in order of preference for most cases:
    keeps whatever description was already there. Run it - the value is
    never echoed back, only a character count confirms it was set. This is
    a human action inside Script-Server's UI; a Claude session in a
-   sibling repo can tell the user exactly what product/key to add (and
-   should, rather than guessing), but can't run Secrets Manager itself.
+   sibling repo should tell the user exactly which `product | KEY` entry
+   to pick (never guess), but can't run Secrets Manager itself.
 
    **Never guess a product/key name** for a value you're about to
    consume — a wrong guess is worse than none (looks configured while
@@ -438,14 +447,14 @@ in order of preference for most cases:
 
    banner = missing_secret_banner_html('sonarr', 'IP_PORT', 'used by Media Library Scan')
    if banner:
-       print(banner)  # a themed warning with a one-click "Add it in Secrets Manager" link
+       print(banner)  # names the "sonarr | IP_PORT" entry to pick, links to Secrets Manager
    ```
    `banner` is `''` if already set (and registers the placeholder if
-   not). The link is a real deep link (New Product/New Key pre-filled,
-   just Value left to type), not a plain pointer - see CLAUDE.md's
-   Secrets Store section for exactly how and why, and
-   `scripts/preload/import_from_gitea.py` in the main repo for a working
-   reference. Use `missing_secrets_banner_html([(product, key, purpose),
+   not). The banner tells the user to open Secrets Manager (a link,
+   deliberately with nothing pre-filled) and pick `product | KEY` from the
+   Entry dropdown. If the placeholder couldn't be written it says so rather
+   than suggesting a manual entry. See `scripts/preload/import_from_gitea.py`
+   in the main repo for a working reference. Use `missing_secrets_banner_html([(product, key, purpose),
    ...])` for a script needing more than one secret, and
    `scripts/preload/notify.py` for secrets that are alternatives (either
    service will do). Always use `output_format: html_iframe` for the

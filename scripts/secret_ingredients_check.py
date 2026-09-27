@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Name: secret_ingredients_check.py
-# Version: 1.1.0
+# Version: 1.1.1
 # Description: Secret Ingredients Check - scans every script under scripts/
 #              for get_secret(...) calls (Python) and secrets_store.py get
 #              <product> <key> calls (Lua/bash shelling out), then cross-
@@ -48,11 +48,11 @@ SELF_FILENAME = os.path.basename(__file__)
 # script's own multi-line header comment as if it were a real call). Cannot resolve a call built
 # from variables (e.g. get_secret(product_var, key_var)) - a real, accepted limitation of a
 # static regex scan, not a bug; such a script just won't show up here either way.
-# Also matches missing_secret_banner_html(...)/missing_secret_link(...) - a preload checking a
+# Also matches missing_secret_banner_html(...) - a preload checking a
 # secret is just as much a reference as a get_secret() call (import_from_gitea.py's preload
 # checks gitea.TOKEN only this way).
 PYTHON_CALL_RE = re.compile(
-    r"""(?:get_secret|missing_secret_banner_html|missing_secret_link)\(\s*['"]([^'"]+)['"]\s*,\s*['"]([^'"]+)['"]""")
+    r"""(?:get_secret|missing_secret_banner_html)\(\s*['"]([^'"]+)['"]\s*,\s*['"]([^'"]+)['"]""")
 
 # Matches the Lua/bash shell-out pattern: secrets_store.py get <product> <key>, applied per-line
 # for the same reason as PYTHON_CALL_RE above.

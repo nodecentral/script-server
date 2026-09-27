@@ -50,26 +50,28 @@
 #   Manager's dropdown and Secrets Viewer's "Not Yet Configured" list, ready
 #   for a value - the script's own request is what puts it there, so it's
 #   always tied to a real, installed script asking for it.
-# - missing_secret_banner_html() in the script's preload shows a banner with a
-#   one-click deep link into Secrets Manager (and registers the placeholder
-#   too, since it goes through get_secret()) - before the script is even run.
+# - missing_secret_banner_html() in the script's preload shows a banner naming
+#   the exact "product | KEY" entry to pick from Secrets Manager's dropdown,
+#   with a link that opens Secrets Manager (and registers the placeholder too,
+#   since it goes through get_secret()) - before the script is even run.
 #   Reference: scripts/preload/import_from_gitea.py.
+# The workflow is always: placeholder written -> user picks it from the Entry
+# dropdown -> types the value. Nothing a script shows ever sends the user to
+# "+ CREATE NEW ENTRY" - that sentinel is only for ad hoc secrets no script
+# asks for (see CLAUDE.md, "Real confusion", round 4).
 
 import html
 import json
 import os
 import sys
 import time
-from urllib.parse import urlencode
 
 STORE_PATH = '/app/data/secrets.json'
 
-# Script-Server's own SPA router (confirmed in web-src/src/main-app/store/scripts.js and
-# store/index.js): the URL's query string is read once on page load as "predefinedParameters"
-# and fed straight into the script form as initial parameter values, keyed by each query key
-# matching a parameter's "name" - a real, native deep-link mechanism, not something built here.
 # scriptNameToHash() (web-src/src/main-app/utils/model_helper.js) is just encodeURIComponent(name)
-# - Secrets Manager's runner "name" is literally "Secrets Manager".
+# - Secrets Manager's runner "name" is literally "Secrets Manager". Script-Server's router can
+# also pre-fill form fields from a query string ("predefinedParameters"); links built here
+# deliberately don't use that - see secrets_manager_link().
 SECRETS_MANAGER_HASH = 'Secrets%20Manager'
 
 # The "expected secrets" checklist - product/key/description entries this fork already has (or
@@ -224,21 +226,33 @@ def remove_placeholder(product, key):
     return False
 
 
-def missing_secret_link(product, key):
-    """A deep link straight into Secrets Manager with New Product/New Key pre-filled via
-    Script-Server's own predefinedParameters mechanism (see the module docstring) - the "Add it"
-    link a missing-secret banner should point at. Always includes target="_top": this is meant
-    to be embedded inside a preload's own html/html_iframe output, and for html_iframe that's a
-    same-origin <iframe> with no router of its own - without target="_top" the link would try
-    (and fail) to navigate the iframe itself instead of the actual app."""
-    query = urlencode({'entry': NEW_ENTRY_SENTINEL, 'new_product': product, 'new_key': key})
-    return f'/#/{SECRETS_MANAGER_HASH}?{query}'
+def secrets_manager_link():
+    """URL that opens Secrets Manager with nothing pre-filled. Deliberately NOT a query-string
+    deep link: an earlier version pre-selected "+ CREATE NEW ENTRY" and filled in New Product/New
+    Key, which bypassed the placeholder the script had just registered and had the user create
+    the entry again by hand - the wrong workflow. The placeholder is already in the Entry
+    dropdown; the banner names it and the user picks it there.
+
+    Embed it with target="_top": a preload's html_iframe output is a same-origin <iframe> with no
+    router of its own, so without it the link tries (and fails) to navigate the iframe itself."""
+    return f'/#/{SECRETS_MANAGER_HASH}'
+
+
+def dropdown_entry_label(product, key):
+    """How product.key starts in Secrets Manager's Entry dropdown ("product | KEY | ...") - what
+    a banner tells the user to pick."""
+    return f'{product} | {key}'
+
+
+def is_placeholder_listed(product, key):
+    """True if product.key currently shows as a "not set yet" entry in Secrets Manager."""
+    return any(p == product and k == key for p, k, _d, _s in list_known_placeholders())
 
 
 def missing_secret_banner_html(product, key, purpose=''):
-    """Returns an HTML snippet warning that product.key isn't configured yet, with a deep link
-    into Secrets Manager (New Product/New Key already filled in - just Value left to type) - or
-    '' if it's already set, so a caller can just do `banner = missing_secret_banner_html(...);
+    """Returns an HTML snippet warning that product.key isn't configured yet - naming the exact
+    "product | KEY" entry to pick from Secrets Manager's Entry dropdown, with a link that opens
+    Secrets Manager - or '' if it's already set, so a caller can just do `banner = missing_secret_banner_html(...);
     if banner: print(banner)`. Every script that needs a secret should check for it this way, in
     its own preload (see CLAUDE.md/SCRIPTING.md's Secrets Store section).
 
@@ -251,15 +265,26 @@ def missing_secret_banner_html(product, key, purpose=''):
     # placeholder - the secret is in Secrets Manager's dropdown before the script is ever run.
     if get_secret(product, key, purpose) is not None:
         return ''
-    link = missing_secret_link(product, key)
+    mono = 'font-family:\'Roboto Mono\',\'Courier New\',monospace;'
     purpose_html = f' - {html.escape(purpose)}' if purpose else ''
+    link = (f'<a href="{secrets_manager_link()}" target="_top" style="font-weight:500;">'
+            'Open Secrets Manager</a>')
+    if is_placeholder_listed(product, key):
+        action = (f'It is listed in Secrets Manager as <i>not set yet</i> - {link}, pick '
+                  f'<b style="{mono}">{html.escape(dropdown_entry_label(product, key))}</b> from '
+                  'the Entry dropdown, and set its Value.')
+    else:
+        # Registration never raises, so a failed write only shows up here. Don't fall back to
+        # "+ CREATE NEW ENTRY" - that's the workflow this replaced; the store needs fixing.
+        action = ('It could not be added to Secrets Manager\'s list automatically - check that '
+                  f'<span style="{mono}">{html.escape(DISCOVERED_PATH)}</span> is writable by '
+                  'Script-Server.')
     return (
         '<div style="background:#ffebee;border-left:4px solid #c62828;border-radius:2px;'
         'padding:12px 16px;font-size:0.9rem;font-family:\'Roboto\',\'Helvetica Neue\',Arial,'
         'sans-serif;">'
-        f'Missing secret: <span style="font-family:\'Roboto Mono\',\'Courier New\',monospace;">'
-        f'{html.escape(product)}.{html.escape(key)}</span>{purpose_html}. '
-        f'<a href="{link}" target="_top" style="font-weight:500;">Add it in Secrets Manager</a>'
+        f'Missing secret: <span style="{mono}">'
+        f'{html.escape(product)}.{html.escape(key)}</span>{purpose_html}. {action}'
         '</div>'
     )
 
@@ -362,8 +387,8 @@ def _cmd_get(args):
     purpose = args[2] if len(args) == 3 else ''
     value = get_secret(args[0], args[1], purpose)
     if value is None:
-        print(f'No secret set for {args[0]}.{args[1]} - a placeholder has been added; set its '
-              f'value via Secrets Manager.', file=sys.stderr)
+        print(f'No secret set for {args[0]}.{args[1]} - pick "{dropdown_entry_label(args[0], args[1])}" '
+              'from Secrets Manager\'s Entry dropdown and set its value.', file=sys.stderr)
         sys.exit(1)
     print(value, end='')
 
