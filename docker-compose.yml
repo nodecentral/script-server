@@ -6,11 +6,18 @@ services:
     image: script-server:local
     container_name: script-server
     restart: unless-stopped
-    # A plain ZIP download (as opposed to a git clone) does not preserve the
-    # execute bit on scripts/*.sh, and script-server silently fails to run
-    # (or greys out) anything that isn't executable. Fix it on every
-    # container start, after the bind mounts below are in place.
-    entrypoint: ["/bin/sh", "-c", "chmod -R +x /app/scripts 2>/dev/null; exec python3 launcher.py"]
+    # No `entrypoint:` override here any more: the image's own entrypoint
+    # (tools/docker-entrypoint.sh) seeds the bind mounts below on start -
+    # fill-if-missing for conf.json/runners/scripts/data, per-file refresh for the
+    # platform files listed in PLATFORM_FILES - and also does the `chmod -R +x
+    # /app/scripts` this file used to (a ZIP download doesn't preserve the
+    # execute bit, and script-server silently greys out anything that isn't
+    # executable). An `entrypoint:` here would bypass all of that, and compose
+    # would also drop the image's CMD.
+    # environment:
+    #   - PUID=1000   # run the app as this uid/gid instead of root, and own seeded files
+    #   - PGID=1000   # as them (see README). Leave unset for the Network Scanner: it
+    #                 # needs root's raw-socket access.
     # Host networking so nmap/arp-scan (used by the Network Scanner runner) can
     # actually see the real LAN, instead of just Docker's internal bridge
     # network. Trade-off: the container shares the host's network stack

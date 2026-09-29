@@ -1,0 +1,26 @@
+# Platform-owned files: the image overwrites exactly these, one file at a time, on every container
+# start (only when the content differs), and logs each one it changes. See tools/docker-entrypoint.sh.
+#
+# Paths are relative to /app/defaults and use its layout - conf/, runners/, scripts/, data/ - which
+# the entrypoint maps onto /app/conf, /app/conf/runners, /app/scripts, /app/data.
+#
+# Everything NOT listed here is user content: seeded only if missing, never overwritten. A file
+# added to scripts/shared/ or scripts/preload/ in this repo must also be added below, or an
+# existing install will only ever get it once (fill-if-missing) instead of staying current - the
+# Dockerfile prints a notice at build time for any such unlisted file.
+#
+# Never list: conf/conf.json, anything under conf/runners/, data/, or any script a user is
+# expected to edit.
+
+conf/logging.json
+
+scripts/preload/import_from_gitea.py
+scripts/preload/motd.py
+scripts/preload/notify.py
+
+scripts/shared/gitea_client.py
+scripts/shared/list_inventory.py
+scripts/shared/list_mounts.sh
+scripts/shared/list_optional_packages.py
+scripts/shared/merge_inventory.py
+scripts/shared/secrets_store.py

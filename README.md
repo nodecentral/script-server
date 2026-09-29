@@ -92,6 +92,9 @@ For the usage please check [this ticket](https://github.com/bugy/script-server/i
 > - `data/` — persistent storage for files your scripts read/write
 > - `logs/` — server and per-execution logs
 >
+> **Empty folders are fine — the image seeds them.** See [Bind mounts and first-run seeding](#bind-mounts-and-first-run-seeding)
+> below for the recommended layout and exactly what is (and isn't) overwritten on an upgrade.
+>
 > Nine working examples ship in `conf/runners/` + `scripts/` out of the box, all grouped under **Admin** in
 > the UI:
 > - **Hello World** — basic parameters
@@ -133,8 +136,8 @@ For the usage please check [this ticket](https://github.com/bugy/script-server/i
 > `docker compose up -d --build`, same as any other frontend change.
 >
 > If you downloaded this as a ZIP rather than `git clone`d it, the execute bit on `scripts/*.sh` is not
-> preserved — `docker-compose.yml`'s entrypoint runs `chmod -R +x /app/scripts` on every container start to
-> fix this automatically.
+> preserved — the image's entrypoint runs `chmod -R +x /app/scripts` on every container start to fix this
+> automatically (set `CHMOD_SCRIPTS=false` to turn that off).
 >
 > `docker-compose.yml` runs the container with `network_mode: host` (Linux Docker hosts only, which
 > Container Station is) so the Network Scanner runner can see your real LAN rather than just Docker's
@@ -144,6 +147,87 @@ For the usage please check [this ticket](https://github.com/bugy/script-server/i
 > isolation from the host network. If you'd rather keep the container isolated, remove `network_mode: host`
 > and `cap_add`, and switch back to a `ports: ["5000:5000"]` mapping — the Network Scanner just won't find
 > real devices or resolve fresh MAC addresses in that case.
+
+#### Bind mounts and first-run seeding
+
+Docker bind mounts don't inherit image content: mount an empty host folder over `/app/conf` and the container
+sees an empty `/app/conf`. So the image keeps its own copy of everything a working install needs under
+`/app/defaults` (a path no mount covers), and `tools/docker-entrypoint.sh` copies it into the mounts each time
+the container starts. A brand-new install with **empty** host folders therefore comes up with a `conf.json`,
+`logging.json`, all the example runners, and all the scripts (including `scripts/shared/` and
+`scripts/preload/`, e.g. `secrets_store.py`) — nothing to copy by hand.
+
+**Recommended layout** (this is what `docker-compose.yml` uses):
+
+```yaml
+volumes:
+  - /share/conf:/app/conf        # the whole conf DIRECTORY (runners included)
+  - /share/scripts:/app/scripts
+  - /share/data:/app/data
+  - /share/logs:/app/logs
+```
+
+Mount `/app/conf` as a **directory**, not `conf.json` as a single file. If the host path of a single-file
+mount doesn't exist, Docker creates a *directory* there, so `conf.json` becomes a folder and the server can't
+read it (and nothing can be seeded into it). Mounting `/app/conf/runners` separately also works — the
+entrypoint seeds it either way — but there's no reason to unless you want runners kept apart from `conf.json`.
+
+**What gets seeded, and what never gets overwritten**
+
+| Kind | Files | On every container start |
+|---|---|---|
+| User content | `conf.json`, `capabilities.json`, `secrets_defaults.json`, everything in `conf/runners/`, every script not listed below (including your own), `data/` | Copied in **only if missing**. An existing file is never touched, so your edits survive restarts and image upgrades. |
+| Platform files | The names in [`tools/PLATFORM_FILES`](tools/PLATFORM_FILES): `conf/logging.json`, `scripts/shared/*`, `scripts/preload/*` | Overwritten **one file at a time**, only when they differ from the image's copy, each one logged (`platform file updated: ...`). The containing folder is never replaced, and files the image doesn't ship (your own `scripts/shared/foo.py`) are never touched. |
+
+Nothing is ever deleted. Consequences worth knowing:
+
+- **Upgrades don't update your runners or scripts.** A newer image only delivers changed runners, example scripts
+  or `secrets_defaults.json` to a *fresh* folder; an existing install keeps what it has. To pick up a changed
+  one, delete or rename it and restart (it is re-seeded from the image), or copy it out of `/app/defaults`
+  yourself: `docker exec script-server cp /app/defaults/runners/notify.json /app/conf/runners/notify.json`.
+- **Deleting a shipped runner/script doesn't stick** — a missing file can't be told apart from a never-seeded
+  one, so it comes back on the next start. Set `SEED_DEFAULTS=false` if you'd rather manage those by hand.
+- **Edits to a platform file are lost on the next start.** Keep local changes in your own files, not in the ones
+  listed in `PLATFORM_FILES`. Adding a new file to `scripts/shared/` or `scripts/preload/` in this repo also means
+  listing it in `tools/PLATFORM_FILES`; the build prints a notice for any that are missing.
+- `scripts/import_from_gitea.py` (the main script, as opposed to its preload) and `conf/secrets_defaults.json` are
+  user content, so they are *not* refreshed on upgrade. If you'd rather they were, add them to `PLATFORM_FILES`.
+- Build from a clean checkout. The build bakes `conf/`, `scripts/` and `data/` from the build context into the
+  image, and `.dockerignore` excludes runtime state (`conf/.htpasswd`, `data/secrets.json`, `__pycache__`...) — but
+  an *untracked script* sitting in `scripts/` would still ship as a default.
+
+**Owner of the seeded files: `PUID` / `PGID`.** By default the container runs as root (which the Network Scanner
+needs for raw sockets), so seeded files are owned by root. To run the app as your own user instead, set
+`PUID` and `PGID` (`PGID` defaults to `PUID`) — everything the entrypoint creates is then owned by that user,
+the app runs as them, and you can edit the files on the host. A mount folder the app user can't write to gets its
+own owner changed (just that folder, not what's inside; the entrypoint says so in its log and tells you the
+`chown -R` to run if pre-existing files need it). Trade-off: a non-root app can't use `nmap`/`arp-scan`
+raw-socket scans, and Playwright's browser is installed under root's home, so leave `PUID` unset if you
+rely on those.
+
+| Variable | Default | Effect |
+|---|---|---|
+| `PUID` / `PGID` | unset (root) | Run as this uid/gid; own seeded files as them |
+| `SEED_DEFAULTS` | `true` | `false` = don't seed user content |
+| `PLATFORM_REFRESH` | `true` | `false` = don't overwrite platform files (they're still filled in if missing) |
+| `CHMOD_SCRIPTS` | `true` | `false` = don't `chmod -R +x /app/scripts` |
+
+The entrypoint logs everything it does (`docker logs script-server`), for example:
+
+```
+[entrypoint] seeded conf/conf.json
+[entrypoint] platform file updated: scripts/shared/secrets_store.py
+[entrypoint] summary: seeded 0 new file(s), left 44 existing file(s) alone; platform files: 0 installed, 1 updated, 9 already current
+```
+
+`conf.json` is seeded as just `{"address": "0.0.0.0", "port": 5000}`. It deliberately does **not** grant admin
+access: by default only `127.0.0.1` is an admin, so the admin page isn't reachable from your LAN. If you accept
+the home-lab trade-off, add `"access": {"admin_users": ["*"]}` to `conf.json` and restart the container.
+
+*Proposed, not implemented:* an opt-in way to refresh user-content files without a manual delete-and-restart —
+e.g. `docker exec script-server /usr/local/bin/docker-entrypoint.sh --refresh runners/notify.json`, which would
+copy the named shipped file over the existing one after saving the old copy as `notify.json.bak-<timestamp>`.
+Explicit, per-file and reversible, unlike silently overwriting on every start.
 
 ### For development
 1. Clone/download the repository

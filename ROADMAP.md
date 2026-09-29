@@ -493,6 +493,43 @@ change is in this repo:
 
 ## In Progress
 
+- **Self-seeding Docker image: a fresh install with EMPTY bind mounts works straight away** —
+  `tools/Dockerfile` now also ships `conf/`, `conf/runners/`, `scripts/` and `data/` under
+  `/app/defaults` (a path no bind mount covers) plus `tools/default-conf.json` as the seeded
+  `conf.json` (`{"address": "0.0.0.0", "port": 5000}` - deliberately no admin wildcard), and
+  `tools/docker-entrypoint.sh` (POSIX sh, `set -e`) is the new ENTRYPOINT (CMD unchanged). Two rules:
+  **user content** (`conf.json`, runners, every script not in the manifest, `data/`) is
+  fill-if-missing, done per file rather than a bare `cp -rn` so each seeded file is logged and a
+  coreutils change to `cp -n`'s exit status can't trip `set -e`; **platform files** listed in
+  `tools/PLATFORM_FILES` (`conf/logging.json`, `scripts/shared/*`, `scripts/preload/*`) are
+  overwritten one file at a time, only when different, each logged - never the folder, never files
+  the image doesn't ship. Nothing is deleted. `PUID`/`PGID` run the app as that user and own
+  everything the script creates (mount roots the app can't write get their own owner fixed,
+  non-recursively); unset = root, as before, which the Network Scanner needs. Toggles:
+  `SEED_DEFAULTS`, `PLATFORM_REFRESH`, `CHMOD_SCRIPTS`. Build fails if the manifest names a file the
+  image doesn't ship and prints a notice for unlisted `shared/`/`preload/` files. `.dockerignore`
+  added (none existed) so runtime state on a used checkout (`conf/.htpasswd`, `data/secrets.json`,
+  `__pycache__`) can't be baked into the defaults. `docker-compose.yml`'s `entrypoint:` override
+  (which did `chmod -R +x /app/scripts`) had to go - it would bypass the seeding and drop CMD - so
+  that chmod moved into the entrypoint. README documents the mount layout (mount `/app/conf` as a
+  directory, never `conf.json` as a single file) and the fill-if-missing consequences.
+  **Known consequences, documented not fixed:** upgrades don't update existing runners/scripts;
+  a deleted shipped file is re-seeded; `scripts/import_from_gitea.py` and `secrets_defaults.json` are
+  user content so they don't refresh (candidates for the manifest); a non-root run loses raw
+  sockets and root's Playwright browser. Proposed, not built: an opt-in
+  `docker-entrypoint.sh --refresh <file>` that backs up then overwrites a named user-content file.
+  **Verification status: the image itself has NOT been built or run** - the dev sandbox has no
+  Docker/Podman and no user namespaces. What was executed instead: the Dockerfile's COPY layout and
+  its manifest-check RUN step replayed by hand from a clean tree (good manifest passes, a bogus entry
+  fails); `tools/docker-entrypoint.sh` run under dash against empty simulated bind mounts (fresh
+  seed, restart after edits, PUID/PGID chown + privilege drop, each env toggle, bad PUID, a blocked
+  path, a symlinked user file); and the real app (built frontend, Python 3.11 not the image's 3.9)
+  started via that entrypoint on the empty mounts - served the UI, listed 20 runners, and after a
+  restart kept an edited `conf.json`/script while refreshing an edited platform file. **Still to do
+  on a Docker host: `docker compose up -d --build` with empty host folders**, plus confirming
+  `setpriv`/`cmp`/`find`/`mktemp` exist in `python:3.9-slim` (the Dockerfile now checks at build)
+  and that `.dockerignore` really excludes what it should (reviewed, not exercised).
+
 - **`copy_from`: pre-fill New Product/New Key/Description from the picked Entry** — direct user
   request: "if things are known upfront then should be pre-populated." A genuine Core (frontend)
   change, not Python/JSON like everything else in this section — `src/model/parameter_config.py`

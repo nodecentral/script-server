@@ -1,0 +1,30 @@
+# Keep the build context to what tools/Dockerfile actually COPYs, and - more importantly - keep
+# anything that only exists on a machine that has RUN the app out of the image. The Dockerfile
+# bakes conf/, scripts/ and data/ into /app/defaults, which is then seeded into other people's
+# installs, so a stray conf/.htpasswd or data/secrets.json here would end up in the image.
+
+.git
+.github
+**/__pycache__
+**/*.pyc
+
+# Runtime state (all gitignored; present on any checkout that has been run or used as a live mount)
+conf/conf.json
+conf/.htpasswd
+conf/theme
+conf/deleted
+conf/schedules
+conf/*.dat
+data/*
+!data/.gitkeep
+logs
+temp
+
+# Built/installed elsewhere: the frontend is built inside the image (stage 1)
+web
+web-src/node_modules
+web-src/tests/e2e/reports
+
+venv
+e2e_venv
+.idea
