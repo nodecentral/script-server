@@ -490,6 +490,31 @@ change is in this repo:
   SCRIPTING.md -> 1.9.0. Verified standalone: banner text/href, the named label matching a real
   `dropdown-entries` line, curated placeholder, unwritable-file wording, CLI message, notify
   preload.
+- **Third relay batch - two findings, both folded in** — two more findings came back from a
+  `ss_movie_file_management` session, relayed by the user:
+  1. **Lua JSON libraries lose precision on large integer IDs** — `dkjson` (and, confirmed by
+     reasoning not just this one case, pure-Lua JSON libs generally) decode JSON numbers as Lua
+     floats/doubles, so a 64-bit value like an `mkvmerge -J` track UID
+     (`17386562085573927355`) comes back as `1.7386562085574e+19`. Not mkvtoolnix-specific - any
+     script on this platform parsing JSON with large integer IDs (API resource IDs, snowflake
+     IDs) can hit this. Added to `SCRIPTING.md`'s "Lua has no JSON library by default" note
+     (Persistent State Across Runs section): extract such an ID from the raw JSON text as a
+     string rather than trusting the decoded number, or use an addressing scheme that avoids
+     large integers (the session's own fix: `mkvpropedit`'s ordinal `track:aN` instead of
+     `track:=<uid>`). Confirmed directly against real `mkvmerge -J` output and a real Lua
+     interpreter - high confidence.
+  2. **The "self-install a missing dependency" pattern generalizes from Lua modules to system
+     binaries** — `ensure_module.lua` (require a module, apt/LuaRocks-install it on failure,
+     retry) has a direct parallel for a missing binary (`command -v` instead of
+     `pcall(require)`, otherwise identical shape): `ensure_binary.lua` in
+     `ss_movie_file_management/scripts/shared/`, built for `ffmpeg`/`mkvtoolnix`, verified by
+     forcing `mkvtoolnix` absent and watching it self-install via `apt`. Added as a new
+     `SCRIPTING.md` section, "Self-Installing Dependencies (Modules and Binaries)", right after
+     Language Choice - and, while writing it, found the equivalent **Python** module pattern
+     (`try: import X; except ImportError: pip install --break-system-packages X; import X`,
+     confirmed in `ss_music_file_management`) had never actually been written into either doc
+     despite being used and previously flagged as a learning - both patterns documented together
+     now. `SCRIPTING.md` -> 1.11.0.
 
 ## In Progress
 

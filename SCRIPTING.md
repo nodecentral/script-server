@@ -1,7 +1,7 @@
 # SCRIPTING.md — Script-Server Scripting Conventions (Focused)
 
-Version: 1.10.0
-Last updated: 2026-09-27
+Version: 1.11.0
+Last updated: 2026-10-03
 
 This is the **focused** convention doc for any Claude session writing
 scripts/runners destined for import into `nodecentral/script-server` —
@@ -570,6 +570,19 @@ Don't hand-roll one — either write the store logic in Python (stdlib
 `json`) as a shared helper that a Lua collector calls via
 `os.execute`/`io.popen`, or install `lua-cjson` via luarocks.
 
+**A Lua JSON library (`dkjson`, likely any pure-Lua one) silently loses
+precision on large integer IDs** — JSON numbers decode as Lua
+floats/doubles, so a 64-bit value like an `mkvmerge -J` track UID
+(`17386562085573927355`) comes back as `1.7386562085574e+19`. Not
+mkvtoolnix-specific — this bites any ID past 2^53 (API resource IDs,
+snowflake-style IDs...). If a script needs to pass such an ID back out
+verbatim (into a shell command, another API call), extract it from the
+raw JSON **text** as a string instead of trusting the decoded number, or
+use an addressing scheme that avoids large integers entirely (e.g.
+`mkvpropedit`'s ordinal `track:aN` instead of `track:=<uid>`). Confirmed
+directly in `ss_movie_file_management`, real `mkvmerge -J` output, a real
+Lua interpreter.
+
 **Escape user-supplied text before rendering as HTML** — if an editor
 lets a human type free text and a viewer renders it with
 `output_format: html`/`html_iframe`, escape it (`html.escape()` in
@@ -673,6 +686,43 @@ scripts (read/patch/write JSON), lightweight automation.
 **Use Python for:** multiple external HTTPS APIs with JSON bodies,
 substantial HTML output, dispatching across provider SDKs, ecosystem
 libraries.
+
+-----
+
+## Self-Installing Dependencies (Modules and Binaries)
+
+Script-Server's own container is persistent, not recreated per run, so a
+script needing a dependency it can't assume is already installed should
+install it once, on first run, and reuse it from then on — not require a
+human to pre-install anything, and not re-install on every single
+execution (`docker run` per invocation is the wrong model here).
+
+**Python module:**
+```python
+try:
+    import mutagen
+except ImportError:
+    import subprocess, sys
+    subprocess.check_call([sys.executable, '-m', 'pip', 'install',
+                            '--break-system-packages', 'mutagen'])
+    import mutagen
+```
+`--break-system-packages` is required on Debian/Ubuntu Python images (PEP
+668) — a bare `pip install` fails with `externally-managed-environment`
+otherwise. Confirmed directly: uninstalled `mutagen`, watched the exact
+failure, confirmed this recovers it (`ss_music_file_management`).
+
+**System binary — the same shape, generalized:** check `command -v
+<bin>`, `apt-get install` on failure, retry once, fail clearly if still
+missing. A script that shells out to `ffmpeg`, `mkvtoolnix`,
+`imagemagick`, etc. should self-install it the same way a missing Python
+package does. Reference implementation: `ensure_binary.lua` in
+`ss_movie_file_management/scripts/shared/` — a direct parallel to that
+repo's own existing `ensure_module.lua` self-install pattern for missing
+Lua modules (`command -v` instead of `pcall(require)`, otherwise
+identical shape). Confirmed working end-to-end for real: forced `mkvtoolnix` to be absent, watched it
+self-install via `apt`, confirmed the script then completed
+(`ss_movie_file_management`).
 
 -----
 
