@@ -1,6 +1,6 @@
 # Script-Server.md — Platform Context
 
-Version: 1.33.0
+Version: 1.34.0
 Last updated: 2026-10-25
 
 ## Platform Overview
@@ -79,6 +79,14 @@ theoretical:
   idempotent and whichever import "wins" behaves the same. The warning is
   about **divergent** content sharing a name, not shared content sharing a
   name.
+- **Names under `scripts/shared/` and `scripts/preload/` are stricter
+  still.** Any name listed in `tools/PLATFORM_FILES` is a platform file:
+  the entrypoint overwrites a differing copy on every container start, so
+  a sibling repo's file with that name is quietly reverted at the next
+  restart, whatever the import order. Being byte-identical doesn't help
+  either, since the next image upgrade changes the image's copy. Sibling
+  repos must never reuse a shipped name there. Prefix shared helpers with
+  the repo's subject (`network_inventory.py`, `energy_paperless.py`).
 - Execute bit (`chmod +x`), dynamic dropdown quoting/`shell: true`, and
   every other convention in this file applies equally regardless of which
   repo a script originated from — Script-Server itself has no idea which

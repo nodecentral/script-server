@@ -1,6 +1,6 @@
 # SCRIPTING.md — Script-Server Scripting Conventions (Focused)
 
-Version: 1.12.0
+Version: 1.13.0
 Last updated: 2026-10-25
 
 This is the **focused** convention doc for any Claude session writing
@@ -120,6 +120,16 @@ script shared across sibling repos (e.g. `check_script_permissions` now
 shipping identically from several) is fine — re-import is idempotent,
 whichever import "wins" behaves the same. The warning above is about
 **divergent** content sharing a name, not shared content sharing a name.
+
+**Names under `scripts/shared/` and `scripts/preload/` are stricter
+still.** If the image ships that name (listed in `tools/PLATFORM_FILES`
+in the main script-server repo), it's a platform file: the container
+overwrites any differing copy on every start, so your version is quietly
+reverted at the next restart, whatever order things were imported in.
+The identical-copy exception above doesn't protect you either, since the
+next image upgrade changes the image's copy. Never reuse a shipped name
+there. Prefix shared helpers with your repo's subject
+(`network_inventory.py`, `energy_paperless.py`) so they can't clash.
 
 -----
 
