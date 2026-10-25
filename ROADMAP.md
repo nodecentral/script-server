@@ -18,11 +18,18 @@ change is in this repo:
 ## Done
 
 - Self-contained multi-stage Docker build + `docker-compose.yml` for NAS deployment
-- 13 example "Admin" runners: Hello World, File Info, Disk Usage, Import from Gitea, Terminal
-  Colors, Progress Demo, Confirm Gate, Download Image, Disk Usage Chart, Network Scanner, Network
-  Device Labelling, Network Device Inventory
-- Persistent MAC-keyed device inventory pattern (collector + editor + viewer over a JSON store)
-- `network_mode: host` + `cap_add: [NET_RAW, NET_ADMIN]` for real LAN scanning
+- Example "Admin" runners: Hello World, File Info, Disk Usage, Import from Gitea, Terminal
+  Colors, Progress Demo, Confirm Gate, Download Image, Disk Usage Chart
+- Persistent MAC-keyed device inventory pattern (collector + editor + viewer over a JSON store) —
+  the Network Scanner / Device Labelling / Device Inventory examples have **moved to
+  `claude/ss_network_management`** (`network_scan.lua`, `network_label_device.py`,
+  `network_inventory_viewer.py`, `shared/network_inventory.py`), with fixes there for junk MACs
+  (`5` from arp-scan's summary line, `b` from FAILED neigh entries), comma vendors splitting the
+  CSV, off-subnet ARP entries, and known vendors overwritten by "Unknown Vendor". The old copies
+  were removed from this repo and the image, since fill-if-missing seeding otherwise re-created
+  them on every start and both sets showed in the UI.
+- `network_mode: host` + `cap_add: [NET_RAW, NET_ADMIN]` for real LAN scanning (kept in
+  `docker-compose.yml` for `ss_network_management`'s scanner)
 - **Backups** — `backup.sh`: tars `conf/` + `scripts/` (+ optional `data/`) to a downloadable
   tarball under `/app/data/backups`, correctly excluding its own backups folder from the archive.
 - **Notifications** — `notify.py`: Pushover/Prowl via their public HTTP APIs. Field names/POST

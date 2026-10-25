@@ -23,7 +23,7 @@
 # Environment (all optional):
 #   PUID / PGID              run the app as this uid/gid instead of root, and own everything this
 #                            script creates as them (PGID defaults to PUID). Unset = root, the
-#                            historical behaviour, which the Network Scanner needs (raw sockets).
+#                            historical behaviour, which a network scanner needs (raw sockets).
 #   SEED_DEFAULTS=false      skip the fill-if-missing user-content seeding.
 #   PLATFORM_REFRESH=false   skip the per-file platform-file refresh.
 #   CHMOD_SCRIPTS=false      skip `chmod -R +x` on /app/scripts (see the note near the end).

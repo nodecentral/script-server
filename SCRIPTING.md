@@ -1,7 +1,7 @@
 # SCRIPTING.md — Script-Server Scripting Conventions (Focused)
 
-Version: 1.11.0
-Last updated: 2026-10-03
+Version: 1.12.0
+Last updated: 2026-10-25
 
 This is the **focused** convention doc for any Claude session writing
 scripts/runners destined for import into `nodecentral/script-server` —
@@ -748,6 +748,16 @@ configure per-script) — a normal bridge-networked container only ever
 sees Docker's own virtual network. If you're writing a scanning script
 and it finds nothing, this is the first thing to check with whoever
 manages the Script-Server deployment.
+
+Reference implementation: `claude/ss_network_management` on Gitea
+(`network_scan.lua` collector, `network_label_device.py` editor,
+`network_inventory_viewer.py` viewer, `shared/network_inventory.py` store
+helper). Its fixes are worth copying into any similar scanner: drop
+anything that isn't a real `xx:xx:xx:xx:xx:xx` MAC (arp-scan's summary
+line parses as `5`, `ip neigh` FAILED entries as `b`), don't use a bare
+comma-separated temp file when vendor names contain commas, skip ARP-cache
+entries outside the scanned subnet, and never let an "Unknown Vendor"
+result overwrite a vendor already known for that MAC.
 
 -----
 

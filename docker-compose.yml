@@ -16,9 +16,9 @@ services:
     # would also drop the image's CMD.
     # environment:
     #   - PUID=1000   # run the app as this uid/gid instead of root, and own seeded files
-    #   - PGID=1000   # as them (see README). Leave unset for the Network Scanner: it
+    #   - PGID=1000   # as them (see README). Leave unset for a network scanner: it
     #                 # needs root's raw-socket access.
-    # Host networking so nmap/arp-scan (used by the Network Scanner runner) can
+    # Host networking so nmap/arp-scan (used by ss_network_management's scanner) can
     # actually see the real LAN, instead of just Docker's internal bridge
     # network. Trade-off: the container shares the host's network stack
     # directly - there's no isolation, and no port mapping to configure

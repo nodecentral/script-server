@@ -114,11 +114,6 @@ For the usage please check [this ticket](https://github.com/bugy/script-server/i
 > - **MOTD** — the banner (before you click Run) shows a live system-stats dashboard via a genuinely
 >   separate `scripts/preload/motd.py`; running it performs a **Script Ingredients Check** across every
 >   runner, grouped and collapsible, confirming each one's script/preload files actually exist
-> - **Network Scanner** — multi-method LAN discovery (nmap/arp-scan/ARP cache), updates a persistent
->   MAC-keyed device inventory on every run
-> - **Network Device Labelling** — name devices in that inventory (e.g. "Chris' iPhone", "QNAP NAS
->   Living Room")
-> - **Network Device Inventory** — browse the labelled inventory as a table (`html_iframe`)
 > - **Secrets Manager** — set/update/delete an entry in a secrets store keyed by product (e.g. a
 >   `finnhub` product holding an API key, a `paperless` product holding a token) shared by other
 >   scripts; values are never echoed back
@@ -126,6 +121,14 @@ For the usage please check [this ticket](https://github.com/bugy/script-server/i
 >   never the actual value
 >
 > Use them as templates for your own.
+>
+> The network scanner / device labelling / device inventory examples that used to ship here now live
+> in their own Gitea repo, `claude/ss_network_management` (`network_scan.lua`, `network_label_device.py`,
+> `network_inventory_viewer.py`, `shared/network_inventory.py`) — bring them in with **Import from Gitea**.
+> Upgrading an install that already had the old copies (`network_scanner`, `label_device`,
+> `view_inventory`, `shared/merge_inventory.py`, `shared/list_inventory.py`)? The entrypoint never deletes
+> anything, so remove those once from `scripts/` and `conf/runners/` on the NAS — the image no longer
+> ships them, so they stay gone.
 >
 > **Slim auto-hide sidebar (desktop).** The left sidebar collapses to a 56px rail with a single
 > menu icon by default, freeing up width for script output/parameters — click it to expand the
@@ -140,12 +143,12 @@ For the usage please check [this ticket](https://github.com/bugy/script-server/i
 > automatically (set `CHMOD_SCRIPTS=false` to turn that off).
 >
 > `docker-compose.yml` runs the container with `network_mode: host` (Linux Docker hosts only, which
-> Container Station is) so the Network Scanner runner can see your real LAN rather than just Docker's
+> Container Station is) so a network scanner (e.g. `network_scan` from `ss_network_management`) can see your real LAN rather than just Docker's
 > internal bridge network, plus `cap_add: [NET_RAW, NET_ADMIN]` so nmap/arp-scan can resolve MAC addresses
 > on active scans (Docker's default capabilities don't include these even for a container running as root).
 > This means the container shares the NAS's network stack directly — no port mapping to configure, and no
 > isolation from the host network. If you'd rather keep the container isolated, remove `network_mode: host`
-> and `cap_add`, and switch back to a `ports: ["5000:5000"]` mapping — the Network Scanner just won't find
+> and `cap_add`, and switch back to a `ports: ["5000:5000"]` mapping — a network scanner just won't find
 > real devices or resolve fresh MAC addresses in that case.
 
 #### Bind mounts and first-run seeding
@@ -196,7 +199,7 @@ Nothing is ever deleted. Consequences worth knowing:
   image, and `.dockerignore` excludes runtime state (`conf/.htpasswd`, `data/secrets.json`, `__pycache__`...) — but
   an *untracked script* sitting in `scripts/` would still ship as a default.
 
-**Owner of the seeded files: `PUID` / `PGID`.** By default the container runs as root (which the Network Scanner
+**Owner of the seeded files: `PUID` / `PGID`.** By default the container runs as root (which a network scanner
 needs for raw sockets), so seeded files are owned by root. To run the app as your own user instead, set
 `PUID` and `PGID` (`PGID` defaults to `PUID`) — everything the entrypoint creates is then owned by that user,
 the app runs as them, and you can edit the files on the host. A mount folder the app user can't write to gets its

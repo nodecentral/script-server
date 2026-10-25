@@ -19,8 +19,6 @@ scripts/preload/motd.py
 scripts/preload/notify.py
 
 scripts/shared/gitea_client.py
-scripts/shared/list_inventory.py
 scripts/shared/list_mounts.sh
 scripts/shared/list_optional_packages.py
-scripts/shared/merge_inventory.py
 scripts/shared/secrets_store.py

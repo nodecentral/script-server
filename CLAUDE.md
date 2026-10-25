@@ -1,7 +1,7 @@
 # Script-Server.md — Platform Context
 
-Version: 1.32.0
-Last updated: 2026-09-26
+Version: 1.33.0
+Last updated: 2026-10-25
 
 ## Platform Overview
 
@@ -739,7 +739,8 @@ Managed via two runners in `conf/runners/` (`secrets_manager.py` /
   mechanism already put the data where the user will look for it, send
   them there to pick it - don't build a shortcut that re-creates it.
 - **Secrets Viewer** — read-only, `output_format html_iframe`, themed like
-  Network Device Inventory. Shows product/key/last-set only, never any part
+  the network device inventory viewer (now `network_inventory_viewer.py` in
+  `claude/ss_network_management`). Shows product/key/last-set only, never any part
   of the actual value.
 
 ### Placeholders: the "not set yet" checklist (curated + script-registered)
@@ -1076,6 +1077,28 @@ meaningless (the app just binds directly to the host's port). It's a
 Linux-only Docker feature. Weigh this against the isolation you're giving
 up before turning it on just for one scanning script.
 
+**Reference implementation: `claude/ss_network_management`** (Gitea) —
+`network_scan.lua`, `network_label_device.py`, `network_inventory_viewer.py`,
+`shared/network_inventory.py`. These replaced the bundled Network Scanner /
+Network Device Labelling / Network Device Inventory examples
+(`network_scanner.lua`, `label_device.py`, `view_inventory.py`,
+`shared/merge_inventory.py`, `shared/list_inventory.py`), which were removed
+from this repo and the image on 2026-10-25. While the image still shipped
+them, fill-if-missing seeding re-created them on every start, so both sets
+showed in the UI side by side. Upgraded installs keep their old copies
+(the entrypoint never deletes) — remove them once on the NAS.
+
+Parsing bugs fixed there, each reproduced against the original scripts —
+check for the same in any scanner:
+- arp-scan's trailing summary line parsed as a device with MAC `5`, and
+  `ip neigh` `FAILED` entries as MAC `b` — accept only a full
+  `xx:xx:xx:xx:xx:xx` MAC.
+- Vendor names containing commas split the CSV hand-off between the Lua
+  scanner and the Python merge into extra columns.
+- ARP-cache entries from outside the scanned subnet got merged in.
+- A later "Unknown Vendor" result overwrote a vendor already known for that
+  MAC.
+
 -----
 
 ## Storage
@@ -1124,7 +1147,10 @@ hand-roll a JSON encoder/decoder in Lua for this. Two options:
   `io.popen` with the scan results passed as a temp file. This is the simpler,
   lower-risk option and works fine even when the rest of the script is Lua.
   Verified this way: an `nmap`/`arp-scan` device scanner written in Lua calls a
-  Python `merge_inventory.py` to update `/app/data/network_inventory.json`.
+  Python helper to update `/app/data/network_inventory.json` — now in
+  `claude/ss_network_management` (`network_scan.lua` + `shared/network_inventory.py`),
+  moved out of this repo; see SCRIPTING.md's "Network Scanning Scripts" for
+  the parsing fixes made there.
 - Or install a Lua JSON library (e.g. `lua-cjson` via luarocks) if you want to
   keep everything in Lua.
 
@@ -1218,8 +1244,8 @@ is actually for:
    content that's genuinely different from the main script's own logic, not
    a mode of it. Putting it in `scripts/preload/` keeps `scripts/shared/` for
    actually-shared dynamic-dropdown helpers, and matching the base name
-   (`scripts/preload/network_scanner.sh` for `scripts/network_scanner.lua` +
-   `conf/runners/network_scanner.json`) keeps all three files aligned by name
+   (`scripts/preload/network_scan.sh` for `scripts/network_scan.lua` +
+   `conf/runners/network_scan.json`) keeps all three files aligned by name
    despite living in different folders.
 
 Real example in this repo: `scripts/preload/motd.py` (live system stats banner)
