@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Name: secrets_viewer.py
-# Version: 1.6.0
+# Version: 1.7.0
 # Description: Renders the categorized secrets store (/app/data/secrets.json,
 #              managed via Secrets Manager) as a styled HTML page - product,
 #              key, description, and when it was last set. Never shows

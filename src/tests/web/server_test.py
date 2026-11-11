@@ -89,9 +89,9 @@ class ServerTest(TestCase):
 
         response = self.request('GET', 'http://127.0.0.1:12345/scripts')
         self.assertCountEqual([
-            {'name': 's1', 'group': None, 'parsing_failed': False},
-            {'name': 's2', 'group': 'Xyz', 'parsing_failed': False},
-            {'name': 's3', 'group': None, 'parsing_failed': False}],
+            {'name': 's1', 'group': None, 'category': None, 'placement': None, 'parsing_failed': False},
+            {'name': 's2', 'group': 'Xyz', 'category': None, 'placement': None, 'parsing_failed': False},
+            {'name': 's3', 'group': None, 'category': None, 'placement': None, 'parsing_failed': False}],
             response['scripts'])
 
     @parameterized.expand([
@@ -244,7 +244,7 @@ class ServerTest(TestCase):
                                 session=requests.Session(),
                                 auth=HTTPBasicAuth('normal_user', 'qwerty'))
         self.assertCountEqual([
-            {'name': 's1', 'group': None, 'parsing_failed': False}],
+            {'name': 's1', 'group': None, 'category': None, 'placement': None, 'parsing_failed': False}],
             response['scripts'])
 
     def test_get_scripts_when_basic_auth_failure(self):

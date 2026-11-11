@@ -23,6 +23,7 @@ from communications.alerts_service import AlertsService
 from config.config_service import ConfigService, ConfigNotAllowedException, InvalidAccessException, \
     CorruptConfigFileException
 from config.exceptions import InvalidConfigException
+from config.category_service import CategoryService, to_external as category_to_external
 from execution.execution_service import ExecutionService
 from execution.logging import ExecutionLoggingService
 from features.file_download_feature import FileDownloadFeature
@@ -138,9 +139,17 @@ class GetScripts(BaseRequestHandler):
 
         configs = self.application.config_service.list_configs(user, mode)
 
-        scripts = [{'name': conf.name, 'group': conf.group, 'parsing_failed': conf.parsing_failed} for conf in configs]
+        category_service = self.application.category_service
+        resolved_categories = category_service.resolve(conf.category for conf in configs)
 
-        self.write(json.dumps({'scripts': scripts}))
+        scripts = [{'name': conf.name,
+                    'group': conf.group,
+                    'category': category_service.canonical_name(conf.category, resolved_categories),
+                    'placement': conf.placement,
+                    'parsing_failed': conf.parsing_failed}
+                   for conf in configs]
+
+        self.write(json.dumps({'scripts': scripts, **category_to_external(resolved_categories)}))
 
 
 class AdminUpdateScriptEndpoint(BaseRequestHandler):
@@ -881,6 +890,7 @@ def init(server_config: ServerConfig,
     application.schedule_service = schedule_service
     application.execution_logging_service = execution_logging_service
     application.config_service = config_service
+    application.category_service = CategoryService(conf_folder)
     application.alerts_service = alerts_service
     application.identification = identification
     application.max_request_size_mb = server_config.max_request_size_mb

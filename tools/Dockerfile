@@ -102,6 +102,7 @@ RUN mkdir -p conf/runners
 # the files listed in PLATFORM_FILES refreshed per file. Layout (the entrypoint maps it onto
 # /app/conf, /app/conf/runners, /app/scripts, /app/data):
 #   defaults/conf/      conf.json + logging.json + capabilities.json + secrets_defaults.json
+#                       + categories.json
 #   defaults/runners/   conf/runners/*.json
 #   defaults/scripts/   scripts/ (incl. shared/ and preload/)
 #   defaults/data/      data/.gitkeep
@@ -109,7 +110,7 @@ RUN mkdir -p conf/runners
 # checkout that has been run or used as a live mount can't leak conf/.htpasswd or
 # data/secrets.json into the image.
 COPY tools/default-conf.json /app/defaults/conf/conf.json
-COPY conf/logging.json conf/capabilities.json conf/secrets_defaults.json /app/defaults/conf/
+COPY conf/logging.json conf/capabilities.json conf/secrets_defaults.json conf/categories.json /app/defaults/conf/
 COPY conf/runners/ /app/defaults/runners/
 COPY scripts/ /app/defaults/scripts/
 COPY data/.gitkeep /app/defaults/data/.gitkeep

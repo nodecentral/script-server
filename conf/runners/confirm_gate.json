@@ -1,7 +1,8 @@
 {
-  "_version": "1.0.0",
+  "_version": "1.1.0",
   "name": "Confirm Gate (template)",
-  "group": "Admin",
+  "category": "System",
+  "group": "Examples",
   "description": "Reusable typed-confirmation safety-gate template for destructive/impactful admin scripts.",
   "script_path": "confirm_gate.lua",
   "working_directory": "/app/scripts",

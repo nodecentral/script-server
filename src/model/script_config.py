@@ -23,11 +23,19 @@ OUTPUT_FORMATS = [OUTPUT_FORMAT_TERMINAL, 'html', 'html_iframe', 'text']
 
 LOGGER = logging.getLogger('script_server.script_config')
 
+PLACEMENT_SETTINGS = 'settings'
+PLACEMENTS = [PLACEMENT_SETTINGS]
+
 
 @dataclass
 class ShortConfig:
     name: str
     group: str = None
+    # Fork additions (v2.0.0): top level of the Category > Group > Script sidebar hierarchy, and
+    # where the script lives - None = the normal user view, PLACEMENT_SETTINGS = admin-only tab in
+    # admin.html (enforced server-side in ConfigService._can_access_script, not just hidden).
+    category: str = None
+    placement: str = None
     allowed_users: List[str] = field(default_factory=list)
     admin_users: List[str] = field(default_factory=list)
     parsing_failed: bool = False
@@ -380,6 +388,16 @@ def read_short(file_path, json_object, group_by_folders: bool, script_configs_fo
     if hidden:
         return None
 
+    category = read_str_from_config(json_object, 'category', blank_to_none=True)
+
+    placement = read_str_from_config(json_object, 'placement', blank_to_none=True)
+    if placement is not None:
+        placement = placement.lower()
+        if placement not in PLACEMENTS:
+            LOGGER.warning('Unknown placement "' + placement + '" in ' + file_path
+                           + ', expected one of ' + str(PLACEMENTS) + '. Showing it in the user view')
+            placement = None
+
     if allowed_users is None:
         allowed_users = ANY_USER
     elif (allowed_users == '*') or ('*' in allowed_users):
@@ -390,7 +408,12 @@ def read_short(file_path, json_object, group_by_folders: bool, script_configs_fo
     elif (admin_users == '*') or ('*' in admin_users):
         admin_users = ANY_USER
 
-    return ShortConfig(name=name, group=group, allowed_users=allowed_users, admin_users=admin_users)
+    return ShortConfig(name=name,
+                       group=group,
+                       category=category,
+                       placement=placement,
+                       allowed_users=allowed_users,
+                       admin_users=admin_users)
 
 
 class ParameterNotFoundException(Exception):
@@ -404,6 +427,8 @@ def get_sorted_config(config):
                  'hidden',
                  'description',
                  'group',
+                 'category',
+                 'placement',
                  'allowed_users',
                  'admin_users',
                  'access',

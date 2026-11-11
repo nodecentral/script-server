@@ -1,0 +1,17 @@
+{
+  "_version": "1.0.0",
+  "_comment": "Sidebar categories (Category > Group > Script). A runner picks one with \"category\": \"<name>\" (matched case-insensitively). Order here = order in the sidebar rail. 'icon' is a Material Icons name from the bundled material-design-icons@3.0.1 font (lowercase_with_underscores - check web-src/node_modules/material-design-icons/iconfont/codepoints) or any other short text/emoji, rendered as-is (e.g. the £ below). A category a runner uses that isn't listed is appended automatically with default_icon - edit its icon afterwards. Runners with no category go under 'uncategorised', always shown last.",
+  "default_icon": "label",
+  "uncategorised": {"name": "Uncategorised", "icon": "label_outline"},
+  "categories": [
+    {"name": "Finance", "icon": "£"},
+    {"name": "Documents", "icon": "description"},
+    {"name": "Movies", "icon": "movie"},
+    {"name": "Music", "icon": "music_note"},
+    {"name": "Photos", "icon": "photo_library"},
+    {"name": "Health", "icon": "favorite"},
+    {"name": "Files", "icon": "folder"},
+    {"name": "Network", "icon": "router"},
+    {"name": "System", "icon": "build"}
+  ]
+}

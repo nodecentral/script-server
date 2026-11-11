@@ -1,6 +1,6 @@
 #!/bin/bash
 # Name: backup.sh
-# Version: 1.0.0
+# Version: 1.1.0
 # Description: Backs up conf/ and scripts/ (and optionally data/) into a
 #              timestamped tarball under /app/data/backups, offered as a
 #              download. Run standalone (./backup.sh) or from

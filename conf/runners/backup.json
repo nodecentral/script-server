@@ -1,7 +1,8 @@
 {
-  "_version": "1.0.0",
+  "_version": "1.1.0",
   "name": "Backup",
-  "group": "Admin",
+  "category": "System",
+  "group": "Maintenance",
   "description": "Backs up conf/ and scripts/ (and optionally data/) into a downloadable tarball under /app/data/backups.",
   "script_path": "backup.sh",
   "working_directory": "/app/scripts",
