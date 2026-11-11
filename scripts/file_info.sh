@@ -1,6 +1,6 @@
 #!/bin/bash
 # Name: file_info.sh
-# Version: 1.1.0
+# Version: 1.2.0
 # Description: Reports size, type and checksum for a file picked via
 #              Script-Server's native file browser (server_file type) under
 #              /app/data. Run standalone (./file_info.sh --file /app/data/x)

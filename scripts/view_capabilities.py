@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Name: view_capabilities.py
-# Version: 1.1.0
+# Version: 1.2.0
 # Description: Shows what's baked into the image (conf/capabilities.json),
 #              what's available to install, and what's been installed at
 #              runtime this session (/app/data/installed_extras.json).

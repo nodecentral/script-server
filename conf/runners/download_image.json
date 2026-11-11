@@ -1,8 +1,8 @@
 {
-  "_version": "1.1.0",
+  "_version": "1.2.0",
   "name": "Download Image",
-  "category": "System",
-  "group": "Examples",
+  "category": "Script Server",
+  "group": "Demo",
   "description": "Downloads an image from a URL into /app/data and displays it inline.",
   "script_path": "download_image.py",
   "working_directory": "/app/scripts",

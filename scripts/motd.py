@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Name: motd.py
-# Version: 2.1.0
+# Version: 2.2.0
 # Description: Script Ingredients Check - audits every runner under
 #              conf/runners/, grouped by their "group" field, confirming
 #              each one's script_path and preload_script (if any) actually

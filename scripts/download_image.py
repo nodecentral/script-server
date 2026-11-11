@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Name: download_image.py
-# Version: 1.1.0
+# Version: 1.2.0
 # Description: Downloads an image from a URL, saves it under /app/data,
 #              and prints its path so Script-Server's inline-image
 #              output_files pattern picks it up and displays it. Run

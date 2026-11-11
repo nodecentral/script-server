@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Name: notify.py
-# Version: 1.3.0
+# Version: 1.4.0
 # Description: Sends a push notification via Pushover or Prowl. Designed to
 #              be run manually, or shelled out to from another script (e.g.
 #              python3 /app/scripts/notify.py --service pushover --message

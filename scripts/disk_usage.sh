@@ -1,6 +1,6 @@
 #!/bin/bash
 # Name: disk_usage.sh
-# Version: 1.2.0
+# Version: 1.3.0
 # Description: Confirms the docker-compose bind mounts (conf/scripts/data/logs)
 #              are actually connected, then shows a visual tree + df usage for
 #              a path picked from a dropdown populated live by

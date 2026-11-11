@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Name: disk_usage_chart.py
-# Version: 1.1.0
+# Version: 1.2.0
 # Description: Renders an interactive bar chart (via Plotly) of used vs
 #              free space for /app and its bind-mounted subfolders.
 #              Rendered with output_format html_iframe. Run standalone
