@@ -3,6 +3,7 @@
     <h2 v-show="selectedScript" class="header">{{ selectedScript }}</h2>
     <ExecutionInstanceTabs/>
     <div class="spacer"></div>
+    <GiteaUpdateButton/>
     <button class="button-history btn btn-flat"
             @click="openParameterHistory"
             title="Parameter History">
@@ -14,13 +15,14 @@
 
 <script>
 import ExecutionInstanceTabs from '@/main-app/components/scripts/ExecutionInstanceTabs';
+import GiteaUpdateButton from '@/main-app/components/scripts/GiteaUpdateButton';
 import ParameterHistoryModal from '@/main-app/components/scripts/ParameterHistoryModal';
 import {mapState} from 'vuex';
 
 export default {
   name: 'ScriptHeader',
 
-  components: {ExecutionInstanceTabs, ParameterHistoryModal},
+  components: {ExecutionInstanceTabs, GiteaUpdateButton, ParameterHistoryModal},
   computed: {
     ...mapState('scripts', {
       selectedScript: 'selectedScript'

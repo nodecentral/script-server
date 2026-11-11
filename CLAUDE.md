@@ -1,7 +1,7 @@
 # Script-Server.md — Platform Context
 
-Version: 1.34.0
-Last updated: 2026-10-25
+Version: 2.1.0
+Last updated: 2026-11-11
 
 ## Platform Overview
 
@@ -111,6 +111,68 @@ Every solution MUST produce a matched pair:
 - Increment both the script header `# Version:` AND runner `"_version"` together
   on every meaningful change, using semver:
   patch = bug fix · minor = new feature · major = breaking change
+
+-----
+
+## Where a Script Shows Up — category, group, placement (v2.0.0+)
+
+The full scripting-side rules (default category list, when to use
+`placement`, Avoid items) are in `SCRIPTING.md`'s section of the same name.
+This is the rationale and the internals.
+
+**Three levels: Category > Group > Script.** `"category"` is a new runner
+field above the existing `"group"`. The user view's left sidebar collapses
+to a slim rail of category icons (the rail itself predates this - see the
+2026-09-06 Core Changes entries) and expands to a collapsible tree. Both
+levels are optional, in the same way upstream treats `group`. Missing
+category → **Uncategorised**, always last. Inside a category, groups come
+first and ungrouped scripts sit at the bottom, so a script with neither field
+still shows, at the very bottom of Uncategorised. Search spans every
+category and shows each hit's `Category › Group` breadcrumb.
+
+**Icons are central, never per-runner** (`conf/categories.json`). Sibling
+repos import into one flat namespace, so per-runner icons would let two repos
+disagree about the same category's icon. The file is user content: it is
+seeded fill-if-missing by the entrypoint and is *not* in `PLATFORM_FILES`,
+because an admin edits icons on the NAS. `src/config/category_service.py`
+also **writes** to it. When the script list loads and a runner uses a
+category the file doesn't have, the category is appended with
+`default_icon`. That covers Import from Gitea, the admin form and manual
+copies, with no hook in any of them. Existing entries are never changed or
+removed. Names match case-insensitively and the file's spelling wins.
+Appends keep the one-entry-per-line layout, so the diff is one line.
+
+**Icon values:** a lowercase Material Icons ligature name from the bundled
+`material-design-icons@3.0.1` font, or anything else (text/emoji), which
+renders as text in the same 24×24 box. That's how Finance gets **£**: the
+old font has no pound icon (`currency_pound` is a newer Material Symbols
+name), and neither does `category`. Check names against the codepoints file
+first; see the 2026-09-06 icon-name entry under Core Changes.
+
+**`"placement": "settings"`** moves a runner into a tab of the admin
+**Settings** page (`admin.html`, horizontal tab bar: Logs | Scripts | one
+tab per settings runner). The tab shows the same preload banner, form, live
+output, execution tabs and scheduling as the user view, below the bar. It is
+enforced in `ConfigService._can_access_script`, the single choke point for
+listing, the config websocket, execute and schedule, not just hidden in the
+UI. `GET /scripts` excludes these by default. `?mode=settings` (admin only)
+returns only these, and `?mode=edit` is unchanged. Unknown placement values
+are logged and treated as "user view", so a typo hides nothing.
+
+**This repo's own runners (v2.1.0):** Import from Gitea, Install Package and
+Secrets Manager → `placement: settings`. Everything else → category
+**Script Server** (icon `dns`), in two groups:
+- **Tools:** Secrets Viewer, Secret Ingredients Check, MOTD, Disk Usage,
+  Backup, Send Notification and View Capabilities.
+- **Demo:** Hello World, Progress Demo, Terminal Colors, Confirm Gate,
+  Download Image, File Info and Disk Usage Chart.
+
+The old flat `Admin` group is retired; this was the user's call, so that
+"admin" means the Settings page and nothing else. v2.0.0 briefly used
+`System` › Secrets/Maintenance/Examples. Secrets Viewer and Secret
+Ingredients Check deliberately stay user-visible, so anyone can check
+what's configured. `tools/migrate_runners_v2.py` applies this layout to
+an existing install's runner files in place.
 
 -----
 
@@ -911,7 +973,10 @@ missing. For alternatives (either service A *or* B will do), see
 otherwise a confirmation plus the other service's entries to pick.
 
 **The link deliberately pre-fills nothing.** `secrets_manager_link()` is
-just `/#/Secrets%20Manager`. Script-Server's router *can* pre-fill a form
+just `/admin.html#/settings/Secrets%20Manager` (it was `/#/Secrets%20Manager`
+before v2.0.0 moved Secrets Manager into the admin Settings page - see
+"Where a Script Shows Up" below; the link therefore only works for admins,
+the same people the server lets run Secrets Manager at all). Script-Server's router *can* pre-fill a form
 from the URL's query string (`web-src/src/main-app/store/scripts.js`'s
 `selectScriptByHash` / `store/index.js`'s `predefinedParameters` watcher,
 keyed by parameter `name`) - an earlier version used exactly that to
@@ -1525,6 +1590,315 @@ can't be exercised against a live backend.
 **Deploying this fix:** same as every other `web-src/` change in this
 log - `docker compose up -d --build` is required, a file copy is not
 enough.
+
+### 2026-11-11 — v2.0.0: Settings tabs, Category > Group > Script sidebar
+
+The design is described under "Where a Script Shows Up" above. Files:
+
+**Backend (Python):**
+- `src/model/script_config.py`: `ShortConfig.category`/`.placement`, both
+  parsed in `read_short`, with `PLACEMENT_SETTINGS`.
+- `src/config/config_service.py`: `list_configs` gains `mode='settings'`,
+  the default mode excludes settings runners, and `_can_access_script`
+  enforces admin-only.
+- `src/config/category_service.py` (new): reads and extends
+  `conf/categories.json`.
+- `src/web/server.py`: `GET /scripts` returns `category` (canonical
+  spelling), `placement`, `categories` and `uncategorised`.
+- Tests: `tests/category_service_test.py` (new), placement tests in
+  `tests/config_service_test.py`, and `tests/web/server_test.py` updated
+  for the new fields.
+
+**Frontend (Vue):**
+- `main-app/utils/categories.js` (new, tree building/ordering).
+- `common/components/CategoryIcon.vue` (new).
+- `main-app/store/scripts.js` (`categoryTree` getter).
+- `MainAppSidebar.vue` (rail icons; owns the open category/group because
+  `ScriptsList` isn't rendered while collapsed).
+- `ScriptsList.vue` (rewritten), `ScriptListCategory.vue` (new),
+  `ScriptListItem.vue` (search breadcrumb).
+- Admin side:
+  - `admin/AdminApp.vue`: tab bar without `M.Tabs`. Its JS indicator only
+    measures tabs present at mount, and these arrive later. The bar scrolls
+    sideways, hides its scrollbar, and the active tab is underlined via
+    `box-shadow`.
+  - `admin/router/router.js` (`/settings/:scriptName`).
+  - `admin/components/settings/SettingsScriptPage.vue` (new).
+  - `admin/store/settings-runner-store.js` (new): a second Vuex store built
+    from the main app's own store modules, injected via the component-level
+    `store:` option. The admin store already owns `scripts`/`scriptConfig`
+    with a different shape, so reusing `MainAppContent`/`ScriptView`/
+    `ScriptHeader` unchanged needs their own store under the names they
+    expect. Plain-object module state is deep-cloned, because two stores in
+    one page would otherwise share e.g. `auth` state.
+  - Config editor: Category field and "Settings tab (admin only)" checkbox
+    in `ScriptConfigForm.vue`, and each script's location in
+    `ScriptsList.vue`.
+
+**Verified:**
+- `vue-cli-service build` is clean (only the pre-existing `>>>`/Sass
+  deprecation warnings).
+- Python suite passes.
+- Driven with Playwright against a real local server (not a mock), at
+  desktop and iPad Mini sizes: rail icons, open-category-from-rail, nested
+  groups, Uncategorised ordering, search breadcrumbs, pinned mode, all three
+  Settings tabs including Secrets Manager's preload, and the config form.
+
+**Still needs a live-iPad check on the real NAS**, per this fork's standing
+rule.
+
+**Deploying — two things a plain rebuild does NOT do:**
+1. `docker compose up -d --build` is required (frontend changed).
+2. **Runners are user content (fill-if-missing), so an existing NAS keeps
+   its old `import_from_gitea.json`/`install_package.json`/
+   `secrets_manager.json` and every other runner in `conf/runners/`.**
+   Without the new `placement`, those three stay in the sidebar and the
+   Settings bar shows no script tabs. Copy the updated runner JSONs from
+   this repo into `/share/conf/runners/` (or delete the old ones and
+   restart, so they re-seed). `conf/categories.json` is new, so it seeds
+   itself. `secrets_store.py` is a platform file and updates itself.
+
+### 2026-11-11 — v2.0.0: theme, visible version, "What's new" page
+
+- **Theme:** `samples/themes/indigo/theme.css` is this fork's default look. The
+  image seeds it to `/app/conf/theme/theme.css` (fill-if-missing). This uses
+  upstream's own hook: every page loads `theme/theme.css` after the built-in
+  CSS, and `ThemeStaticFileHandler` returns an empty body when the file is
+  missing. No upstream CSS was edited. **To recolour, edit
+  `/share/conf/theme/theme.css` and reload the browser.** No rebuild or
+  restart is needed. An empty file gives upstream's teal back, and
+  `samples/themes/orange|dark` are alternatives. Every colour in the Vue app
+  goes through the CSS variables in `web-src/src/assets/css/shared.css`; none
+  is hard-coded, as of v2.0.0.
+- **Known gap:** script `html_iframe` output can't see the theme, because an
+  iframe is a separate document. These scripts hard-code the old teal:
+  `secrets_viewer.py`, `secret_ingredients_check.py`, `motd.py` and the
+  `import_from_gitea`/`motd`/`notify` preloads. Tracked in `ROADMAP.md`.
+- **Version:** `version.txt` at the repo root, copied into `/app` by the
+  Dockerfile. It's read by upstream's existing `tool_utils.get_server_version`
+  and served in `GET /conf`. Before this the fork had no `version.txt`, so the
+  server ran as "custom version". It's shown at the bottom of the sidebar and
+  on the right of the admin header.
+- **Changelog:** `CHANGELOG.md` at the repo root, also copied into `/app`. It
+  is served by the new `GET /changelog` (`GetChangelog` in `server.py`) and
+  rendered with `marked` + `DOMPurify` at `#/changelog`
+  (`main-app/components/changelog/`). Both version links open it.
+- **Rule from now on:** every release bumps `version.txt` and adds a
+  `CHANGELOG.md` entry **in the same commit**. Write entries for the person
+  using the UI ("what changed for me"), not as a file list; file lists
+  belong in this Core Changes log.
+
+### 2026-11-11 — v2.1.0: Gitea token pre-fill, import report, one-tap update, deploy/
+
+**Import from Gitea** (`scripts/import_from_gitea.py` 5.1.0, runner 5.1.0,
+preload 2.2.0, `scripts/shared/gitea_client.py`):
+- **Token pre-fill:** the `token_key` field defaults to
+  `gitea_client.py default-token`, which prints the dropdown line for the
+  most recently set token. A list parameter's default must match one of
+  its values exactly, so both commands build the line with
+  `token_dropdown_line()`. The preload checks that same token instead of
+  stopping when several are stored.
+- **Preload repo table** (`list_user_repo_details()`): each repo's Gitea
+  `updated_at`, default branch, and what's imported here, from the state
+  file. It flags "Gitea has newer changes".
+- **Why times aren't in the Repo dropdown itself:** Script-Server re-runs
+  a list's values script when the execution starts and rejects a value
+  that's no longer in the list. A dropdown value carrying "updated 14:02"
+  would fail the moment you pushed between opening the form and pressing
+  Execute, which is exactly the testing loop. Values stay plain
+  `owner/repo`.
+- **Report:** one row per file, with installed → Gitea version (runner
+  `_version`, script `Version:` within the first 4 KB), the last commit
+  that touched it, and a status: NEW / UPDATE / CHANGED / SAME / OLDER /
+  REMOVED. OLDER prints a wrong-branch warning. The clone is now a full
+  single-branch clone, without `--depth 1`, because per-file
+  `git log -1 -- <path>` needs the history. The last output line is
+  `SUMMARY: owner/repo @ sha (time): ...`, which the update button shows.
+- **State file** (`data/gitea_import_state.json`): each source now also
+  records `url/owner/repo/branch/commit/commit_time/imported_at`, the
+  token key **name** (never the value), and `update_parameters`: exactly
+  what to POST to re-run that import. The import script owns that format.
+  On a repeat import whose `token_key` is the auto sentinel, it reuses the
+  key recorded for that source, so it can't pick the wrong one of several
+  tokens.
+
+**One-tap update (Core change):**
+- `src/features/gitea_origin.py` (new) reads the state file from
+  `<cwd>/data`. That's `/app/data`, because `launcher.py` chdirs to its
+  own folder.
+- `ConfigService.find_runner_relpath()` (admin only), and
+  `GET /admin/scripts/<name>/origin` → `{"origin": {...} | null}`.
+- `web-src/src/main-app/components/scripts/GiteaUpdateButton.vue` (new),
+  added to `ScriptHeader.vue`, so it's in the user view and the Settings
+  tabs alike. Admins only, and only when an origin exists.
+- **How the button runs an update:** it posts `executions/start` for
+  `Import from Gitea` with the origin's `updateParameters` (apply on, so
+  no dry run, as the user asked). It polls `executions/status`, reads the
+  log via `history/execution_log/long`, toasts the `SUMMARY:` line (or the
+  error plus a link to the log), cleans the execution up and dispatches
+  `resetScript` so the new runner shows.
+- Imports recorded before 5.1.0 get a synthesised
+  `manual_repo` + `main` + apply.
+
+**Fresh install / deploy:**
+- The root `docker-compose.yml` was removed. It built and mounted
+  `/share/conf` etc. from wherever it ran, which created stray `/share/...`
+  folders on the NAS root and crashed on host port 5000.
+- In its place:
+  - `deploy/standalone/` (compose + `conf/conf.json`, port 5012) and
+    `deploy/side-by-side/` (port 5013, v1 folders via `${V1_DIR}`). Both
+    use host networking, with relative `./` mounts.
+  - `tools/build_and_push.sh <tag>`: refuses `latest` without
+    `--allow-latest`.
+  - `tools/migrate_runners_v2.py`: minimal in-place runner edits, dry run
+    by default, idempotent. Tested against the real pre-v2 runner files.
+- **`tools/docker-entrypoint.sh`:** `SEED_DEFAULTS` and
+  `PLATFORM_REFRESH` accept `conf`, which seeds or refreshes only
+  `/app/conf`. Bad values are rejected. In `conf` mode the chown pass also
+  skips the shared folders. `SEED_DEFAULTS=false` on a side-by-side
+  instance had left `capabilities.json`/`secrets_defaults.json` missing,
+  which crashed Install Package's dropdown ("Failed to connect to the
+  server").
+- **Host networking, why:** a network scanner needs it, and the port lives
+  in one place (`conf.json`). **Correction:** this entry originally blamed
+  bridge networking for History's odd `...sbcglobal.net` user name, calling
+  `172.2.2.31` a Docker address. It was the iPad's real address. This NAS's
+  LAN is `172.2.2.0/24` (NAS `172.2.2.93`), which is *public* address space
+  (AT&T's), not RFC 1918, so the reverse-DNS lookup goes to public DNS.
+  Docker's port mapping did preserve the client IP. The real fault was
+  `trusted_ips` not covering that range, so identity fell back to the
+  per-instance cookie. **Resolved 2026-11-11:** the LAN was renumbered to
+  the private `10.0.0.0/26` (UniFi DHCP; NAS now `10.0.0.41`), and
+  `deploy/*/conf/conf.json` trust that range. `10.x` was preferred over
+  `172.22.x` because Docker allocates its own networks from `172.17–31.x`
+  (and then `192.168.x`), and an overlap breaks routing to the LAN.
+- **Container names don't resolve under host networking.** Paperless
+  Inventory Statistics failed on v2 with `paperlessngx:8000` not
+  resolving: under v1's bridge network Docker's DNS knew that name. Store
+  `http://<NAS IP>:<published port>` in the Secrets Store instead
+  (`http://10.0.0.41:8777` for Paperless, after the renumbering), which works from bridge and
+  host containers alike. `extra_hosts` only helps when the published port
+  matches the container port.
+
+**Deploying now means building an image, not `--build`:** the
+`docker compose up -d --build` lines in older entries above predate
+`deploy/`. Build with `tools/build_and_push.sh`, then `docker compose
+pull && docker compose up -d` in the install folder.
+
+**Verified:**
+- Python suite, plus `gitea_origin_test.py` and the new
+  `config_service_test.py` cases.
+- Frontend 698/698, including `GiteaUpdateButton_test.js`.
+- The entrypoint modes were run for real via its `APP_ROOT`/`DEFAULTS_DIR`
+  hooks: `conf` mode left the pre-filled shared folders byte-identical.
+- The import was run against a real git repo served by a fake Gitea
+  (dumb HTTP + the two API endpoints). It went through every status, then
+  the full browser loop: pre-filled token, repo table, a push to Gitea,
+  then tapping the cloud icon. The runner went from 1.1.0 to 1.2.0 on
+  disk, the toast showed the new commit, and the tooltip refreshed.
+
+**Still needs** a check on the real NAS with the real Gitea.
+
+### 2026-11-11 — v2.1.1: side-by-side platform-file tug of war
+
+**Symptom on the NAS:** v2's Import from Gitea failed to load ("Failed to
+connect to the server"). The log showed the runner's token default failing
+with `Unknown command: default-token`.
+
+**Cause:** the shared `scripts/shared/gitea_client.py` and
+`scripts/preload/import_from_gitea.py` were v1's copies. The user had
+copied the new ones in, but **v1's own entrypoint**, with platform refresh
+on by default, put its image's copies back on its next start.
+`PLATFORM_REFRESH=conf` on v2 only stops v2 doing that, so two instances
+sharing `scripts/` need it off on the *old* one too. The new
+`import_from_gitea.py` (user content, so not reverted) was left next to
+the old `gitea_client.py` and failed to import `format_time`, which broke
+v1's Import from Gitea as well.
+
+**Fix:**
+- The runner's `token_key` default is now
+  `gitea_client.py default-token 2>/dev/null || true` with `shell: true`.
+  A failing *default* script raises at config load and takes the whole
+  form down, unlike a values script, which only empties its dropdown.
+- `import_from_gitea.py` 5.1.1 falls back to a local `format_time` when
+  `gitea_client` is older.
+- `deploy/side-by-side/docker-compose.yml` and the README tell you to set
+  `PLATFORM_REFRESH=false` on v1.
+
+**General rule:** never make a runner's default depend on a newer shared
+helper without a fallback. Platform files can be older than the runner on a
+mixed install.
+
+**Outcome: v1 retired, side-by-side removed (same day).** Sharing
+`scripts/` between two images means each start-up puts that image's
+platform files back. Rather than keep managing that, v2 became a
+standalone install with its own copies of runners, scripts and data. It
+runs from QNAP Container Station at `/share/Container/script-server-v2`
+on port 5012, and is defined by `deploy/container-station/` (absolute
+paths; Container Station keeps its own copy of the YAML).
+`deploy/side-by-side/` was deleted. The `SEED_DEFAULTS=conf` /
+`PLATFORM_REFRESH=conf` entrypoint modes stay, as generic options. The
+README's bind-mount notes now advise against sharing folders between
+instances.
+
+## Upstream Sync Status
+
+This fork was imported as a **snapshot, not a git fork**, so there is no
+shared history with `bugy/script-server` and `git merge` won't work. Sync by
+patch instead:
+
+```bash
+git fetch https://github.com/bugy/script-server.git master:refs/remotes/upstream/master
+git log --oneline <last-synced>..upstream/master          # what's new
+git diff <last-synced> upstream/master | git apply --3way # bring it in
+```
+
+**Last synced: upstream `62bd38a` (2026-08-21), applied 2026-11-11.** The
+fork originally matched `f92e29e` (2025-12-26). Use `62bd38a` as
+`<last-synced>` next time, and update this line after every sync. That
+sync brought in:
+- **Paginated execution history (#826):** cursor-based paging, indexed in
+  the logging service. The History page now has Rows/Previous/Next
+  controls. `common/store/executions-module.js` changed, and it's shared
+  by the main app, admin Logs and the settings runner store; all three
+  were smoke-tested.
+- **Cookie hardening:** httponly always; `cookie_secure` defaults to
+  whether SSL is on, so it's fine on plain-HTTP LAN access. Also includes
+  #812, the xsrf cookie fix.
+- **[Breaking, only with `access.user_header_name`]:** the identity header
+  is now trusted only with `access.user_header_secret`. This NAS doesn't
+  use it.
+- **Housekeeping:** configurable `web` folder, `pyproject.toml`, Azure AD
+  OAuth scopes.
+
+**Test fixes made alongside the sync.** Each was a stale test, not a code
+bug:
+- Upstream's cookie change broke upstream's own OAuth/Keycloak tests,
+  because their mock request handlers had no `.application`. The mocks in
+  `tests/test_utils.py` and `tests/auth/test_auth_abstract_oauth.py` were
+  fixed, which turned 23 failing tests green. Upstream `master` still has
+  this bug.
+- `tests/web/script_config_socket_test.py` never learned about the fork's
+  `copyFrom` parameter field, so 4 tests failed from 1.x onwards.
+- `ScriptEditDialog.vue` had a `transitionend` listener that called
+  `$refs.codeEditor.resize()` after destroy. This is a latent upstream bug,
+  and it aborted the whole frontend unit run partway in this fork, which
+  hid 14 more failures. It's now guarded and removed on destroy.
+- The frontend tests for the sidebar list, `MainAppSidebar` and the admin
+  scripts module were rewritten or extended for v2, and
+  `tests/unit/main-app/utils/categories_test.js` was added.
+
+**Test baseline after the sync:**
+- **Frontend:** 693/693 pass (`NODE_OPTIONS=--openssl-legacy-provider npx
+  vue-cli-service test:unit -b ChromeHeadless`).
+- **Python:** 1679 pass and 31 fail. All 31 come from the container, not
+  the code:
+  - `bcrypt`/`crypt` modules missing (htpasswd login only; Python 3.13
+    dropped `crypt`)
+  - the container's own `HTTPS_PROXY`/`NO_PROXY` env (tornado client config)
+  - running as root, so "unreadable" dirs are readable (server_file)
+  - no pseudo-terminal (env_utils)
+  - pytest's `PYTEST_CURRENT_TEST` env var (executor)
 
 -----
 

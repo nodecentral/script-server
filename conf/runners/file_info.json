@@ -1,7 +1,8 @@
 {
-  "_version": "1.0.0",
+  "_version": "1.2.0",
   "name": "File Info",
-  "group": "Admin",
+  "category": "Script Server",
+  "group": "Demo",
   "description": "Reports size, type and checksum for a file under /app/data.",
   "script_path": "file_info.sh",
   "working_directory": "/app/scripts",

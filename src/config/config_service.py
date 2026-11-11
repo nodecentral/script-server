@@ -10,7 +10,7 @@ from auth.authorization import Authorizer
 from config.exceptions import InvalidConfigException
 from model import script_config
 from model.model_helper import InvalidFileException
-from model.script_config import get_sorted_config, ShortConfig, create_failed_short_config
+from model.script_config import get_sorted_config, ShortConfig, create_failed_short_config, PLACEMENT_SETTINGS
 from utils import os_utils, file_utils, process_utils, custom_json, custom_yaml
 from utils.file_utils import to_filename
 from utils.process_utils import ProcessInvoker
@@ -169,6 +169,17 @@ class ConfigService:
         )
         shutil.move(path, unique_archive_file_path)
 
+    def find_runner_relpath(self, script_name, user):
+        """The runner file defining this script, relative to conf/runners (admins only) - None if
+        there's no such script. Used to look up where the runner came from (gitea_origin)."""
+        self._check_admin_access(user)
+
+        search_result = self._find_config(script_name, user)
+        if search_result is None:
+            return None
+
+        return os.path.relpath(search_result.path, self._script_configs_folder)
+
     def load_script_code(self, script_name, user):
         if not self._authorizer.can_edit_code(user.user_id):
             logging.warning('User ' + str(user) + ' is not allowed to edit code')
@@ -221,8 +232,14 @@ class ConfigService:
         return config_object
 
     def list_configs(self, user, mode=None):
+        """
+        mode=None       - the user view: every accessible script EXCEPT placement=settings ones
+        mode='settings' - admin.html's settings tabs: only placement=settings scripts (admin only)
+        mode='edit'     - admin.html's config editor: every script the user may edit
+        """
         edit_mode = mode == 'edit'
-        if edit_mode:
+        settings_mode = mode == 'settings'
+        if edit_mode or settings_mode:
             self._check_admin_access(user)
 
         conf_service = self
@@ -242,6 +259,11 @@ class ConfigService:
 
                 if (not edit_mode) and (not conf_service._can_access_script(user, short_config)):
                     return None
+
+                if not edit_mode:
+                    is_settings_script = short_config.placement == PLACEMENT_SETTINGS
+                    if is_settings_script != settings_mode:
+                        return None
 
                 return short_config
             except json.decoder.JSONDecodeError:
@@ -369,6 +391,13 @@ class ConfigService:
         return config
 
     def _can_access_script(self, user, short_config):
+        # placement=settings scripts are admin-only regardless of allowed_users: hiding them from
+        # the user view's sidebar isn't enough on its own, since anyone could still open
+        # /#/<script name> directly. This one check covers listing, loading the config
+        # (websocket), executing and scheduling, since all of them go through here.
+        if (short_config.placement == PLACEMENT_SETTINGS) and (not self._authorizer.is_admin(user.user_id)):
+            return False
+
         return self._authorizer.is_allowed(user.user_id, short_config.allowed_users)
 
     def _can_edit_script(self, user, short_config):

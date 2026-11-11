@@ -525,6 +525,29 @@ change is in this repo:
 
 ## In Progress
 
+- **v2 is live (2026-11-11):** runs standalone on the NAS via QNAP Container Station
+  (`deploy/container-station/`, port 5012). v1 is stopped and kept as a fallback, to be deleted
+  later. Still to do: retag the image `latest`; each `ss_*` repo adopts `"category"`
+  (SCRIPTING.md, "Where a Script Shows Up").
+- **v2.1.0 — Gitea token pre-fill, import report with versions/dates, one-tap update from Gitea,
+  `deploy/` folders + build script + runner migration** — *Core change*, same branch. See CLAUDE.md
+  Core Changes 2026-11-11 (v2.1.0). Open idea: a "check every imported repo for updates" view.
+- **v2.0.0 — Settings tabs + Category > Group > Script sidebar** — *Core change*, on branch
+  `claude/script-server-admin-settings-5c9g5o` (master and its Docker build stay on the v1 layout
+  until this merges). Built and checked locally (see CLAUDE.md Core Changes, 2026-11-11). Still to do:
+  live-iPad check on the NAS; copy the updated runners onto the NAS (fill-if-missing won't);
+  each `ss_*` repo adds `"category"` to its runners per SCRIPTING.md (Finance, Documents, Movies,
+  Music, Photos, Health, Network...). Open question: whether a category should be able to carry
+  its own description/tooltip in `categories.json`.
+- **Theme the scripts' own HTML output** — *Admin script*. The v2 indigo theme recolours the app,
+  but `html_iframe` output is a separate document and several scripts hard-code the old teal
+  (Secrets Viewer, Secret Ingredients Check, MOTD, the import_from_gitea/motd/notify preloads).
+  Option: a shared `scripts/shared/` helper that reads `/app/conf/theme/theme.css`'s
+  `--primary-color` and hands scripts a palette, so output follows whatever theme is set.
+- **Sync upstream bugy/script-server** — *Core change*. Done 2026-11-11, up to upstream `62bd38a`
+  (paginated history, cookie hardening, header-identity secret) - see CLAUDE.md "Upstream Sync
+  Status" for how to repeat it. Recheck periodically.
+
 - **Self-seeding Docker image: a fresh install with EMPTY bind mounts works straight away** —
   `tools/Dockerfile` now also ships `conf/`, `conf/runners/`, `scripts/` and `data/` under
   `/app/defaults` (a path no bind mount covers) plus `tools/default-conf.json` as the seeded
@@ -693,7 +716,10 @@ change is in this repo:
   rich parameter forms (chained dropdowns, `server_file`, `html`/`html_iframe` output) rather than
   raw terminal text — Network Device Labelling/Network Scanner already lean this way. *Fully*
   hiding the terminal/log panel is a **Core change** to `web-src/` (e.g. `script-view.vue`).
-- **Nested script groups (multi-level hierarchy)** — *Core change*. Confirmed in the actual code,
+- **Nested script groups (multi-level hierarchy)** — *Core change*. **Largely addressed in
+  v2.0.0** by the separate `category` level (Category > Group > Script, see CLAUDE.md "Where a
+  Script Shows Up"), which gives two levels without changing what `group` means. Arbitrary-depth
+  groups below that are still the open part of this item. Original analysis: Confirmed in the actual code,
   not assumed: `"group"` on a runner is a single flat string, `ScriptListGroup.vue` renders
   `group.scripts` as a flat list with no recursion into child groups, and folder-based grouping
   (`group_by_folders`) collapses any nested subfolder path down to just the top-level folder name

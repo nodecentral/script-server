@@ -1,6 +1,6 @@
 #!/usr/bin/env lua5.1
 -- Name: terminal_colors.lua
--- Version: 1.0.0
+-- Version: 1.2.0
 -- Description: Demonstrates ANSI colour/style codes as rendered by
 --              Script-Server's "terminal" output format. Run standalone
 --              (lua5.1 terminal_colors.lua) or from Script-Server.

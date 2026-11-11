@@ -299,6 +299,7 @@ def _text1():
             'fileRecursive': False, 'fileType': None,
             'requiredParameters': [],
             'regex': None,
+            'copyFrom': None,
             'ui': {'separatorBefore': None, 'widthWeight': None}}
 
 
@@ -308,6 +309,7 @@ def _list1():
             'secure': False, 'fileRecursive': False, 'fileType': None,
             'requiredParameters': [],
             'regex': None,
+            'copyFrom': None,
             'ui': {'separatorBefore': None, 'widthWeight': None}}
 
 
@@ -317,6 +319,7 @@ def _file1():
             'secure': False, 'fileRecursive': False, 'fileType': None,
             'requiredParameters': [],
             'regex': None,
+            'copyFrom': None,
             'ui': {
                 'separatorBefore': {
                     'type': 'line',
@@ -332,6 +335,7 @@ def _list2(list2_values):
             'fileRecursive': False, 'fileType': None,
             'requiredParameters': ['file 1'],
             'regex': None,
+            'copyFrom': None,
             'ui': {'separatorBefore': None, 'widthWeight': None}}
 
 
@@ -341,5 +345,6 @@ def _included_text2():
             'fileRecursive': False, 'fileType': None,
             'requiredParameters': [],
             'regex': None,
+            'copyFrom': None,
             'ui': {'separatorBefore': None, 'widthWeight': None}
             }

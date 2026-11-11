@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Name: install_package.py
-# Version: 1.1.0
+# Version: 2.0.0
 # Description: Installs one or more optional packages (from
 #              conf/capabilities.json) into the running container via apt
 #              or pip. This is EPHEMERAL - lost when the container is

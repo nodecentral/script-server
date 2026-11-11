@@ -5,6 +5,11 @@
       <TextField v-model="group" :config="groupField" class="col s5 offset-s1"/>
     </div>
     <div class="row">
+      <TextField v-model="category" :config="categoryField" class="col s6"/>
+      <CheckBox v-model="settingsPlacement" :config="settingsPlacementField"
+                class="col s5 offset-s1 checkbox-field"/>
+    </div>
+    <div class="row">
       <ScriptPathField :config-name="newName" :new-config="isNew" :original-path="value['script_path']"
                        class="col s6" @change="updateScript"/>
       <TextField v-model="workingDirectory" :config="workDirField" class="col s5 offset-s1"/>
@@ -76,6 +81,7 @@ import {forEachKeyValue, isEmptyArray, isEmptyString, isNull} from '@/common/uti
 import get from 'lodash/get';
 import {
   allowAllField,
+  categoryField,
   descriptionField,
   globalInstancesField,
   groupField,
@@ -86,6 +92,7 @@ import {
   schedulingAutoCleanupField,
   schedulingEnabledField,
   scriptPathField,
+  settingsPlacementField,
   workDirField
 } from './script-fields';
 
@@ -107,6 +114,8 @@ export default {
       isNew: this.originalName === NEW_SCRIPT,
       newName: null,
       group: null,
+      category: null,
+      settingsPlacement: false,
       script: null,
       description: null,
       workingDirectory: null,
@@ -123,6 +132,8 @@ export default {
       allowAllAdmins: true,
       nameField,
       groupField,
+      categoryField,
+      settingsPlacementField,
       scriptPathField,
       workDirField,
       descriptionField,
@@ -141,6 +152,7 @@ export default {
     const simpleFields = {
       'newName': 'name',
       'group': 'group',
+      'category': 'category',
       'description': 'description',
       'workingDirectory': 'working_directory',
       'requiresTerminal': 'requires_terminal',
@@ -165,6 +177,8 @@ export default {
       handler(config) {
         this.newName = config.name;
         this.group = config.group;
+        this.category = config.category;
+        this.settingsPlacement = (config.placement || '').toLowerCase() === 'settings';
         this.description = config['description'];
         this.workingDirectory = config['working_directory'];
         this.requiresTerminal = get(config, 'requires_terminal', true);
@@ -184,6 +198,13 @@ export default {
             'adminUsers',
             'allowAllAdmins',
             'admin_users')
+      }
+    },
+    settingsPlacement(enabled) {
+      if (enabled) {
+        this.$set(this.value, 'placement', 'settings');
+      } else {
+        this.$delete(this.value, 'placement');
       }
     },
     allowAllUsers() {

@@ -490,7 +490,7 @@ def mock_request_handler(*, arguments: dict = None, method='GET', headers=None, 
             return default
         return arguments.get(arg_name)
 
-    def set_secure_cookie(cookie_name, value):
+    def set_secure_cookie(cookie_name, value, **kwargs):
         cookies[cookie_name] = f'!SECURE!{value}!!!'
 
     def clear_cookie(cookie_name):
@@ -510,6 +510,11 @@ def mock_request_handler(*, arguments: dict = None, method='GET', headers=None, 
     request_handler.set_secure_cookie = set_secure_cookie
     request_handler.get_secure_cookie = get_secure_cookie
     request_handler.clear_cookie = clear_cookie
+
+    # Upstream's cookie hardening reads request_handler.application.server_config.cookie_secure
+    request_handler.application = mock_object()
+    request_handler.application.server_config = mock_object()
+    request_handler.application.server_config.cookie_secure = False
 
     request_handler.request = mock_object()
     request_handler.request.method = method

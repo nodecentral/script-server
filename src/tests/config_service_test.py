@@ -249,6 +249,71 @@ class ConfigServiceAuthTest(unittest.TestCase):
 
         self.assertRaises(ConfigNotAllowedException, self.config_service.load_config_model, 'my_script', self.user1)
 
+    def test_list_configs_hides_settings_placement_from_user_view(self):
+        _create_script_config_file('a1')
+        _create_script_config_file('s1', placement='settings')
+
+        self.assert_list_config_names(self.user1, ['a1'])
+        self.assert_list_config_names(self.admin_user, ['a1'])
+
+    def test_list_configs_settings_mode_for_admin(self):
+        _create_script_config_file('a1')
+        _create_script_config_file('s1', placement='settings')
+        _create_script_config_file('s2', placement='Settings')
+
+        self.assert_list_config_names(self.admin_user, ['s1', 's2'], mode='settings')
+
+    def test_list_configs_settings_mode_for_non_admin(self):
+        _create_script_config_file('s1', placement='settings')
+
+        self.assertRaises(AdminAccessRequiredException,
+                          self.config_service.list_configs,
+                          self.user1,
+                          'settings')
+
+    def test_list_configs_edit_mode_includes_settings_placement(self):
+        _create_script_config_file('a1')
+        _create_script_config_file('s1', placement='settings')
+
+        self.assert_list_config_names(self.admin_user, ['a1', 's1'], mode='edit')
+
+    def test_list_configs_unknown_placement_falls_back_to_user_view(self):
+        _create_script_config_file('a1', placement='sidebar')
+
+        self.assert_list_config_names(self.user1, ['a1'])
+
+    def test_load_config_settings_placement_when_non_admin(self):
+        _create_script_config_file('my_script', placement='settings')
+
+        self.assertRaises(ConfigNotAllowedException, self.config_service.load_config_model, 'my_script', self.user1)
+
+    def test_load_config_settings_placement_when_admin(self):
+        _create_script_config_file('my_script', placement='settings')
+
+        config = self.config_service.load_config_model('my_script', self.admin_user)
+        self.assertEqual('my_script', config.name)
+
+    def test_list_configs_reads_category(self):
+        _create_script_config_file('a1', category='Finance', group='Prices')
+        _create_script_config_file('b2')
+
+        configs = {c.name: c for c in self.config_service.list_configs(self.user1)}
+        self.assertEqual('Finance', configs['a1'].category)
+        self.assertEqual('Prices', configs['a1'].group)
+        self.assertIsNone(configs['b2'].category)
+
+    def test_find_runner_relpath(self):
+        _create_script_config_file('my_script', name='My Script')
+
+        self.assertEqual('my_script.json', self.config_service.find_runner_relpath('My Script', self.admin_user))
+        self.assertIsNone(self.config_service.find_runner_relpath('Missing', self.admin_user))
+
+    def test_find_runner_relpath_non_admin(self):
+        _create_script_config_file('my_script', name='My Script')
+
+        self.assertRaises(AdminAccessRequiredException,
+                          self.config_service.find_runner_relpath, 'My Script', self.user1)
+
     def assert_list_config_names(self, user, expected_names, mode=None):
         configs = self.config_service.list_configs(user, mode)
         conf_names = [config.name for config in configs]

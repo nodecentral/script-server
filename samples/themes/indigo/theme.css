@@ -1,0 +1,25 @@
+/*
+ * nodecentral v2 theme - indigo.
+ *
+ * Shipped as the default theme for this fork (v2.0.0+): the Docker image seeds it to
+ * /app/conf/theme/theme.css (fill-if-missing, like every other conf default), and every page
+ * (index.html, admin.html, login.html) loads it after the built-in styles. So:
+ *   - to change the colour, edit /share/conf/theme/theme.css on the NAS and reload the page -
+ *     no rebuild, no restart;
+ *   - to go back to upstream's teal, empty that file (an empty or missing theme.css = built-in look);
+ *   - other ready-made themes: samples/themes/orange, samples/themes/dark.
+ * Every variable is defined in web-src/src/assets/css/shared.css - override only what you need.
+ */
+html:root {
+    --primary-color: #3F51B5;                     /* Indigo 500 - buttons, links, active items */
+    --primary-color-raised-hover-solid: #4A5CC0;
+    --primary-color-raised-focus-solid: #5E70D4;
+
+    --primary-color-dark-color: #283593;          /* Indigo 800 - admin Settings tab bar */
+
+    --primary-color-light-color: #E8EAF6;         /* Indigo 50 - light accents */
+
+    /* Replaces upstream's teal photo banner behind each script's title */
+    --script-header-background: linear-gradient(110deg, #E8EAF6 0%, #C5CAE9 38%, #E3F2FD 72%, #F3E5F5 100%);
+    --login-header-background: linear-gradient(110deg, #283593 0%, #3F51B5 60%, #5C6BC0 100%);
+}

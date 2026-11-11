@@ -14,7 +14,8 @@
                        :to="script.path"
                        append
                        class="collection-item">
-            {{ script.name }}
+            <span class="script-name">{{ script.name }}</span>
+            <span v-if="script.location" class="script-location">{{ script.location }}</span>
           </router-link>
         </template>
 
@@ -27,6 +28,14 @@
 import PageProgress from '@/common/components/PageProgress';
 import {mapActions, mapState} from 'vuex';
 import {NEW_SCRIPT} from '../../store/script-config-module';
+
+// Where the script shows up: a Settings tab, or its place in the sidebar's Category > Group tree
+function describeLocation(script) {
+  if (script.placement === 'settings') {
+    return 'Settings tab';
+  }
+  return [script.category, script.group].filter(part => part).join(' › ');
+}
 
 export default {
   name: 'ScriptsList',
@@ -48,7 +57,8 @@ export default {
             ? state.scripts.map(s => ({
               name: s.name,
               path: encodeURIComponent(s.name),
-              parsingFailed: s.parsingFailed
+              parsingFailed: s.parsingFailed,
+              location: describeLocation(s)
             }))
             : []
       },
@@ -74,6 +84,27 @@ export default {
 
 .add-script-btn {
   margin-bottom: 1em;
+}
+
+.scripts-list .collection-item {
+  display: flex;
+  align-items: baseline;
+}
+
+.scripts-list .collection-item .script-name {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.scripts-list .collection-item .script-location {
+  flex: 0 1 auto;
+  margin-left: 16px;
+
+  font-size: 0.85em;
+  color: var(--font-color-medium);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .scripts-list .collection-item.parsing-failed {

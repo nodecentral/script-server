@@ -1,7 +1,8 @@
 {
-  "_version": "1.0.0",
+  "_version": "1.2.0",
   "name": "Hello World",
-  "group": "Admin",
+  "category": "Script Server",
+  "group": "Demo",
   "description": "Starter example: greets a name using a text field and a dropdown.",
   "script_path": "hello_world.sh",
   "working_directory": "/app/scripts",

@@ -1,7 +1,8 @@
 {
-  "_version": "1.0.0",
+  "_version": "1.2.0",
   "name": "Progress Demo",
-  "group": "Admin",
+  "category": "Script Server",
+  "group": "Demo",
   "description": "Live-updating progress bar demonstrating streamed terminal output and carriage-return handling.",
   "script_path": "progress_demo.lua",
   "working_directory": "/app/scripts",

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Name: secret_ingredients_check.py
-# Version: 1.1.1
+# Version: 1.3.0
 # Description: Secret Ingredients Check - scans every script under scripts/
 #              for get_secret(...) calls (Python) and secrets_store.py get
 #              <product> <key> calls (Lua/bash shelling out), then cross-

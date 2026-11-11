@@ -1,7 +1,7 @@
 'use strict';
 
-import {hasClass, isBlankString} from '@/common/utils/common';
 import ScriptsList from '@/main-app/components/scripts/ScriptsList';
+import {buildCategoryTree} from '@/main-app/utils/categories';
 import router from '@/main-app/router/router';
 import {mount} from '@vue/test-utils';
 import VueRouter from 'vue-router';
@@ -12,6 +12,8 @@ const localVue = createScriptServerTestVue();
 localVue.use(Vuex);
 localVue.use(VueRouter);
 
+// v2.0.0: Category > Group > Script. Which category/group is open is owned by MainAppSidebar
+// (see MainAppSidebar_test.js) and passed in as props, so here those are set directly.
 describe('Test ScriptConfig', function () {
     let store;
     let listComponent;
@@ -23,7 +25,12 @@ describe('Test ScriptConfig', function () {
                     namespaced: true,
                     state: {
                         scripts: [],
+                        categories: [],
+                        uncategorised: {name: 'Uncategorised', icon: 'label_outline'},
                         selectedScript: null
+                    },
+                    getters: {
+                        categoryTree: state => buildCategoryTree(state.scripts, state.categories, state.uncategorised)
                     }
                 },
                 executions: {
@@ -48,220 +55,151 @@ describe('Test ScriptConfig', function () {
         listComponent.destroy();
     });
 
-    function getText(item) {
-        return Array.from(item.childNodes)
-            .filter(child => child.nodeType === 3)
-            .map(child => child.nodeValue.trim())
-            .reduce((left, right) => left + right);
+    function categoryNames() {
+        return $(listComponent.vm.$el).find('.category-header .category-name').toArray().map(e => e.textContent.trim());
     }
 
-    function getGroupText(groupItem) {
-        let groupTextItem = $(groupItem).find('> .script-group > span').get(0);
-        return getText(groupTextItem);
+    function categoryKey(name) {
+        return listComponent.vm.categoryTree.find(c => c.name === name).key;
     }
 
-    function getTopLevelItems() {
-        return Array.from(listComponent.vm.$el.childNodes)
-            .filter(child => hasClass(child, 'collection-item') || hasClass(child, 'script-list-group'))
-            .map(child => {
-                if (hasClass(child, 'script-list-group')) {
-                    return getGroupText(child);
-                }
-
-                return getText(child);
-            });
+    function groupKey(categoryName, groupName) {
+        return listComponent.vm.categoryTree.find(c => c.name === categoryName)
+            .groups.find(g => g.name === groupName).key;
     }
 
-    function findGroupItem(groupName) {
-        let foundGroups = $(listComponent.vm.$el)
-            .find('.script-list-group')
-            .has('.script-group > span:contains("' + groupName + '")')
-            .toArray()
-
-        expect(foundGroups).toBeArrayOfSize(1)
-        return foundGroups[0];
-    }
-
-    function assertGroupItems(groupName, expectedTexts) {
-        let foundGroup = findGroupItem(groupName);
-
-        let innerItems = $(foundGroup).find('.collection-item:not(.script-group)').toArray();
-        let actualTexts = innerItems.map(item => getText(item));
-        expect(actualTexts).toEqual(expectedTexts)
-    }
-
-    function assertOpenGroup(expectedOpenGroup, expectedItems) {
-        if (!isBlankString(expectedOpenGroup)) {
-            assertGroupItems(expectedOpenGroup, expectedItems);
-        }
-
-        let groupItems = $(listComponent.vm.$el).find('.script-list-group').toArray();
-        for (const groupItem of groupItems) {
-            let itemName = getGroupText(groupItem);
-            if (itemName === expectedOpenGroup) {
-                continue;
+    // Visible rows inside the open category, in order: "[group] name" for group headers, plain name for scripts
+    function openRows() {
+        return $(listComponent.vm.$el).find('.category-children .collection-item').toArray().map(item => {
+            if ($(item).hasClass('script-group')) {
+                return '[group] ' + $(item).find('span').first().text().trim();
             }
-
-            assertGroupItems(itemName, []);
-        }
+            return $(item).find('.script-name').text().trim();
+        });
     }
 
-    async function clickOnGroup(groupName) {
-        let dropdownItem = $(findGroupItem(groupName)).find('.script-group');
-        triggerSingleClick(dropdownItem.get(0));
+    async function setScripts(scripts, categories = []) {
+        store.state.scripts.categories = categories;
+        store.state.scripts.scripts = scripts;
+        await vueTicks();
+    }
 
+    async function open(category, group = null) {
+        await listComponent.setProps({activeCategory: category, activeGroup: group});
         await vueTicks();
     }
 
     describe('Test show list', function () {
         it('Test show single item', async function () {
-            store.state.scripts.scripts = [{'name': 'abc'}];
+            await setScripts([{'name': 'abc'}]);
 
-            await vueTicks();
+            expect(categoryNames()).toEqual(['Uncategorised']);
+            expect(openRows()).toEqual([]);
 
-            let texts = getTopLevelItems();
-
-            expect(texts).toEqual(['abc'])
+            await open(categoryKey('Uncategorised'));
+            expect(openRows()).toEqual(['abc']);
         });
 
         it('Test show multiple items', async function () {
-            store.state.scripts.scripts = [{'name': 'abc'}, {'name': 'xyz'}, {'name': 'def'}];
+            await setScripts([{'name': 'abc'}, {'name': 'xyz'}, {'name': 'def'}]);
+            await open(categoryKey('Uncategorised'));
 
-            await vueTicks();
-
-            let texts = getTopLevelItems();
-
-            expect(texts).toEqual(['abc', 'def', 'xyz'])
+            expect(openRows()).toEqual(['abc', 'def', 'xyz']);
         });
 
-        it('Test show single item in group', async function () {
-            store.state.scripts.scripts = [{'name': 'abc', 'group': 'g1'}];
+        it('Test show categories in configured order, Uncategorised last', async function () {
+            await setScripts([
+                    {'name': 'loose'},
+                    {'name': 'tags', 'category': 'Music'},
+                    {'name': 'budget', 'category': 'Finance'}],
+                [{name: 'Finance', icon: '£'}, {name: 'Photos', icon: 'photo_library'}, {name: 'Music', icon: 'music_note'}]);
 
-            await vueTicks();
-
-            let texts = getTopLevelItems();
-
-            expect(texts).toEqual(['g1'])
+            expect(categoryNames()).toEqual(['Finance', 'Music', 'Uncategorised']);
         });
 
-        it('Test show multiple items in different groups', async function () {
-            store.state.scripts.scripts = [
-                {'name': 'abc', 'group': 'g3'},
-                {'name': 'xyz', 'group': 'g2'},
-                {'name': 'def', 'group': 'g1'}];
-
-            await vueTicks();
-
-            let texts = getTopLevelItems();
-
-            expect(texts).toEqual(['g1', 'g2', 'g3'])
-        });
-
-        it('Test show multiple items in different groups when empty', async function () {
-            store.state.scripts.scripts = [
-                {'name': 'abc', 'group': null},
-                {'name': 'xyz', 'group': ''},
-                {'name': 'def', 'group': ' \n'}];
-
-            await vueTicks();
-
-            let texts = getTopLevelItems();
-
-            expect(texts).toEqual(['abc', 'def', 'xyz'])
-        });
-
-        it('Test show multiple items in same groups', async function () {
-            store.state.scripts.scripts = [
-                {'name': 'abc', 'group': 'g3'},
-                {'name': 'ghi', 'group': 'g1'},
-                {'name': 'xyz', 'group': 'g2'},
-                {'name': 'jkl', 'group': 'g2'},
-                {'name': 'def', 'group': 'g1'}];
-
-            await vueTicks();
-
-            let texts = getTopLevelItems();
-
-            expect(texts).toEqual(['g1', 'g2', 'g3'])
-        });
-
-        it('Test show items and groups mixed', async function () {
-            store.state.scripts.scripts = [
+        it('Test groups before ungrouped scripts', async function () {
+            await setScripts([
                 {'name': 'abc', 'group': 'g3'},
                 {'name': 'ghi'},
                 {'name': 'xyz', 'group': 'g2'},
                 {'name': 'jkl', 'group': 'g2'},
-                {'name': 'def'}];
+                {'name': 'def'}]);
+            await open(categoryKey('Uncategorised'));
 
-            await vueTicks();
+            expect(openRows()).toEqual(['[group] g2', '[group] g3', 'def', 'ghi']);
+        });
 
-            let texts = getTopLevelItems();
+        it('Test show multiple items in different groups when empty', async function () {
+            await setScripts([
+                {'name': 'abc', 'group': null},
+                {'name': 'xyz', 'group': ''},
+                {'name': 'def', 'group': ' \n'}]);
+            await open(categoryKey('Uncategorised'));
 
-            expect(texts).toEqual(['def', 'g2', 'g3', 'ghi'])
+            expect(openRows()).toEqual(['abc', 'def', 'xyz']);
+        });
+
+        it('Test open group shows its scripts sorted', async function () {
+            await setScripts([
+                {'name': 'xyz', 'group': 'g2', 'category': 'Music'},
+                {'name': 'def', 'group': 'g2', 'category': 'Music'},
+                {'name': 'abc', 'group': 'g1', 'category': 'Music'}], [{name: 'Music'}]);
+            await open(categoryKey('Music'), groupKey('Music', 'g2'));
+
+            expect(openRows()).toEqual(['[group] g1', '[group] g2', 'def', 'xyz']);
+        });
+
+        it('Test category script count', async function () {
+            await setScripts([{'name': 'a', 'category': 'Music'}, {'name': 'b', 'category': 'Music', 'group': 'x'}],
+                [{name: 'Music'}]);
+
+            expect($(listComponent.vm.$el).find('.category-count').text().trim()).toBe('2');
         });
     });
 
-    describe('Test open groups', function () {
-        it('Test nothing open by default', async function () {
-            store.state.scripts.scripts = [
-                {'name': 'abc', 'group': 'g3'},
-                {'name': 'xyz', 'group': 'g2'},
-                {'name': 'def', 'group': 'g1'}];
+    describe('Test clicks', function () {
+        it('Test click on category emits its key', async function () {
+            await setScripts([{'name': 'a', 'category': 'Music'}], [{name: 'Music'}]);
 
+            triggerSingleClick($(listComponent.vm.$el).find('.category-header').get(0));
             await vueTicks();
 
-            assertOpenGroup(null);
+            expect(listComponent.emitted('category-clicked')[0]).toEqual([categoryKey('Music')]);
         });
 
-        it('Test open by default when selected', async function () {
-            store.state.scripts.scripts = [
-                {'name': 'abc', 'group': 'g3'},
-                {'name': 'xyz', 'group': 'g2'},
-                {'name': 'def', 'group': 'g1'}];
-            store.state.scripts.selectedScript = 'abc';
+        it('Test click on group emits its key', async function () {
+            await setScripts([{'name': 'a', 'category': 'Music', 'group': 'Library'}], [{name: 'Music'}]);
+            await open(categoryKey('Music'));
 
+            triggerSingleClick($(listComponent.vm.$el).find('.script-group').get(0));
             await vueTicks();
 
-            assertOpenGroup('g3', ['abc']);
+            expect(listComponent.emitted('group-clicked')[0]).toEqual([groupKey('Music', 'Library')]);
         });
+    });
 
-        it('Test open on click', async function () {
-            store.state.scripts.scripts = [
-                {'name': 'abc', 'group': 'g3'},
-                {'name': 'def', 'group': 'g2'},
-                {'name': 'xyz', 'group': 'g2'}];
+    describe('Test search', function () {
+        it('Test search spans categories with breadcrumbs', async function () {
+            await setScripts([
+                {'name': 'Portfolio Report', 'category': 'Finance', 'group': 'Portfolio'},
+                {'name': 'Report Albums', 'category': 'Music'},
+                {'name': 'Other'}], [{name: 'Finance'}, {name: 'Music'}]);
 
+            await listComponent.setProps({searchText: 'report'});
             await vueTicks();
-            await clickOnGroup('g2');
 
-            assertOpenGroup('g2', ['def', 'xyz']);
+            const items = $(listComponent.vm.$el).find('.collection-item').toArray();
+            expect(items.map(i => $(i).find('.script-name').text().trim())).toEqual(['Portfolio Report', 'Report Albums']);
+            expect(items.map(i => $(i).find('.script-breadcrumb').text().trim())).toEqual(['Finance › Portfolio', 'Music']);
         });
 
-        it('Test open another group on click', async function () {
-            store.state.scripts.scripts = [
-                {'name': 'abc', 'group': 'g3'},
-                {'name': 'def', 'group': 'g2'},
-                {'name': 'xyz', 'group': 'g2'}];
+        it('Test search with no match', async function () {
+            await setScripts([{'name': 'abc'}]);
 
+            await listComponent.setProps({searchText: 'zzz'});
             await vueTicks();
-            await clickOnGroup('g2');
-            await clickOnGroup('g3');
 
-            assertOpenGroup('g3', ['abc']);
+            expect($(listComponent.vm.$el).find('.no-search-results').text().trim()).toBe('No matching scripts');
         });
-
-        it('Test close group on second click', async function () {
-            store.state.scripts.scripts = [
-                {'name': 'abc', 'group': 'g3'},
-                {'name': 'def', 'group': 'g2'},
-                {'name': 'xyz', 'group': 'g2'}];
-
-            await vueTicks();
-            await clickOnGroup('g2');
-            await clickOnGroup('g2');
-
-            assertOpenGroup(null);
-        });
-
     });
 });

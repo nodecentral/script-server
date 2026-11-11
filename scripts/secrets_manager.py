@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Name: secrets_manager.py
-# Version: 1.6.0
+# Version: 2.0.0
 # Description: Sets, updates, or deletes an entry in the categorized secrets
 #              store (/app/data/secrets.json via scripts/shared/secrets_store.py)
 #              - e.g. product "gitea" holding TOKEN, product "finnhub" holding

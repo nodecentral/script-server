@@ -1,6 +1,6 @@
 #!/bin/bash
 # Name: hello_world.sh
-# Version: 1.0.0
+# Version: 1.2.0
 # Description: Minimal starter example. Demonstrates the runner/script
 #              matched-pair convention, a text parameter, a "list" dropdown
 #              with display labels, and the DEBUG toggle convention.

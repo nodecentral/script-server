@@ -1,0 +1,44 @@
+# Script-Server for QNAP Container Station: Applications > Create, paste this file.
+#
+# Container Station doesn't run compose from a folder, so every bind mount is an absolute path.
+# Change /share/Container/script-server below to wherever you keep it (this NAS currently uses
+# /share/Container/script-server-v2). Container Station keeps its own copy of this YAML - after
+# creating the application, edit it there (e.g. to change the image tag), not in a file on disk.
+#
+# Before creating it:
+#   - make the folders: conf, scripts, data, logs (empty is fine - they're seeded on first start)
+#   - put a conf/conf.json in place first, with your port and title (copy deploy/standalone/conf/
+#     conf.json). A bind-mounted path that doesn't exist yet is created as a DIRECTORY, so never
+#     mount single files - mount whole folders, as below.
+#   - make sure no other container is called "script-server"
+# Build/push the image with tools/build_and_push.sh (see README, "Building the image").
+
+services:
+  script-server:
+    image: 192.168.102.227:5011/script-server:latest
+    container_name: script-server
+    restart: unless-stopped
+
+    # Listens directly on the NAS on conf/conf.json's "port" (5012) - no ports: mapping. See
+    # deploy/standalone/docker-compose.yml and the README for why host networking.
+    network_mode: host
+    cap_add:
+      - NET_RAW
+      - NET_ADMIN
+    # Other containers' names don't resolve with host networking - store
+    # http://<NAS IP>:<published port> in the Secrets Store instead (e.g. http://10.0.0.41:8777).
+
+    environment:
+      - TZ=Europe/London
+      - PUID=1005      # owns seeded files; the app runs as this user (chown the folders to it)
+      - PGID=1000
+
+    volumes:
+      - /share/Container/script-server/conf:/app/conf
+      - /share/Container/script-server/scripts:/app/scripts
+      - /share/Container/script-server/data:/app/data
+      - /share/Container/script-server/logs:/app/logs
+      # Only if your scripts use organize / Docker:
+      # - /share/Container/script-server/organize/logs:/var/log/organize/
+      # - /share/Container/script-server/organize/config:/root/.config/organize
+      # - /var/run/docker.sock:/var/run/docker.sock

@@ -148,9 +148,14 @@ export default {
 
     this.openDialog()
 
-    this.$refs.modal.addEventListener('transitionend', () => this.$refs.codeEditor.resize())
+    // Fork fix: the modal's closing transition can end after this component is destroyed, when
+    // $refs.codeEditor no longer exists - guard it, and drop the listener on destroy.
+    this.transitionEndListener = () => this.$refs.codeEditor && this.$refs.codeEditor.resize()
+    this.$refs.modal.addEventListener('transitionend', this.transitionEndListener)
   },
   beforeDestroy() {
+    this.$refs.modal.removeEventListener('transitionend', this.transitionEndListener)
+
     const modal = M.Modal.getInstance(this.$refs.modal)
     modal.destroy()
   },

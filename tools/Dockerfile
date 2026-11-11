@@ -85,6 +85,9 @@ RUN pip install --no-cache-dir \
 WORKDIR /app
 
 COPY launcher.py requirements.txt ./
+# version.txt is what the UI shows as the version (sidebar footer, admin header); CHANGELOG.md is
+# served at /changelog for the "What's new" page. Both are read from the working dir (/app).
+COPY version.txt CHANGELOG.md ./
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY src ./src
@@ -102,6 +105,7 @@ RUN mkdir -p conf/runners
 # the files listed in PLATFORM_FILES refreshed per file. Layout (the entrypoint maps it onto
 # /app/conf, /app/conf/runners, /app/scripts, /app/data):
 #   defaults/conf/      conf.json + logging.json + capabilities.json + secrets_defaults.json
+#                       + categories.json
 #   defaults/runners/   conf/runners/*.json
 #   defaults/scripts/   scripts/ (incl. shared/ and preload/)
 #   defaults/data/      data/.gitkeep
@@ -109,10 +113,13 @@ RUN mkdir -p conf/runners
 # checkout that has been run or used as a live mount can't leak conf/.htpasswd or
 # data/secrets.json into the image.
 COPY tools/default-conf.json /app/defaults/conf/conf.json
-COPY conf/logging.json conf/capabilities.json conf/secrets_defaults.json /app/defaults/conf/
+COPY conf/logging.json conf/capabilities.json conf/secrets_defaults.json conf/categories.json /app/defaults/conf/
 COPY conf/runners/ /app/defaults/runners/
 COPY scripts/ /app/defaults/scripts/
 COPY data/.gitkeep /app/defaults/data/.gitkeep
+# Default look for this fork (indigo, v2.0.0+): user content like the rest of defaults/conf, so
+# seeded only if /app/conf/theme/theme.css is missing - edit or empty it on the NAS to change it.
+COPY samples/themes/indigo/theme.css /app/defaults/conf/theme/theme.css
 COPY tools/PLATFORM_FILES /app/defaults/PLATFORM_FILES
 
 # Fail the build if the manifest names a file the image doesn't ship (a typo or a rename would

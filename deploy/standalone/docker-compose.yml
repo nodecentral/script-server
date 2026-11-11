@@ -1,0 +1,59 @@
+# Script-Server (nodecentral fork) - a fresh, standalone install.
+#
+# Copy this folder (deploy/standalone/) to the NAS, e.g. /share/Container/script-server/, edit
+# conf/conf.json (port, title) and run `docker compose up -d` from inside it. Everything lives in
+# folders next to this file - nothing is written anywhere else on the NAS:
+#   ./conf    conf.json, categories.json, theme/, runners/ ...   (seeded on first start)
+#   ./scripts the scripts runners execute, incl. scripts/shared and scripts/preload
+#   ./data    persistent script data, incl. the Secrets Store (data/secrets.json)
+#   ./logs    server log + execution history
+# Empty folders are fine: the image seeds them on every start, fill-if-missing (see README,
+# "Bind mounts and first-run seeding").
+#
+# Relative paths (./conf) resolve against this file's folder when you run `docker compose` over
+# SSH. If you paste this into Container Station's "Create Application" instead, replace every ./
+# with the absolute folder path.
+#
+# Build and push the image first: tools/build_and_push.sh (see README, "Building the image").
+
+services:
+  script-server:
+    image: 192.168.102.227:5011/script-server:latest
+    container_name: script-server
+    restart: unless-stopped
+
+    # Host networking: the app listens directly on the NAS, on the "port" set in
+    # conf/conf.json (there is no ports: mapping with host networking). It also means:
+    #   - History shows each device's real IP/hostname, and conf.json's "trusted_ips" work
+    #     (behind Docker's bridge every request appears to come from one Docker address);
+    #   - a network scanner (ss_network_management) can see the real LAN.
+    # Linux Docker hosts only (QNAP Container Station is fine).
+    network_mode: host
+    # Raw sockets for nmap/arp-scan MAC resolution - remove if you don't run a network scanner
+    cap_add:
+      - NET_RAW
+      - NET_ADMIN
+    # Other containers' names (e.g. paperlessngx) don't resolve with host networking - store
+    # http://<NAS IP>:<published port> in the Secrets Store instead. A service published on the
+    # SAME port it listens on can keep its name with an entry here:
+    # extra_hosts:
+    #   - "paperlessngx:10.0.0.41"
+
+    environment:
+      - TZ=Europe/London
+      # Run as this uid/gid instead of root (a network scanner needs root's raw sockets):
+      # - PUID=1005
+      # - PGID=1000
+
+    volumes:
+      - ./conf:/app/conf
+      - ./scripts:/app/scripts
+      - ./data:/app/data
+      - ./logs:/app/logs
+      # Read-only media libraries some ss_* repos expect - uncomment the ones you use:
+      # - /share/Movies:/app/movies:ro
+      # - /share/Music:/app/music:ro
+      # - /share/Pictures:/app/pictures:ro
+      # - /share/health:/app/health:ro
+      # Lets scripts control Docker on the NAS - full host control, only if a script needs it:
+      # - /var/run/docker.sock:/var/run/docker.sock

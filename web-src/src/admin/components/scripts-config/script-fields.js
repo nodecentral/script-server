@@ -4,7 +4,18 @@ export const nameField = {
 };
 export const groupField = {
     name: 'Group',
-    description: 'Aggregates scripts from the same group into the same category on UI'
+    description: 'Aggregates scripts from the same group under one expandable heading, inside their category'
+};
+export const categoryField = {
+    name: 'Category',
+    description: 'Top level of the sidebar (Category > Group > Script), e.g. Finance, Music. '
+        + 'Icons come from conf/categories.json - a new name is added there automatically with the default icon. '
+        + 'Leave empty for Uncategorised'
+};
+export const settingsPlacementField = {
+    name: 'Settings tab (admin only)',
+    description: 'Moves this script out of the sidebar into a tab of the admin Settings page. '
+        + 'Only admins can see or run it'
 };
 export const scriptPathField = {
     name: 'Script path',

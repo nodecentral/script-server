@@ -57,9 +57,9 @@ describe('Test admin script module', function () {
             await flushPromises();
 
             expect(store.state.scripts.scripts).toEqual([
-                {'name': 'abc', 'parsingFailed': true},
-                {'name': 'def', 'parsingFailed': undefined},
-                {'name': 'xyz', 'parsingFailed': false}
+                {'name': 'abc', 'parsingFailed': true, category: undefined, group: undefined, placement: undefined},
+                {'name': 'def', 'parsingFailed': undefined, category: undefined, group: 'some_group', placement: undefined},
+                {'name': 'xyz', 'parsingFailed': false, category: undefined, group: undefined, placement: undefined}
             ])
             expect(store.state.scripts.loading).toBeFalse()
         });

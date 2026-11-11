@@ -68,11 +68,13 @@ import time
 
 STORE_PATH = '/app/data/secrets.json'
 
-# scriptNameToHash() (web-src/src/main-app/utils/model_helper.js) is just encodeURIComponent(name)
-# - Secrets Manager's runner "name" is literally "Secrets Manager". Script-Server's router can
-# also pre-fill form fields from a query string ("predefinedParameters"); links built here
-# deliberately don't use that - see secrets_manager_link().
+# Since v2.0.0 Secrets Manager is a placement=settings runner: it lives in admin.html's Settings
+# tab bar (route /settings/<encodeURIComponent(name)>), no longer in the user view's sidebar -
+# its runner "name" is literally "Secrets Manager". Script-Server's router can also pre-fill form
+# fields from a query string ("predefinedParameters"); links built here deliberately don't use
+# that - see secrets_manager_link().
 SECRETS_MANAGER_HASH = 'Secrets%20Manager'
+SECRETS_MANAGER_PAGE = 'admin.html#/settings/'
 
 # The "expected secrets" checklist - product/key/description entries this fork already has (or
 # expects to have) a consuming script for, so Secrets Manager's dropdown and Secrets Viewer can
@@ -234,8 +236,11 @@ def secrets_manager_link():
     dropdown; the banner names it and the user picks it there.
 
     Embed it with target="_top": a preload's html_iframe output is a same-origin <iframe> with no
-    router of its own, so without it the link tries (and fails) to navigate the iframe itself."""
-    return f'/#/{SECRETS_MANAGER_HASH}'
+    router of its own, so without it the link tries (and fails) to navigate the iframe itself.
+
+    Points at admin.html (Settings), where Secrets Manager lives since v2.0.0 - so it only works
+    for admins, the same people the server lets run Secrets Manager at all."""
+    return f'/{SECRETS_MANAGER_PAGE}{SECRETS_MANAGER_HASH}'
 
 
 def dropdown_entry_label(product, key):
@@ -268,7 +273,7 @@ def missing_secret_banner_html(product, key, purpose=''):
     mono = 'font-family:\'Roboto Mono\',\'Courier New\',monospace;'
     purpose_html = f' - {html.escape(purpose)}' if purpose else ''
     link = (f'<a href="{secrets_manager_link()}" target="_top" style="font-weight:500;">'
-            'Open Secrets Manager</a>')
+            'Open Secrets Manager (Settings)</a>')
     if is_placeholder_listed(product, key):
         action = (f'It is listed in Secrets Manager as <i>not set yet</i> - {link}, pick '
                   f'<b style="{mono}">{html.escape(dropdown_entry_label(product, key))}</b> from '
