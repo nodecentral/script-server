@@ -1799,6 +1799,36 @@ pull && docker compose up -d` in the install folder.
 
 **Still needs** a check on the real NAS with the real Gitea.
 
+### 2026-11-11 — v2.1.1: side-by-side platform-file tug of war
+
+**Symptom on the NAS:** v2's Import from Gitea failed to load ("Failed to
+connect to the server"). The log showed the runner's token default failing
+with `Unknown command: default-token`.
+
+**Cause:** the shared `scripts/shared/gitea_client.py` and
+`scripts/preload/import_from_gitea.py` were v1's copies. The user had
+copied the new ones in, but **v1's own entrypoint**, with platform refresh
+on by default, put its image's copies back on its next start.
+`PLATFORM_REFRESH=conf` on v2 only stops v2 doing that, so two instances
+sharing `scripts/` need it off on the *old* one too. The new
+`import_from_gitea.py` (user content, so not reverted) was left next to
+the old `gitea_client.py` and failed to import `format_time`, which broke
+v1's Import from Gitea as well.
+
+**Fix:**
+- The runner's `token_key` default is now
+  `gitea_client.py default-token 2>/dev/null || true` with `shell: true`.
+  A failing *default* script raises at config load and takes the whole
+  form down, unlike a values script, which only empties its dropdown.
+- `import_from_gitea.py` 5.1.1 falls back to a local `format_time` when
+  `gitea_client` is older.
+- `deploy/side-by-side/docker-compose.yml` and the README tell you to set
+  `PLATFORM_REFRESH=false` on v1.
+
+**General rule:** never make a runner's default depend on a newer shared
+helper without a fallback. Platform files can be older than the runner on a
+mixed install.
+
 ## Upstream Sync Status
 
 This fork was imported as a **snapshot, not a git fork**, so there is no

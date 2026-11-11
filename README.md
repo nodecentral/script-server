@@ -99,6 +99,10 @@ For the usage please check [this ticket](https://github.com/bugy/script-server/i
 >   scripts and data (same scripts, same Secrets Store) with its own config, theme, categories and
 >   history. `SEED_DEFAULTS=conf` and `PLATFORM_REFRESH=conf` make sure it never adds or overwrites
 >   files in v1's folders. Set `V1_DIR` if v1 isn't in `/share/Container/script-server-ext`.
+>   **Also add `PLATFORM_REFRESH=false` to v1's own compose `environment:`.** Otherwise v1 puts its own
+>   copies of the shared platform files (`scripts/shared/*`, `scripts/preload/*`) back every time it
+>   starts, undoing newer copies placed there for v2. To give both instances the newer files, copy them
+>   in by hand once (`cp <checkout>/scripts/shared/gitea_client.py <v1>/scripts/shared/` etc.).
 >
 > The **port and title are in `conf/conf.json`** in each folder (5012 standalone, 5013 side-by-side):
 > both use host networking, so there is no `ports:` mapping. Each folder's compose file explains the

@@ -15,6 +15,12 @@
 # v1 ignores the v2-only runner fields ("category", "placement"), so editing the shared runner files
 # for v2 (tools/migrate_runners_v2.py) is safe for v1.
 #
+# ALSO SET ON v1 (its own compose file, environment:):  - PLATFORM_REFRESH=false
+# v1's image otherwise puts ITS copies of the shared platform files (scripts/shared/gitea_client.py,
+# scripts/shared/secrets_store.py, scripts/preload/*) back on every v1 start, silently undoing any
+# newer copies you placed there for v2. Confirmed on the NAS: v2's Import from Gitea then failed with
+# "Unknown command: default-token". With it set, update shared files by hand (README, side by side).
+#
 # Relative paths (./conf) resolve against this file's folder when run over SSH; in Container
 # Station's "Create Application" use absolute paths instead.
 

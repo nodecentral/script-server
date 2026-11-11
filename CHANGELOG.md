@@ -4,6 +4,15 @@ This is the nodecentral fork of [Script-Server](https://github.com/bugy/script-s
 running on the home NAS. The version number is the one in `version.txt`, shown at the bottom of
 the sidebar. Newest first.
 
+## 2.1.1 — 2026-11-11
+
+- **Fixed:** Import from Gitea wouldn't open ("Failed to connect to the server") when the shared
+  `gitea_client.py` was an older copy, which happens when v1 runs alongside v2 and puts its own
+  copy back on start. The form now always opens, without the token pre-fill in that case, and the
+  import itself works with either copy.
+- Running v2 alongside v1: v1 now needs `PLATFORM_REFRESH=false` in its compose file so it stops
+  replacing shared scripts (see README).
+
 ## 2.1.0 — 2026-11-11
 
 ### Import from Gitea

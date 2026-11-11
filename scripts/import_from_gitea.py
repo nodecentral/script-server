@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Name: import_from_gitea.py
-# Version: 5.1.0
+# Version: 5.1.1
 # Description: Clones a Gitea repo (expected to have its own top-level
 #              scripts/ and runners/ folders) and mirrors scripts/ into
 #              /app/scripts and runners/ into /app/conf/runners: existing
@@ -51,10 +51,22 @@ import tempfile
 from datetime import datetime, timezone
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'shared'))
-from gitea_client import (  # noqa: E402
-    GiteaApiError, format_time, list_gitea_tokens, resolve_gitea_token, resolve_gitea_url,
-)
+from gitea_client import GiteaApiError, list_gitea_tokens, resolve_gitea_token, resolve_gitea_url  # noqa: E402
 from secrets_store import AUTO_SENTINEL  # noqa: E402
+
+try:
+    from gitea_client import format_time  # noqa: E402
+except ImportError:
+    # An older scripts/shared/gitea_client.py (pre-v2.1) - e.g. a v1 instance sharing this
+    # scripts folder put its own copy back on start. Everything still works, times included.
+    def format_time(value):
+        if not value:
+            return ''
+        try:
+            parsed = datetime.fromisoformat(str(value).replace('Z', '+00:00')).astimezone()
+        except ValueError:
+            return ''
+        return parsed.strftime('%d %b %Y %H:%M')
 
 STATE_PATH = '/app/data/gitea_import_state.json'
 
