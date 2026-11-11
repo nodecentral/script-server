@@ -525,6 +525,14 @@ change is in this repo:
 
 ## In Progress
 
+- **v2.0.0 — Settings tabs + Category > Group > Script sidebar** — *Core change*, on branch
+  `claude/script-server-admin-settings-5c9g5o` (master and its Docker build stay on the v1 layout
+  until this merges). Built and checked locally (see CLAUDE.md Core Changes, 2026-11-11). Still to do:
+  live-iPad check on the NAS; copy the updated runners onto the NAS (fill-if-missing won't);
+  each `ss_*` repo adds `"category"` to its runners per SCRIPTING.md (Finance, Documents, Movies,
+  Music, Photos, Health, Network...). Open question: whether a category should be able to carry
+  its own description/tooltip in `categories.json`.
+
 - **Self-seeding Docker image: a fresh install with EMPTY bind mounts works straight away** —
   `tools/Dockerfile` now also ships `conf/`, `conf/runners/`, `scripts/` and `data/` under
   `/app/defaults` (a path no bind mount covers) plus `tools/default-conf.json` as the seeded
@@ -693,7 +701,10 @@ change is in this repo:
   rich parameter forms (chained dropdowns, `server_file`, `html`/`html_iframe` output) rather than
   raw terminal text — Network Device Labelling/Network Scanner already lean this way. *Fully*
   hiding the terminal/log panel is a **Core change** to `web-src/` (e.g. `script-view.vue`).
-- **Nested script groups (multi-level hierarchy)** — *Core change*. Confirmed in the actual code,
+- **Nested script groups (multi-level hierarchy)** — *Core change*. **Largely addressed in
+  v2.0.0** by the separate `category` level (Category > Group > Script, see CLAUDE.md "Where a
+  Script Shows Up"), which gives two levels without changing what `group` means. Arbitrary-depth
+  groups below that are still the open part of this item. Original analysis: Confirmed in the actual code,
   not assumed: `"group"` on a runner is a single flat string, `ScriptListGroup.vue` renders
   `group.scripts` as a flat list with no recursion into child groups, and folder-based grouping
   (`group_by_folders`) collapses any nested subfolder path down to just the top-level folder name

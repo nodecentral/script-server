@@ -95,8 +95,10 @@ For the usage please check [this ticket](https://github.com/bugy/script-server/i
 > **Empty folders are fine — the image seeds them.** See [Bind mounts and first-run seeding](#bind-mounts-and-first-run-seeding)
 > below for the recommended layout and exactly what is (and isn't) overwritten on an upgrade.
 >
-> Nine working examples ship in `conf/runners/` + `scripts/` out of the box, all grouped under **Admin** in
-> the UI:
+> Working examples ship in `conf/runners/` + `scripts/` out of the box. Since v2.0.0 most sit under the
+> **System** category in the sidebar (groups Secrets / Maintenance / Examples), while Import from Gitea,
+> Install Package and Secrets Manager are admin-only tabs on the Settings page (`admin.html`). See
+> `SCRIPTING.md` → "Where a Script Shows Up" for `category`, `group` and `"placement": "settings"`:
 > - **Hello World** — basic parameters
 > - **File Info** — native file browser over `data/`
 > - **Disk Usage** — confirms the bind mounts above are actually connected, then shows a tree view of a

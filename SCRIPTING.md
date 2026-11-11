@@ -1,7 +1,7 @@
 # SCRIPTING.md — Script-Server Scripting Conventions (Focused)
 
-Version: 1.13.0
-Last updated: 2026-10-25
+Version: 2.0.0
+Last updated: 2026-11-11
 
 This is the **focused** convention doc for any Claude session writing
 scripts/runners destined for import into `nodecentral/script-server` —
@@ -130,6 +130,85 @@ The identical-copy exception above doesn't protect you either, since the
 next image upgrade changes the image's copy. Never reuse a shipped name
 there. Prefix shared helpers with your repo's subject
 (`network_inventory.py`, `energy_paperless.py`) so they can't clash.
+
+-----
+
+## Where a Script Shows Up — category, group, placement (v2.0.0+)
+
+The user view's sidebar is a three-level tree: **Category > Group > Script**.
+Collapsed, the sidebar is a slim rail of category icons (e.g. **£** for
+Finance). Click one to open that category with its groups and scripts.
+Every runner should say where it belongs:
+
+```json
+{
+  "_version": "1.3.0",
+  "name": "Update Prices",
+  "category": "Finance",
+  "group": "Portfolio",
+  "script_path": "update_prices.py"
+}
+```
+
+- **`category`** — the top level. Use one of the default categories below,
+  spelled the same way (matching is case-insensitive, but the spelling in
+  `categories.json` is what's shown). Each sibling repo normally uses one
+  category for everything it ships: the repo's subject.
+- **`group`** — unchanged, now the second level inside the category.
+  Optional.
+- **Neither is required.** No category → the script goes under
+  **Uncategorised**, always the last rail icon. Inside any category, groups
+  come first (alphabetical), then scripts with no group (alphabetical). So a
+  script with neither category nor group is listed at the bottom of
+  Uncategorised, and it still shows up.
+
+### Default categories (`conf/categories.json`)
+
+Icons and order live in **one central file in the main script-server
+repo**, never in your runner. That way two repos importing into the same
+category can't disagree about its icon.
+
+| Category | Icon | For |
+|---|---|---|
+| `Finance` | £ | `ss_finance_management` |
+| `Documents` | `description` | `ss_document_file_management` |
+| `Movies` | `movie` | `ss_movie_file_management` |
+| `Music` | `music_note` | `ss_music_file_management` |
+| `Photos` | `photo_library` | `ss_photo_file_management` |
+| `Health` | `favorite` | `ss_health_management` |
+| `Files` | `folder` | general file tools |
+| `Network` | `router` | `ss_network_management` |
+| `System` | `build` | script-server's own platform/admin scripts |
+
+**A new category name is fine — it registers itself.** The first time the
+script list loads with a runner using a category `categories.json`
+doesn't have (whether added via Import from Gitea, the admin form or a
+manual copy), the server appends it with the default icon (`label`). Nothing
+breaks, but the icon is generic until someone picks a better one. Prefer an
+existing category, and if you do need a new one, raise it in the
+`nodecentral/script-server` session so it gets a proper icon in the
+shipped file. An icon is a Material Icons name **from the bundled
+`material-design-icons@3.0.1` font** (newer names like `category` or
+`currency_pound` don't exist there), or any short text/emoji, which is
+rendered as-is (that's how £ works).
+
+### `"placement": "settings"` — admin-only scripts
+
+`"placement": "settings"` moves a runner out of the sidebar into its own
+tab in the admin **Settings** page (`admin.html`'s horizontal tab bar, next
+to Logs and Scripts). It's **enforced server-side**: non-admins can't list,
+open, run or schedule it, even by URL. Import from Gitea, Install Package and
+Secrets Manager use it. `category`/`group` are ignored for these runners,
+since a settings tab has no sidebar position.
+
+Use it only for genuinely administrative tools that change the platform
+itself. Anything a regular user should run or *check* belongs in the
+sidebar (e.g. Secrets Viewer and Secret Ingredients Check stay there).
+
+**Linking to a settings script:** its URL is
+`/admin.html#/settings/<encodeURIComponent(name)>`, not `/#/<name>`. For
+Secrets Manager, use `secrets_store.secrets_manager_link()` rather than
+hand-building it.
 
 -----
 
@@ -793,6 +872,11 @@ result overwrite a vendor already known for that MAC.
   runner, a more severe failure than a greyed-out dropdown
 - Inventing a parallel secrets mechanism instead of using the Secrets Store
 - Guessing a Secrets Store product/key name instead of confirming it
+- Putting a category's icon in a runner, or inventing a near-duplicate
+  category (`Finances`, `Film`) instead of using a default one — icons live
+  only in the main repo's `conf/categories.json`
+- `"placement": "settings"` on anything a regular user should be able to
+  run or view — it makes the script admin-only
 - Creating a grouping/topic product that bundles several unrelated
   providers under one umbrella name — one product should always be one
   real product/service, each with its own name

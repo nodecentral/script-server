@@ -1,7 +1,7 @@
 # Script-Server.md — Platform Context
 
-Version: 1.34.0
-Last updated: 2026-10-25
+Version: 2.0.0
+Last updated: 2026-11-11
 
 ## Platform Overview
 
@@ -111,6 +111,60 @@ Every solution MUST produce a matched pair:
 - Increment both the script header `# Version:` AND runner `"_version"` together
   on every meaningful change, using semver:
   patch = bug fix · minor = new feature · major = breaking change
+
+-----
+
+## Where a Script Shows Up — category, group, placement (v2.0.0+)
+
+The full scripting-side rules (default category list, when to use
+`placement`, Avoid items) are in `SCRIPTING.md`'s section of the same name.
+This is the rationale and the internals.
+
+**Three levels: Category > Group > Script.** `"category"` is a new runner
+field above the existing `"group"`. The user view's left sidebar collapses
+to a slim rail of category icons (the rail itself predates this - see the
+2026-09-06 Core Changes entries) and expands to a collapsible tree. Both
+levels are optional, in the same way upstream treats `group`. Missing
+category → **Uncategorised**, always last. Inside a category, groups come
+first and ungrouped scripts sit at the bottom, so a script with neither field
+still shows, at the very bottom of Uncategorised. Search spans every
+category and shows each hit's `Category › Group` breadcrumb.
+
+**Icons are central, never per-runner** (`conf/categories.json`). Sibling
+repos import into one flat namespace, so per-runner icons would let two repos
+disagree about the same category's icon. The file is user content: it is
+seeded fill-if-missing by the entrypoint and is *not* in `PLATFORM_FILES`,
+because an admin edits icons on the NAS. `src/config/category_service.py`
+also **writes** to it. When the script list loads and a runner uses a
+category the file doesn't have, the category is appended with
+`default_icon`. That covers Import from Gitea, the admin form and manual
+copies, with no hook in any of them. Existing entries are never changed or
+removed. Names match case-insensitively and the file's spelling wins.
+Appends keep the one-entry-per-line layout, so the diff is one line.
+
+**Icon values:** a lowercase Material Icons ligature name from the bundled
+`material-design-icons@3.0.1` font, or anything else (text/emoji), which
+renders as text in the same 24×24 box. That's how Finance gets **£**: the
+old font has no pound icon (`currency_pound` is a newer Material Symbols
+name), and neither does `category`. Check names against the codepoints file
+first; see the 2026-09-06 icon-name entry under Core Changes.
+
+**`"placement": "settings"`** moves a runner into a tab of the admin
+**Settings** page (`admin.html`, horizontal tab bar: Logs | Scripts | one
+tab per settings runner). The tab shows the same preload banner, form, live
+output, execution tabs and scheduling as the user view, below the bar. It is
+enforced in `ConfigService._can_access_script`, the single choke point for
+listing, the config websocket, execute and schedule, not just hidden in the
+UI. `GET /scripts` excludes these by default. `?mode=settings` (admin only)
+returns only these, and `?mode=edit` is unchanged. Unknown placement values
+are logged and treated as "user view", so a typo hides nothing.
+
+**This repo's own runners (v2.0.0):** Import from Gitea, Install Package and
+Secrets Manager → `placement: settings`. Everything else → category
+`System`, regrouped from the single flat `Admin` group into **Secrets**
+(Secrets Viewer, Secret Ingredients Check), **Maintenance** and
+**Examples**. Secrets Viewer and Secret Ingredients Check deliberately stay
+user-visible, so anyone can check what's configured.
 
 -----
 
@@ -911,7 +965,10 @@ missing. For alternatives (either service A *or* B will do), see
 otherwise a confirmation plus the other service's entries to pick.
 
 **The link deliberately pre-fills nothing.** `secrets_manager_link()` is
-just `/#/Secrets%20Manager`. Script-Server's router *can* pre-fill a form
+just `/admin.html#/settings/Secrets%20Manager` (it was `/#/Secrets%20Manager`
+before v2.0.0 moved Secrets Manager into the admin Settings page - see
+"Where a Script Shows Up" below; the link therefore only works for admins,
+the same people the server lets run Secrets Manager at all). Script-Server's router *can* pre-fill a form
 from the URL's query string (`web-src/src/main-app/store/scripts.js`'s
 `selectScriptByHash` / `store/index.js`'s `predefinedParameters` watcher,
 keyed by parameter `name`) - an earlier version used exactly that to
@@ -1525,6 +1582,73 @@ can't be exercised against a live backend.
 **Deploying this fix:** same as every other `web-src/` change in this
 log - `docker compose up -d --build` is required, a file copy is not
 enough.
+
+### 2026-11-11 — v2.0.0: Settings tabs, Category > Group > Script sidebar
+
+The design is described under "Where a Script Shows Up" above. Files:
+
+**Backend (Python):**
+- `src/model/script_config.py`: `ShortConfig.category`/`.placement`, both
+  parsed in `read_short`, with `PLACEMENT_SETTINGS`.
+- `src/config/config_service.py`: `list_configs` gains `mode='settings'`,
+  the default mode excludes settings runners, and `_can_access_script`
+  enforces admin-only.
+- `src/config/category_service.py` (new): reads and extends
+  `conf/categories.json`.
+- `src/web/server.py`: `GET /scripts` returns `category` (canonical
+  spelling), `placement`, `categories` and `uncategorised`.
+- Tests: `tests/category_service_test.py` (new), placement tests in
+  `tests/config_service_test.py`, and `tests/web/server_test.py` updated
+  for the new fields.
+
+**Frontend (Vue):**
+- `main-app/utils/categories.js` (new, tree building/ordering).
+- `common/components/CategoryIcon.vue` (new).
+- `main-app/store/scripts.js` (`categoryTree` getter).
+- `MainAppSidebar.vue` (rail icons; owns the open category/group because
+  `ScriptsList` isn't rendered while collapsed).
+- `ScriptsList.vue` (rewritten), `ScriptListCategory.vue` (new),
+  `ScriptListItem.vue` (search breadcrumb).
+- Admin side:
+  - `admin/AdminApp.vue`: tab bar without `M.Tabs`. Its JS indicator only
+    measures tabs present at mount, and these arrive later. The bar scrolls
+    sideways, hides its scrollbar, and the active tab is underlined via
+    `box-shadow`.
+  - `admin/router/router.js` (`/settings/:scriptName`).
+  - `admin/components/settings/SettingsScriptPage.vue` (new).
+  - `admin/store/settings-runner-store.js` (new): a second Vuex store built
+    from the main app's own store modules, injected via the component-level
+    `store:` option. The admin store already owns `scripts`/`scriptConfig`
+    with a different shape, so reusing `MainAppContent`/`ScriptView`/
+    `ScriptHeader` unchanged needs their own store under the names they
+    expect. Plain-object module state is deep-cloned, because two stores in
+    one page would otherwise share e.g. `auth` state.
+  - Config editor: Category field and "Settings tab (admin only)" checkbox
+    in `ScriptConfigForm.vue`, and each script's location in
+    `ScriptsList.vue`.
+
+**Verified:**
+- `vue-cli-service build` is clean (only the pre-existing `>>>`/Sass
+  deprecation warnings).
+- Python suite passes.
+- Driven with Playwright against a real local server (not a mock), at
+  desktop and iPad Mini sizes: rail icons, open-category-from-rail, nested
+  groups, Uncategorised ordering, search breadcrumbs, pinned mode, all three
+  Settings tabs including Secrets Manager's preload, and the config form.
+
+**Still needs a live-iPad check on the real NAS**, per this fork's standing
+rule.
+
+**Deploying — two things a plain rebuild does NOT do:**
+1. `docker compose up -d --build` is required (frontend changed).
+2. **Runners are user content (fill-if-missing), so an existing NAS keeps
+   its old `import_from_gitea.json`/`install_package.json`/
+   `secrets_manager.json` and every other runner in `conf/runners/`.**
+   Without the new `placement`, those three stay in the sidebar and the
+   Settings bar shows no script tabs. Copy the updated runner JSONs from
+   this repo into `/share/conf/runners/` (or delete the old ones and
+   restart, so they re-seed). `conf/categories.json` is new, so it seeds
+   itself. `secrets_store.py` is a platform file and updates itself.
 
 -----
 
