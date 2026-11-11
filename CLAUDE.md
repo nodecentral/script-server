@@ -1767,12 +1767,16 @@ preload 2.2.0, `scripts/shared/gitea_client.py`):
   (AT&T's), not RFC 1918, so the reverse-DNS lookup goes to public DNS.
   Docker's port mapping did preserve the client IP. The real fault was
   `trusted_ips` not covering that range, so identity fell back to the
-  per-instance cookie. `deploy/*/conf/conf.json` now trust `172.2.2.0/24`.
+  per-instance cookie. **Resolved 2026-11-11:** the LAN was renumbered to
+  the private `10.0.0.0/26` (UniFi DHCP; NAS now `10.0.0.41`), and
+  `deploy/*/conf/conf.json` trust that range. `10.x` was preferred over
+  `172.22.x` because Docker allocates its own networks from `172.17–31.x`
+  (and then `192.168.x`), and an overlap breaks routing to the LAN.
 - **Container names don't resolve under host networking.** Paperless
   Inventory Statistics failed on v2 with `paperlessngx:8000` not
   resolving: under v1's bridge network Docker's DNS knew that name. Store
   `http://<NAS IP>:<published port>` in the Secrets Store instead
-  (`http://172.2.2.93:8777` for Paperless), which works from bridge and
+  (`http://10.0.0.41:8777` for Paperless, after the renumbering), which works from bridge and
   host containers alike. `extra_hosts` only helps when the published port
   matches the container port.
 

@@ -34,7 +34,7 @@ services:
     # http://<NAS IP>:<published port> in the Secrets Store instead. A service published on the
     # SAME port it listens on can keep its name with an entry here:
     # extra_hosts:
-    #   - "paperlessngx:172.2.2.93"
+    #   - "paperlessngx:10.0.0.41"
 
     environment:
       - PUID=1005

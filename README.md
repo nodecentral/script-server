@@ -185,14 +185,16 @@ For the usage please check [this ticket](https://github.com/bugy/script-server/i
 > - The port is set in one place (`conf.json`), with no `ports:` mapping to keep in step.
 >
 > **Set `access.trusted_ips` in `conf.json` to your own LAN range** (the `deploy/` files use
-> `172.2.2.0/24`, this NAS's LAN). Without a match, each instance tells browsers apart with a signed
+> `10.0.0.0/26`, this NAS's LAN). Without a match, each instance tells browsers apart with a signed
 > cookie, and two instances on one NAS keep replacing each other's cookie (cookies ignore the port).
-> History's User column shows each device's reverse-DNS name. On a LAN using public address space such
-> as `172.2.x.x` that name comes from public DNS (e.g. `...sbcglobal.net`): cosmetic, not a fault.
+> History's User column shows each device's reverse-DNS name. Use a private LAN range (`10.x`, `172.16–31.x`,
+> `192.168.x`): on public address space such as `172.2.x.x` that name comes from public DNS (this NAS's
+> LAN was `172.2.2.0/24` and showed `...sbcglobal.net` names until it moved to `10.0.0.0/26`). Avoid
+> `172.17–31.x` too if you can: Docker allocates its own networks from there.
 >
 > **Service URLs under host networking:** other containers can't be reached by container name (that
 > only works inside Docker's own networks). Store `http://<NAS IP>:<published port>` instead, e.g.
-> `http://172.2.2.93:8777` for Paperless (`docker ps` shows the published port). If a service is
+> `http://10.0.0.41:8777` for Paperless (`docker ps` shows the published port). If a service is
 > published on the same port it listens on, an `extra_hosts: ["name:<NAS IP>"]` entry in the compose
 > file also keeps the container name working.
 >
