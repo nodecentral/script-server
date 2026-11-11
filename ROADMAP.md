@@ -525,6 +525,9 @@ change is in this repo:
 
 ## In Progress
 
+- **v2.1.0 — Gitea token pre-fill, import report with versions/dates, one-tap update from Gitea,
+  `deploy/` folders + build script + runner migration** — *Core change*, same branch. See CLAUDE.md
+  Core Changes 2026-11-11 (v2.1.0). Open idea: a "check every imported repo for updates" view.
 - **v2.0.0 — Settings tabs + Category > Group > Script sidebar** — *Core change*, on branch
   `claude/script-server-admin-settings-5c9g5o` (master and its Docker build stay on the v1 layout
   until this merges). Built and checked locally (see CLAUDE.md Core Changes, 2026-11-11). Still to do:

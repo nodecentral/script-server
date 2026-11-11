@@ -79,13 +79,42 @@ For the usage please check [this ticket](https://github.com/bugy/script-server/i
 > This fork builds its own image from [`tools/Dockerfile`](tools/Dockerfile) with additional prerequisites
 > installed (see that file for the current package/library list). It is not yet published to Docker Hub.
 >
-> To build and run it locally (e.g. on a NAS with Docker installed): download/clone this repo, then from
-> the repo root run:
+> **Building the image** — on the NAS over SSH (or any x86_64 machine with Docker), from a clone of
+> this repo:
 > ```
-> docker compose up -d --build
+> git clone --branch <branch> https://github.com/nodecentral/script-server.git script-server-src
+> cd script-server-src
+> tools/build_and_push.sh v2        # builds tools/Dockerfile, pushes 192.168.102.227:5011/script-server:v2
 > ```
-> This uses [`docker-compose.yml`](docker-compose.yml), which builds the image from `tools/Dockerfile` and
-> bind-mounts four host folders so they survive container restarts/rebuilds:
+> `REGISTRY=host:port` overrides the registry. The script refuses to push `latest` (what an existing
+> install pulls) unless you add `--allow-latest`. To update later: `git pull`, run it again, then
+> `docker compose pull && docker compose up -d` in the install folder.
+>
+> **Installing** — copy one of the ready-made folders in [`deploy/`](deploy) to the NAS and run
+> `docker compose up -d` from inside it. Never run compose from the source checkout itself.
+> - [`deploy/standalone/`](deploy/standalone) — a fresh install. Everything lives in folders next to the
+>   compose file (`./conf`, `./scripts`, `./data`, `./logs`), so nothing is written anywhere else on the
+>   NAS. Empty folders are fine; they're seeded on first start.
+> - [`deploy/side-by-side/`](deploy/side-by-side) — v2 next to an existing v1, sharing v1's runners,
+>   scripts and data (same scripts, same Secrets Store) with its own config, theme, categories and
+>   history. `SEED_DEFAULTS=conf` and `PLATFORM_REFRESH=conf` make sure it never adds or overwrites
+>   files in v1's folders. Set `V1_DIR` if v1 isn't in `/share/Container/script-server-ext`.
+>
+> The **port and title are in `conf/conf.json`** in each folder (5012 standalone, 5013 side-by-side):
+> both use host networking, so there is no `ports:` mapping. Each folder's compose file explains the
+> rest line by line.
+>
+> **Upgrading from v1 runners** — existing runner files aren't changed by a new image (they're your
+> content). `tools/migrate_runners_v2.py` moves them to the v2 layout in place: Import from Gitea,
+> Install Package and Secrets Manager to the Settings page, everything in the old "Admin" group to
+> **Script Server › Demo / Tools**. Dry run first, then apply:
+> ```
+> docker exec -i script-server-v2 python3 - < tools/migrate_runners_v2.py
+> docker exec -i script-server-v2 python3 - --apply < tools/migrate_runners_v2.py
+> ```
+> (`-i` matters: without it the script never reaches the container and nothing happens.)
+>
+> The image mounts four folders so they survive container restarts and rebuilds:
 > - `conf/` — server config and runner definitions (`conf/runners/*.json`)
 > - `scripts/` — the scripts your runners execute, including `scripts/shared/` for helper scripts used by
 >   dynamic dropdowns
@@ -95,9 +124,9 @@ For the usage please check [this ticket](https://github.com/bugy/script-server/i
 > **Empty folders are fine — the image seeds them.** See [Bind mounts and first-run seeding](#bind-mounts-and-first-run-seeding)
 > below for the recommended layout and exactly what is (and isn't) overwritten on an upgrade.
 >
-> Working examples ship in `conf/runners/` + `scripts/` out of the box. Since v2.0.0 most sit under the
-> **System** category in the sidebar (groups Secrets / Maintenance / Examples), while Import from Gitea,
-> Install Package and Secrets Manager are admin-only tabs on the Settings page (`admin.html`). See
+> Working examples ship in `conf/runners/` + `scripts/` out of the box. They sit under the **Script
+> Server** category in the sidebar (groups **Tools** and **Demo**), while Import from Gitea, Install
+> Package and Secrets Manager are admin-only tabs on the Settings page (`admin.html`). See
 > `SCRIPTING.md` → "Where a Script Shows Up" for `category`, `group` and `"placement": "settings"`:
 > - **Hello World** — basic parameters
 > - **File Info** — native file browser over `data/`
@@ -107,8 +136,11 @@ For the usage please check [this ticket](https://github.com/bugy/script-server/i
 >   instance (dry-run by default, `--apply` to write). No Gitea URL or owner/username field on the
 >   form at all — both the URL and one or more tokens live in Secrets Manager (product `gitea`,
 >   keys `URL` and `TOKEN`), and the Repo dropdown lists live `owner/repo` options straight from
->   Gitea's own API for whichever token is in play. The banner checks both are set and confirms the
->   token actually works before you do anything.
+>   Gitea's own API for whichever token is in play. The banner checks both are set, confirms the
+>   token actually works, and lists your repos with when each last changed in Gitea and when it was
+>   imported here. The stored token is pre-selected. The report lists every file with its installed
+>   and Gitea version, and imported scripts get a one-tap **update from Gitea** button (cloud icon,
+>   admins only) in their header.
 > - **Download Image** — fetches a URL into `data/` and displays it inline
 > - **Disk Usage Chart** — interactive Plotly chart of used/free space per mount
 > - **Terminal Colors** / **Progress Demo** — ANSI colour and live-progress output, written in Lua
@@ -138,20 +170,25 @@ For the usage please check [this ticket](https://github.com/bugy/script-server/i
 > the rail automatically. Click the pin icon in the expanded header to turn this off entirely and
 > revert to the original always-docked sidebar — your choice is remembered across reloads. This is
 > a Core change to `web-src/` (not a runner), so picking it up after a `git pull` needs a full
-> `docker compose up -d --build`, same as any other frontend change.
+> image rebuild (`tools/build_and_push.sh`, then `docker compose pull && docker compose up -d`), same as any
+> other frontend change.
 >
 > If you downloaded this as a ZIP rather than `git clone`d it, the execute bit on `scripts/*.sh` is not
 > preserved — the image's entrypoint runs `chmod -R +x /app/scripts` on every container start to fix this
 > automatically (set `CHMOD_SCRIPTS=false` to turn that off).
 >
-> `docker-compose.yml` runs the container with `network_mode: host` (Linux Docker hosts only, which
-> Container Station is) so a network scanner (e.g. `network_scan` from `ss_network_management`) can see your real LAN rather than just Docker's
-> internal bridge network, plus `cap_add: [NET_RAW, NET_ADMIN]` so nmap/arp-scan can resolve MAC addresses
-> on active scans (Docker's default capabilities don't include these even for a container running as root).
-> This means the container shares the NAS's network stack directly — no port mapping to configure, and no
-> isolation from the host network. If you'd rather keep the container isolated, remove `network_mode: host`
-> and `cap_add`, and switch back to a `ports: ["5000:5000"]` mapping — a network scanner just won't find
-> real devices or resolve fresh MAC addresses in that case.
+> **Host networking.** Both `deploy/` setups run the container with `network_mode: host` (Linux Docker
+> hosts only, which Container Station is), so the app listens directly on the NAS on `conf.json`'s
+> `port`. Three reasons:
+> - History shows each device's real IP or hostname, and `access.trusted_ips` in `conf.json` works.
+>   Behind Docker's bridge network every request seems to come from one Docker address, so every
+>   device looks like the same user (on a QNAP this showed up as an unrelated `...sbcglobal.net` name).
+> - A network scanner (e.g. `network_scan` from `ss_network_management`) sees your real LAN.
+> - With `cap_add: [NET_RAW, NET_ADMIN]`, nmap/arp-scan can resolve MAC addresses.
+>
+> The trade-off is no network isolation from the NAS. To keep the container isolated instead, remove
+> `network_mode: host` and `cap_add`, add `ports: ["<host port>:<conf.json port>"]`, and accept that
+> History will show the Docker address for everyone.
 
 #### Bind mounts and first-run seeding
 
@@ -162,14 +199,14 @@ the container starts. A brand-new install with **empty** host folders therefore 
 `logging.json`, all the example runners, and all the scripts (including `scripts/shared/` and
 `scripts/preload/`, e.g. `secrets_store.py`) — nothing to copy by hand.
 
-**Recommended layout** (this is what `docker-compose.yml` uses):
+**Recommended layout** (this is what `deploy/standalone/docker-compose.yml` uses):
 
 ```yaml
 volumes:
-  - /share/conf:/app/conf        # the whole conf DIRECTORY (runners included)
-  - /share/scripts:/app/scripts
-  - /share/data:/app/data
-  - /share/logs:/app/logs
+  - ./conf:/app/conf        # the whole conf DIRECTORY (runners included)
+  - ./scripts:/app/scripts
+  - ./data:/app/data
+  - ./logs:/app/logs
 ```
 
 Mount `/app/conf` as a **directory**, not `conf.json` as a single file. If the host path of a single-file
@@ -192,6 +229,10 @@ Nothing is ever deleted. Consequences worth knowing:
   yourself: `docker exec script-server cp /app/defaults/runners/notify.json /app/conf/runners/notify.json`.
 - **Deleting a shipped runner/script doesn't stick** — a missing file can't be told apart from a never-seeded
   one, so it comes back on the next start. Set `SEED_DEFAULTS=false` if you'd rather manage those by hand.
+- **Sharing runners/scripts/data with another instance?** Use `SEED_DEFAULTS=conf` and `PLATFORM_REFRESH=conf`
+  (as `deploy/side-by-side/` does). The instance then seeds and refreshes only its own `conf/`, and never adds
+  or overwrites files in the shared folders. `SEED_DEFAULTS=false` would also leave its own `conf/` empty, so
+  files like `capabilities.json` would be missing and scripts that need them would fail to load.
 - **Edits to a platform file are lost on the next start.** Keep local changes in your own files, not in the ones
   listed in `PLATFORM_FILES`. Adding a new file to `scripts/shared/` or `scripts/preload/` in this repo also means
   listing it in `tools/PLATFORM_FILES`; the build prints a notice for any that are missing.

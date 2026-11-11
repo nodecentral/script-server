@@ -4,6 +4,40 @@ This is the nodecentral fork of [Script-Server](https://github.com/bugy/script-s
 running on the home NAS. The version number is the one in `version.txt`, shown at the bottom of
 the sidebar. Newest first.
 
+## 2.1.0 — 2026-11-11
+
+### Import from Gitea
+- **Your Gitea token is filled in for you.** The Gitea Token field now starts on the token
+  stored in Secrets Manager (the most recently set one if you have several), so the Repo list
+  fills in straight away.
+- **See what you're about to pick up.** The banner lists your repos, most recently updated
+  first, with the time each last changed in Gitea, its default branch, and when it was last
+  imported here. It flags any repo where Gitea has newer changes.
+- **Versions and dates per file.** The import report lists every file with its installed and
+  Gitea version, when it last changed in Gitea, and whether it's new, an update, unchanged, or
+  **older** than what's installed (a warning that you may be on the wrong branch).
+- **One-tap update (admins).** Scripts imported from Gitea get a cloud icon at the top right, next
+  to the parameter-history clock. Tap it to re-import that script's repo straight away, without a
+  dry run, and the script reloads with the new version. Hover over it to see which repo, branch
+  and commit it came from.
+
+### Sidebar
+- The built-in scripts now sit under a **Script Server** category, in two groups: **Tools** (Secrets
+  Viewer, Secret Ingredients Check, MOTD, Disk Usage, Backup, Send Notification, View
+  Capabilities) and **Demo** (Hello World, Progress Demo, Terminal Colors, Confirm Gate, Download
+  Image, File Info, Disk Usage Chart). The old "Admin" group is gone: real admin tools are on the
+  Settings page.
+
+### Installing and updating
+- New ready-to-copy setups in `deploy/`: a standalone install, and v2 running alongside v1
+  sharing its scripts. Both use host networking, so History shows each device's real name and
+  the port is set in `conf/conf.json`.
+- `tools/build_and_push.sh v2` builds the image and pushes it to the registry (it won't push
+  `latest` unless you ask).
+- `tools/migrate_runners_v2.py` moves existing runner files to the v2 layout in one go.
+- An instance sharing another's scripts (`SEED_DEFAULTS=conf`) now gets all of its own
+  configuration on first start, so nothing can go missing.
+
 ## 2.0.0 — 2026-11-11
 
 **A new layout: admin tools have their own Settings page, and scripts are organised by category.**
@@ -25,7 +59,7 @@ the sidebar. Newest first.
 - Search looks across every category and shows where each match lives, e.g. *Finance › Portfolio*.
 - Category icons and order are set in one place, `conf/categories.json`. A new category used by a
   script is added there automatically, with a plain label icon you can change.
-- The built-in scripts now sit under **System**, in Secrets, Maintenance and Examples.
+- The built-in scripts now sit under one category (see 2.1.0 for where they ended up).
 
 ### Look and feel
 - New indigo colour scheme, set by `conf/theme/theme.css`. Edit or empty that file to change it.

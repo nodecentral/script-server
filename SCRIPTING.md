@@ -1,6 +1,6 @@
 # SCRIPTING.md — Script-Server Scripting Conventions (Focused)
 
-Version: 2.0.0
+Version: 2.1.0
 Last updated: 2026-11-11
 
 This is the **focused** convention doc for any Claude session writing
@@ -178,7 +178,12 @@ category can't disagree about its icon.
 | `Health` | `favorite` | `ss_health_management` |
 | `Files` | `folder` | general file tools |
 | `Network` | `router` | `ss_network_management` |
-| `System` | `build` | script-server's own platform/admin scripts |
+| `Script Server` | `dns` | script-server's own scripts: group `Tools` (real utilities) and `Demo` (examples) |
+
+**There is no "Admin" group any more.** Genuinely administrative tools use
+`"placement": "settings"` (below) and live on the Settings page; everything
+else goes in a real category. Don't put new runners in a group called
+`Admin`.
 
 **A new category name is fine — it registers itself.** The first time the
 script list loads with a runner using a category `categories.json`
@@ -209,6 +214,33 @@ sidebar (e.g. Secrets Viewer and Secret Ingredients Check stay there).
 `/admin.html#/settings/<encodeURIComponent(name)>`, not `/#/<name>`. For
 Secrets Manager, use `secrets_store.secrets_manager_link()` rather than
 hand-building it.
+
+### Your version numbers are what Import from Gitea shows (v2.1.0+)
+
+Import from Gitea's report (dry run and apply) lists every file in your
+repo's `scripts/` and `runners/` with the **installed version → Gitea
+version**, read from the runner's `"_version"` and the script's
+`# Version:` header line, plus when it last changed in Gitea and a status:
+
+| Status | Meaning |
+|---|---|
+| `NEW` | not installed yet |
+| `UPDATE` | Gitea's version is higher |
+| `CHANGED` | content differs but the version didn't go up (or there's no version) - **bump it** |
+| `SAME` | identical |
+| `OLDER` | Gitea's version is *lower* than installed - usually the wrong branch |
+| `REMOVED` | imported from this repo before, gone from Gitea now - deleted on apply |
+
+So the Matched Pair Rule's "bump both versions together" is what makes
+this readable: a file that only ever shows `CHANGED` gives the person
+importing it nothing to go on. Keep the `Version:` line within the first
+few lines of the script (the importer reads the first 4 KB).
+
+Once a repo has been imported, admins get a **cloud icon in the header of
+each of its scripts** that re-imports the repo straight away, no dry run -
+the quick loop for testing a script you're iterating on in Gitea: push,
+tap, re-run. It re-imports the **whole repo**, including removing files
+deleted upstream, exactly like ticking *apply*.
 
 -----
 
@@ -872,6 +904,10 @@ result overwrite a vendor already known for that MAC.
   runner, a more severe failure than a greyed-out dropdown
 - Inventing a parallel secrets mechanism instead of using the Secrets Store
 - Guessing a Secrets Store product/key name instead of confirming it
+- A group called `Admin` - use `"placement": "settings"` for real admin
+  tools, a proper category/group for everything else
+- Changing a script without bumping its version - Import from Gitea then
+  reports it as `CHANGED` with nothing to show what's new
 - Putting a category's icon in a runner, or inventing a near-duplicate
   category (`Finances`, `Film`) instead of using a default one — icons live
   only in the main repo's `conf/categories.json`

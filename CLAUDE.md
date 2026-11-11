@@ -1,6 +1,6 @@
 # Script-Server.md — Platform Context
 
-Version: 2.0.0
+Version: 2.1.0
 Last updated: 2026-11-11
 
 ## Platform Overview
@@ -159,12 +159,20 @@ UI. `GET /scripts` excludes these by default. `?mode=settings` (admin only)
 returns only these, and `?mode=edit` is unchanged. Unknown placement values
 are logged and treated as "user view", so a typo hides nothing.
 
-**This repo's own runners (v2.0.0):** Import from Gitea, Install Package and
+**This repo's own runners (v2.1.0):** Import from Gitea, Install Package and
 Secrets Manager → `placement: settings`. Everything else → category
-`System`, regrouped from the single flat `Admin` group into **Secrets**
-(Secrets Viewer, Secret Ingredients Check), **Maintenance** and
-**Examples**. Secrets Viewer and Secret Ingredients Check deliberately stay
-user-visible, so anyone can check what's configured.
+**Script Server** (icon `dns`), in two groups:
+- **Tools:** Secrets Viewer, Secret Ingredients Check, MOTD, Disk Usage,
+  Backup, Send Notification and View Capabilities.
+- **Demo:** Hello World, Progress Demo, Terminal Colors, Confirm Gate,
+  Download Image, File Info and Disk Usage Chart.
+
+The old flat `Admin` group is retired; this was the user's call, so that
+"admin" means the Settings page and nothing else. v2.0.0 briefly used
+`System` › Secrets/Maintenance/Examples. Secrets Viewer and Secret
+Ingredients Check deliberately stay user-visible, so anyone can check
+what's configured. `tools/migrate_runners_v2.py` applies this layout to
+an existing install's runner files in place.
 
 -----
 
@@ -1679,6 +1687,101 @@ rule.
   `CHANGELOG.md` entry **in the same commit**. Write entries for the person
   using the UI ("what changed for me"), not as a file list; file lists
   belong in this Core Changes log.
+
+### 2026-11-11 — v2.1.0: Gitea token pre-fill, import report, one-tap update, deploy/
+
+**Import from Gitea** (`scripts/import_from_gitea.py` 5.1.0, runner 5.1.0,
+preload 2.2.0, `scripts/shared/gitea_client.py`):
+- **Token pre-fill:** the `token_key` field defaults to
+  `gitea_client.py default-token`, which prints the dropdown line for the
+  most recently set token. A list parameter's default must match one of
+  its values exactly, so both commands build the line with
+  `token_dropdown_line()`. The preload checks that same token instead of
+  stopping when several are stored.
+- **Preload repo table** (`list_user_repo_details()`): each repo's Gitea
+  `updated_at`, default branch, and what's imported here, from the state
+  file. It flags "Gitea has newer changes".
+- **Why times aren't in the Repo dropdown itself:** Script-Server re-runs
+  a list's values script when the execution starts and rejects a value
+  that's no longer in the list. A dropdown value carrying "updated 14:02"
+  would fail the moment you pushed between opening the form and pressing
+  Execute, which is exactly the testing loop. Values stay plain
+  `owner/repo`.
+- **Report:** one row per file, with installed → Gitea version (runner
+  `_version`, script `Version:` within the first 4 KB), the last commit
+  that touched it, and a status: NEW / UPDATE / CHANGED / SAME / OLDER /
+  REMOVED. OLDER prints a wrong-branch warning. The clone is now a full
+  single-branch clone, without `--depth 1`, because per-file
+  `git log -1 -- <path>` needs the history. The last output line is
+  `SUMMARY: owner/repo @ sha (time): ...`, which the update button shows.
+- **State file** (`data/gitea_import_state.json`): each source now also
+  records `url/owner/repo/branch/commit/commit_time/imported_at`, the
+  token key **name** (never the value), and `update_parameters`: exactly
+  what to POST to re-run that import. The import script owns that format.
+  On a repeat import whose `token_key` is the auto sentinel, it reuses the
+  key recorded for that source, so it can't pick the wrong one of several
+  tokens.
+
+**One-tap update (Core change):**
+- `src/features/gitea_origin.py` (new) reads the state file from
+  `<cwd>/data`. That's `/app/data`, because `launcher.py` chdirs to its
+  own folder.
+- `ConfigService.find_runner_relpath()` (admin only), and
+  `GET /admin/scripts/<name>/origin` → `{"origin": {...} | null}`.
+- `web-src/src/main-app/components/scripts/GiteaUpdateButton.vue` (new),
+  added to `ScriptHeader.vue`, so it's in the user view and the Settings
+  tabs alike. Admins only, and only when an origin exists.
+- **How the button runs an update:** it posts `executions/start` for
+  `Import from Gitea` with the origin's `updateParameters` (apply on, so
+  no dry run, as the user asked). It polls `executions/status`, reads the
+  log via `history/execution_log/long`, toasts the `SUMMARY:` line (or the
+  error plus a link to the log), cleans the execution up and dispatches
+  `resetScript` so the new runner shows.
+- Imports recorded before 5.1.0 get a synthesised
+  `manual_repo` + `main` + apply.
+
+**Fresh install / deploy:**
+- The root `docker-compose.yml` was removed. It built and mounted
+  `/share/conf` etc. from wherever it ran, which created stray `/share/...`
+  folders on the NAS root and crashed on host port 5000.
+- In its place:
+  - `deploy/standalone/` (compose + `conf/conf.json`, port 5012) and
+    `deploy/side-by-side/` (port 5013, v1 folders via `${V1_DIR}`). Both
+    use host networking, with relative `./` mounts.
+  - `tools/build_and_push.sh <tag>`: refuses `latest` without
+    `--allow-latest`.
+  - `tools/migrate_runners_v2.py`: minimal in-place runner edits, dry run
+    by default, idempotent. Tested against the real pre-v2 runner files.
+- **`tools/docker-entrypoint.sh`:** `SEED_DEFAULTS` and
+  `PLATFORM_REFRESH` accept `conf`, which seeds or refreshes only
+  `/app/conf`. Bad values are rejected. In `conf` mode the chown pass also
+  skips the shared folders. `SEED_DEFAULTS=false` on a side-by-side
+  instance had left `capabilities.json`/`secrets_defaults.json` missing,
+  which crashed Install Package's dropdown ("Failed to connect to the
+  server").
+- **Host networking, why:** behind the bridge, the app saw every request
+  from a Docker address (`172.2.2.31` on the NAS). History then showed its
+  public reverse-DNS name (`...sbcglobal.net`, since `172.2.x` isn't
+  private address space), and `trusted_ips` never matched.
+
+**Deploying now means building an image, not `--build`:** the
+`docker compose up -d --build` lines in older entries above predate
+`deploy/`. Build with `tools/build_and_push.sh`, then `docker compose
+pull && docker compose up -d` in the install folder.
+
+**Verified:**
+- Python suite, plus `gitea_origin_test.py` and the new
+  `config_service_test.py` cases.
+- Frontend 698/698, including `GiteaUpdateButton_test.js`.
+- The entrypoint modes were run for real via its `APP_ROOT`/`DEFAULTS_DIR`
+  hooks: `conf` mode left the pre-filled shared folders byte-identical.
+- The import was run against a real git repo served by a fake Gitea
+  (dumb HTTP + the two API endpoints). It went through every status, then
+  the full browser loop: pre-filled token, repo table, a push to Gitea,
+  then tapping the cloud icon. The runner went from 1.1.0 to 1.2.0 on
+  disk, the toast showed the new commit, and the tooltip refreshed.
+
+**Still needs** a check on the real NAS with the real Gitea.
 
 ## Upstream Sync Status
 

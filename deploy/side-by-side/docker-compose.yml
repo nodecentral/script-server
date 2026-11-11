@@ -1,0 +1,52 @@
+# Script-Server v2 running NEXT TO an existing v1 instance on the same NAS, sharing v1's runners,
+# scripts and data (so both see the same scripts and the same Secrets Store), but with its own
+# config, theme, categories and history.
+#
+# Copy this folder (deploy/side-by-side/) to e.g. /share/Container/script-server-v2/, check
+# conf/conf.json's port (must differ from v1's) and V1_DIR below, then `docker compose up -d` from
+# inside it. Keep it in its OWN folder: Compose groups containers by folder name, so sharing a
+# folder with v1's compose file lets `docker compose down` here stop v1.
+#
+# What keeps v1 safe:
+#   SEED_DEFAULTS=conf     seeds only ./conf (conf.json, categories.json, capabilities.json,
+#                          secrets_defaults.json, logging.json, theme/) - never adds this repo's
+#                          example runners/scripts to v1's folders
+#   PLATFORM_REFRESH=conf  never overwrites v1's scripts/shared + scripts/preload files
+# v1 ignores the v2-only runner fields ("category", "placement"), so editing the shared runner files
+# for v2 (tools/migrate_runners_v2.py) is safe for v1.
+#
+# Relative paths (./conf) resolve against this file's folder when run over SSH; in Container
+# Station's "Create Application" use absolute paths instead.
+
+services:
+  script-server-v2:
+    image: 192.168.102.227:5011/script-server:v2
+    container_name: script-server-v2
+    restart: unless-stopped
+
+    # Listens directly on the NAS on conf/conf.json's "port" (5013) - see the standalone compose
+    # for why host networking (real client IPs in History, working trusted_ips, LAN scanning).
+    network_mode: host
+    cap_add:
+      - NET_RAW
+      - NET_ADMIN
+
+    environment:
+      - PUID=1005
+      - PGID=1000
+      - TZ=Europe/London
+      - SEED_DEFAULTS=conf
+      - PLATFORM_REFRESH=conf
+
+    volumes:
+      # v2's own
+      - ./conf:/app/conf
+      - ./logs:/app/logs
+      # shared with v1 (nested inside ./conf - Docker mounts the more specific path on top)
+      - ${V1_DIR:-/share/Container/script-server-ext}/runners/:/app/conf/runners/
+      - ${V1_DIR:-/share/Container/script-server-ext}/scripts/:/app/scripts/
+      - ${V1_DIR:-/share/Container/script-server-ext}/data:/app/data/
+      - ${V1_DIR:-/share/Container/script-server-ext}/organize/logs:/var/log/organize/
+      - ${V1_DIR:-/share/Container/script-server-ext}/organize/config:/root/.config/organize
+      # Lets scripts control Docker on the NAS (full host control) - keep only if a script needs it
+      - /var/run/docker.sock:/var/run/docker.sock

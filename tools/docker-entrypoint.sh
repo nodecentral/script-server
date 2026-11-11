@@ -25,11 +25,25 @@
 #                            script creates as them (PGID defaults to PUID). Unset = root, the
 #                            historical behaviour, which a network scanner needs (raw sockets).
 #   SEED_DEFAULTS=false      skip the fill-if-missing user-content seeding.
+#   SEED_DEFAULTS=conf       seed /app/conf only (conf.json, logging.json, categories.json,
+#                            capabilities.json, secrets_defaults.json, theme/) - never runners,
+#                            scripts or data. For an instance that SHARES those folders with
+#                            another instance (v2 next to v1): it gets everything it needs of its
+#                            own without adding files to the shared ones.
 #   PLATFORM_REFRESH=false   skip the per-file platform-file refresh.
+#   PLATFORM_REFRESH=conf    refresh only the conf/ platform files (logging.json), never the
+#                            shared scripts/shared + scripts/preload ones. Same use as above.
 #   CHMOD_SCRIPTS=false      skip `chmod -R +x` on /app/scripts (see the note near the end).
 #   APP_ROOT / DEFAULTS_DIR  relocate /app and /app/defaults (a test hook, not for normal use).
 
 set -e
+
+for setting in "SEED_DEFAULTS=${SEED_DEFAULTS:-true}" "PLATFORM_REFRESH=${PLATFORM_REFRESH:-true}"; do
+    case "${setting#*=}" in
+        true | false | conf) ;;
+        *) echo "[entrypoint] ERROR: $setting - expected true, false or conf" >&2; exit 1 ;;
+    esac
+done
 
 APP_ROOT="${APP_ROOT:-/app}"
 DEFAULTS="${DEFAULTS_DIR:-$APP_ROOT/defaults}"
@@ -146,6 +160,9 @@ refresh_platform_files() {
 
     while IFS= read -r rel || [ -n "$rel" ]; do
         case "$rel" in '' | '#'*) continue ;; esac
+        if [ "${PLATFORM_REFRESH:-true}" = conf ]; then
+            case "$rel" in conf/*) ;; *) continue ;; esac
+        fi
 
         if ! safe_relpath "$rel" || ! dst="$(target_for "$rel")"; then
             warn "ignoring unusable manifest entry '$rel'"
@@ -194,6 +211,15 @@ refresh_platform_files() {
 # file so each seeded file can be logged and so a future coreutils change to how `cp -n` reports
 # a skipped file can't trip `set -e`.)
 # ---------------------------------------------------------------------------------------------
+# Was this tree's platform files refreshed above (so seeding must leave them alone)?
+platform_refreshed() {
+    case "${PLATFORM_REFRESH:-true}" in
+        true) return 0 ;;
+        conf) [ "$1" = conf ] ;;
+        *) return 1 ;;
+    esac
+}
+
 seed_tree() {
     src_root="$1"
     dst_root="$2"
@@ -218,7 +244,7 @@ seed_tree() {
         # Platform files were dealt with by refresh_platform_files above. (With PLATFORM_REFRESH=false
         # they fall through and are treated like any other user content: filled in if missing, so a
         # fresh install still gets them, but never overwritten.)
-        if [ "${PLATFORM_REFRESH:-true}" = true ] && [ -f "$MANIFEST" ] && grep -qxF "$prefix/$rel" "$MANIFEST"; then
+        if platform_refreshed "$prefix" && [ -f "$MANIFEST" ] && grep -qxF "$prefix/$rel" "$MANIFEST"; then
             continue
         fi
         if [ -e "$dst" ] || [ -L "$dst" ]; then
@@ -237,20 +263,28 @@ seed_tree() {
     rm -f "$list"
 }
 
-if [ "${PLATFORM_REFRESH:-true}" = true ]; then
-    refresh_platform_files
-else
-    log "PLATFORM_REFRESH=false - platform files left as they are"
-fi
+case "${PLATFORM_REFRESH:-true}" in
+    true) refresh_platform_files ;;
+    conf)
+        log "PLATFORM_REFRESH=conf - refreshing conf/ platform files only, shared scripts left alone"
+        refresh_platform_files
+        ;;
+    *) log "PLATFORM_REFRESH=false - platform files left as they are" ;;
+esac
 
-if [ "${SEED_DEFAULTS:-true}" = true ]; then
-    seed_tree "$DEFAULTS/conf" "$APP_ROOT/conf" conf
-    seed_tree "$DEFAULTS/runners" "$APP_ROOT/conf/runners" runners
-    seed_tree "$DEFAULTS/scripts" "$APP_ROOT/scripts" scripts
-    seed_tree "$DEFAULTS/data" "$APP_ROOT/data" data
-else
-    log "SEED_DEFAULTS=false - user content not seeded"
-fi
+case "${SEED_DEFAULTS:-true}" in
+    true)
+        seed_tree "$DEFAULTS/conf" "$APP_ROOT/conf" conf
+        seed_tree "$DEFAULTS/runners" "$APP_ROOT/conf/runners" runners
+        seed_tree "$DEFAULTS/scripts" "$APP_ROOT/scripts" scripts
+        seed_tree "$DEFAULTS/data" "$APP_ROOT/data" data
+        ;;
+    conf)
+        log "SEED_DEFAULTS=conf - seeding conf/ only, runners/scripts/data left alone"
+        seed_tree "$DEFAULTS/conf" "$APP_ROOT/conf" conf
+        ;;
+    *) log "SEED_DEFAULTS=false - user content not seeded" ;;
+esac
 
 log "summary: seeded $SEEDED new file(s), left $KEPT existing file(s) alone; platform files: $INSTALLED installed, $UPDATED updated, $CURRENT already current"
 
@@ -269,7 +303,10 @@ fi
 # it isn't already writable - files inside keep their owner (chown -R yourself if you want).
 # ---------------------------------------------------------------------------------------------
 if [ "$NEED_CHOWN" = true ]; then
-    for d in conf conf/runners scripts data logs temp; do
+    owned_dirs="conf conf/runners scripts data logs temp"
+    # Sharing runners/scripts/data with another instance: never re-own those
+    [ "${SEED_DEFAULTS:-true}" = conf ] && owned_dirs="conf logs temp"
+    for d in $owned_dirs; do
         dir="$APP_ROOT/$d"
         [ -d "$dir" ] || continue
         if ! writable_by_app "$dir"; then
