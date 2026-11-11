@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Name: import_from_gitea.py
-# Version: 5.0.0
+# Version: 5.1.0
 # Description: Clones a Gitea repo (expected to have its own top-level
 #              scripts/ and runners/ folders) and mirrors scripts/ into
 #              /app/scripts and runners/ into /app/conf/runners: existing
@@ -30,17 +30,31 @@
 #              Manual Repo (also owner/repo) is the fallback for a public
 #              repo with no token, where the dropdown can't be populated
 #              live.
+#              5.1.0: the report lists every file with its installed and
+#              Gitea version (runner "_version" / script "# Version:" header),
+#              the time of the last commit that changed it, and a status
+#              (NEW / UPDATE / CHANGED / SAME / OLDER / REMOVED) - OLDER flags
+#              a stale branch before you apply it. Each import records the
+#              commit, its time and how to repeat the import in the state
+#              file, which is what the script header's one-tap "update from
+#              Gitea" button (admins only) re-runs.
 
 import argparse
+import filecmp
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
 import tempfile
+from datetime import datetime, timezone
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'shared'))
-from gitea_client import GiteaApiError, resolve_gitea_token, resolve_gitea_url  # noqa: E402
+from gitea_client import (  # noqa: E402
+    GiteaApiError, format_time, list_gitea_tokens, resolve_gitea_token, resolve_gitea_url,
+)
+from secrets_store import AUTO_SENTINEL  # noqa: E402
 
 STATE_PATH = '/app/data/gitea_import_state.json'
 
@@ -81,21 +95,95 @@ def list_files(root):
     return sorted(result)
 
 
-def sync_category(src_root, dest_root, label, apply_changes, previous_files):
+VERSION_PATTERN = re.compile(r'Version:\s*v?([0-9]+(?:\.[0-9]+)*)')
+
+STATUS_ORDER = ['OLDER', 'NEW', 'UPDATE', 'CHANGED', 'REMOVED', 'SAME']
+SUMMARY_LABELS = {'OLDER': 'older', 'NEW': 'new', 'UPDATE': 'updated', 'CHANGED': 'changed',
+                  'REMOVED': 'removed', 'SAME': 'unchanged'}
+
+
+def read_version(path):
+    """A runner's "_version", or a script's "Version: x.y.z" header line - None if neither."""
+    if not os.path.isfile(path):
+        return None
+    try:
+        if path.endswith('.json'):
+            with open(path, encoding='utf-8') as f:
+                value = json.load(f).get('_version')
+            return str(value) if value else None
+        with open(path, encoding='utf-8', errors='replace') as f:
+            head = f.read(4096)
+    except (OSError, ValueError, AttributeError):
+        return None
+    match = VERSION_PATTERN.search(head)
+    return match.group(1) if match else None
+
+
+def version_tuple(version):
+    try:
+        return tuple(int(part) for part in version.split('.'))
+    except (AttributeError, ValueError):
+        return None
+
+
+def file_status(src_path, dest_path, gitea_version, installed_version):
+    if not os.path.exists(dest_path):
+        return 'NEW'
+    if filecmp.cmp(src_path, dest_path, shallow=False):
+        return 'SAME'
+    new, old = version_tuple(gitea_version), version_tuple(installed_version)
+    if new and old:
+        if new > old:
+            return 'UPDATE'
+        if new < old:
+            return 'OLDER'
+    return 'CHANGED'
+
+
+def last_commit_time(clone_dir, repo_relpath):
+    result = subprocess.run(['git', '-C', clone_dir, 'log', '-1', '--format=%cI', '--', repo_relpath],
+                            capture_output=True, text=True)
+    return format_time(result.stdout.strip()) if result.returncode == 0 else ''
+
+
+def sync_category(clone_dir, category, dest_root, label, apply_changes, previous_files):
+    """Reports (and with apply_changes, mirrors) one top-level folder of the clone. Returns
+    (current_files, status_counts)."""
+    src_root = os.path.join(clone_dir, category)
     current_files = list_files(src_root)
-
-    if not current_files:
-        print(f'{label}: nothing found upstream')
-    else:
-        print(f'{label}: {len(current_files)} file(s) upstream:')
-        for rel in current_files:
-            print(f'    {rel}')
-
     stale_files = sorted(set(previous_files) - set(current_files))
-    if stale_files:
-        print(f'{label}: {len(stale_files)} file(s) removed upstream since last import:')
-        for rel in stale_files:
-            print(f'    {rel}')
+    counts = {}
+
+    if not current_files and not stale_files:
+        print(f'{label}: nothing found upstream')
+        print()
+        return current_files, counts
+
+    rows = []
+    for rel in current_files:
+        src_path = os.path.join(src_root, rel)
+        dest_path = os.path.join(dest_root, rel)
+        gitea_version = read_version(src_path)
+        installed_version = read_version(dest_path)
+        status = file_status(src_path, dest_path, gitea_version, installed_version)
+        rows.append((status, rel, installed_version, gitea_version,
+                     last_commit_time(clone_dir, os.path.join(category, rel))))
+    for rel in stale_files:
+        rows.append(('REMOVED', rel, read_version(os.path.join(dest_root, rel)), None, ''))
+
+    rows.sort(key=lambda r: (STATUS_ORDER.index(r[0]), r[1].lower()))
+    for row in rows:
+        counts[row[0]] = counts.get(row[0], 0) + 1
+
+    name_width = max(len(r[1]) for r in rows)
+    print(f'{label}: {len(current_files)} file(s) upstream')
+    print(f'    {"STATUS":<8} {"FILE":<{name_width}}  {"INSTALLED -> GITEA":<22} LAST CHANGED IN GITEA')
+    for status, rel, installed_version, gitea_version, changed in rows:
+        versions = f'{installed_version or "-"} -> {gitea_version or "-"}'
+        print(f'    {status:<8} {rel:<{name_width}}  {versions:<22} {changed}')
+    if counts.get('OLDER'):
+        print(f'    WARNING: {counts["OLDER"]} file(s) in Gitea have a LOWER version than what is '
+              'installed - is this the right branch?')
 
     if apply_changes:
         for rel in current_files:
@@ -110,11 +198,18 @@ def sync_category(src_root, dest_root, label, apply_changes, previous_files):
                 os.remove(dest_path)
                 log_debug(f'Removed stale file: {dest_path}')
 
-        if current_files or stale_files:
-            print(f'{label}: synced to {dest_root}')
+        print(f'{label}: synced to {dest_root}')
 
     print()
-    return current_files
+    return current_files, counts
+
+
+def head_commit(clone_dir):
+    """(short sha, ISO commit time, subject) of the cloned branch's head."""
+    result = subprocess.run(['git', '-C', clone_dir, 'log', '-1', '--format=%h%x09%cI%x09%s'],
+                            capture_output=True, text=True)
+    parts = result.stdout.strip().split('\t', 2) if result.returncode == 0 else []
+    return tuple(parts) if len(parts) == 3 else ('', '', '')
 
 
 def clone_repo(gitea_url, owner, repo, branch, token, clone_dir):
@@ -126,7 +221,9 @@ def clone_repo(gitea_url, owner, repo, branch, token, clone_dir):
 
     print(f'Cloning {gitea_url}/{owner}/{repo}.git (branch: {branch}) ...')
     result = subprocess.run(
-        ['git', 'clone', '--depth', '1', '--branch', branch, '--single-branch', clone_url, clone_dir],
+        # No --depth 1: the report's per-file "last changed" needs the branch history. These
+        # repos are small; history for one branch is cheap.
+        ['git', 'clone', '--branch', branch, '--single-branch', clone_url, clone_dir],
         capture_output=True, text=True,
     )
     log_debug(f'git clone stdout={result.stdout!r} stderr={result.stderr!r}')
@@ -204,14 +301,32 @@ def main():
     args = parser.parse_args()
 
     explicit_token = os.environ.get('GITEA_TOKEN', '')
+    owner, repo = resolve_owner_repo(args.repo, args.manual_repo)
+
     try:
         gitea_url = resolve_gitea_url()
-        token, token_source = resolve_gitea_token(explicit_token, args.token_key)
     except GiteaApiError as e:
         print(str(e), file=sys.stderr)
         sys.exit(1)
 
-    owner, repo = resolve_owner_repo(args.repo, args.manual_repo)
+    source_key = f'{gitea_url}|{owner}|{repo}'
+    state = load_state()
+    previous = state.get(source_key, {'scripts': [], 'runners': []})
+
+    # A repeat import (the one-tap update button) asks for the "auto" token: reuse the stored
+    # token this source was imported with last time, if it's still stored, rather than failing
+    # when several tokens exist.
+    token_key = args.token_key
+    stored_keys = {key for key, _ in list_gitea_tokens()}
+    if (not explicit_token) and (not token_key or token_key == AUTO_SENTINEL) \
+            and previous.get('token_key') in stored_keys:
+        token_key = previous['token_key']
+
+    try:
+        token, token_source = resolve_gitea_token(explicit_token, token_key)
+    except GiteaApiError as e:
+        print(str(e), file=sys.stderr)
+        sys.exit(1)
 
     log_debug(f'url={gitea_url} owner={owner} repo={repo} branch={args.branch} apply={args.apply}')
     print(f'Gitea token: {token_source}')
@@ -222,33 +337,66 @@ def main():
         print('Mode: DRY RUN (no files will be written - pass --apply to actually import)')
     print()
 
-    source_key = f'{gitea_url}|{owner}|{repo}'
-    state = load_state()
-    previous = state.get(source_key, {'scripts': [], 'runners': []})
-
     with tempfile.TemporaryDirectory() as clone_dir:
         clone_repo(gitea_url, owner, repo, args.branch, token, clone_dir)
+        commit, commit_iso, subject = head_commit(clone_dir)
+        print(f'Gitea:     {owner}/{repo} @ {args.branch}, commit {commit} ({format_time(commit_iso)}) '
+              f'"{subject}"')
+        if previous.get('commit'):
+            same = ' - same commit, nothing new in Gitea' if previous['commit'] == commit else ''
+            print(f'Installed: commit {previous["commit"]} ({format_time(previous.get("commit_time"))}), '
+                  f'imported {format_time(previous.get("imported_at"))}{same}')
         print()
 
-        scripts_files = sync_category(
-            os.path.join(clone_dir, 'scripts'), '/app/scripts', 'scripts/',
+        scripts_files, script_counts = sync_category(
+            clone_dir, 'scripts', '/app/scripts', 'scripts/',
             args.apply, previous.get('scripts', []))
-        runners_files = sync_category(
-            os.path.join(clone_dir, 'runners'), '/app/conf/runners', 'runners/',
+        runners_files, runner_counts = sync_category(
+            clone_dir, 'runners', '/app/conf/runners', 'runners/',
             args.apply, previous.get('runners', []))
+
+    totals = {}
+    for counts in (script_counts, runner_counts):
+        for status, count in counts.items():
+            totals[status] = totals.get(status, 0) + count
+    summary = ', '.join(f'{totals[status]} {SUMMARY_LABELS[status]}' for status in STATUS_ORDER if totals.get(status))
 
     if args.apply:
         print('Fixing execute permissions on imported scripts...')
         fix_permissions()
         print()
 
-        state[source_key] = {'scripts': scripts_files, 'runners': runners_files}
+        state[source_key] = {
+            'scripts': scripts_files,
+            'runners': runners_files,
+            'url': gitea_url,
+            'owner': owner,
+            'repo': repo,
+            'branch': args.branch,
+            'commit': commit,
+            'commit_time': commit_iso,
+            'imported_at': datetime.now(timezone.utc).isoformat(timespec='seconds'),
+            # Key NAME only (never the token) - see the repeat-import note above
+            'token_key': token_key.split('|')[0].strip()
+            if token_key and token_key != AUTO_SENTINEL else previous.get('token_key'),
+            # Exactly what to send to re-run this import (the script header's update button)
+            'update_parameters': {
+                'manual_repo': f'{owner}/{repo}',
+                'branch': args.branch,
+                'token_key': AUTO_SENTINEL,
+                'apply': True,
+            },
+        }
         save_state(state)
 
         print('Done. Refresh the browser to see new/updated/removed scripts - Script-Server')
         print('rereads conf/runners on each page load, no restart needed.')
     else:
         print('Dry run complete - re-run with --apply to actually sync these files.')
+
+    # Last line, read by the update button for its confirmation message
+    print(f'SUMMARY: {owner}/{repo} @ {commit} ({format_time(commit_iso)}): {summary or "no files"}'
+          + ('' if args.apply else ' (dry run)'))
 
 
 if __name__ == '__main__':

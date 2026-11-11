@@ -13,7 +13,8 @@
 #
 # Token resolution: an explicit manually entered token always wins. Otherwise looks at the
 # "gitea" product - if exactly one token is stored there it's auto-selected, if more than one
-# a token_key must be given (see dropdown-tokens below), and if none are stored, no token is
+# a token_key must be given (see dropdown-tokens below - the runner's default for it comes from
+# default-token, which pre-selects the most recently set one), and if none are stored, no token is
 # used (public repo assumed - any Gitea API call that actually needs auth then fails with a
 # clear message rather than a confusing generic one).
 #
@@ -24,6 +25,7 @@
 
 import os
 import sys
+from datetime import datetime
 
 import requests
 
@@ -56,6 +58,21 @@ def list_gitea_tokens():
     entry, so it's never offered as a fake "token" candidate."""
     return [(key, updated_at) for key, updated_at in list_product_keys('gitea')
             if key not in RESERVED_GITEA_KEYS]
+
+
+def token_dropdown_line(key, updated_at):
+    """The exact text dropdown-tokens prints for one stored token - also what default-token
+    prints, since a list parameter's default has to match one of its values exactly."""
+    return f'{key} | last set {updated_at}'
+
+
+def most_recent_gitea_token():
+    """(key, updated_at) of the most recently set token, or None if none is stored.
+    updated_at is the Secrets Store's ISO timestamp, so string order is time order."""
+    tokens = list_gitea_tokens()
+    if not tokens:
+        return None
+    return max(tokens, key=lambda t: (t[1] or '', t[0]))
 
 
 def resolve_gitea_token(explicit_token, token_key):
@@ -155,6 +172,52 @@ def list_user_repos(gitea_url, token):
     return sorted({repo['full_name'] for repo in repos if repo.get('full_name')})
 
 
+def list_user_repo_details(gitea_url, token):
+    """Like list_user_repos(), but with what the Import from Gitea banner shows per repo:
+    [{'full_name', 'updated_at' (datetime or None), 'default_branch'}], most recently updated
+    first. Gitea's repo updated_at moves on every push, so it answers "is this the latest?"."""
+    if not token:
+        raise GiteaApiError('No token available to list repos.')
+
+    repos = {}
+    for page in range(1, REPOS_MAX_PAGES + 1):
+        data = api_get(gitea_url, token, f'/user/repos?limit={REPOS_PAGE_SIZE}&page={page}')
+        if not data:
+            break
+        for repo in data:
+            full_name = repo.get('full_name')
+            if full_name:
+                repos[full_name] = {
+                    'full_name': full_name,
+                    'updated_at': parse_gitea_time(repo.get('updated_at')),
+                    'default_branch': repo.get('default_branch') or 'main',
+                }
+        if len(data) < REPOS_PAGE_SIZE:
+            break
+
+    return sorted(repos.values(),
+                  key=lambda r: r['updated_at'].timestamp() if r['updated_at'] else 0,
+                  reverse=True)
+
+
+def parse_gitea_time(value):
+    """Gitea/git ISO-8601 timestamp ('2026-11-11T14:02:33Z' or with an offset) -> aware
+    datetime in the container's local time zone (TZ from the compose file), or None."""
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(str(value).replace('Z', '+00:00')).astimezone()
+    except ValueError:
+        return None
+
+
+def format_time(value):
+    """'11 Nov 2026 14:02' (local time) for a datetime or ISO string; '' if unknown."""
+    if isinstance(value, str):
+        value = parse_gitea_time(value)
+    return value.strftime('%d %b %Y %H:%M') if value else ''
+
+
 def _cmd_dropdown_repos(args):
     # Only token_key, never an explicit manually-typed token: Script-Server hard-refuses to load
     # any runner where a "secure" parameter is referenced in another parameter's values.script
@@ -189,18 +252,28 @@ def _cmd_dropdown_repos(args):
 def _cmd_dropdown_tokens(_args):
     print(AUTO_SENTINEL)
     for key, updated_at in list_gitea_tokens():
-        print(f'{key} | last set {updated_at}')
+        print(token_dropdown_line(key, updated_at))
+
+
+def _cmd_default_token(_args):
+    # The "Gitea Token" field's default (runner: "default": {"script": ...}): pre-selects the
+    # stored token - the most recently set one if there are several - so the Repo dropdown fills
+    # in straight away instead of waiting for a pick. Nothing stored -> the auto sentinel.
+    latest = most_recent_gitea_token()
+    print(token_dropdown_line(*latest) if latest else AUTO_SENTINEL)
 
 
 def main():
     if len(sys.argv) < 2:
-        print('Usage: gitea_client.py <dropdown-repos|dropdown-tokens> [args...]', file=sys.stderr)
+        print('Usage: gitea_client.py <dropdown-repos|dropdown-tokens|default-token> [args...]',
+              file=sys.stderr)
         sys.exit(1)
 
     command, rest = sys.argv[1], sys.argv[2:]
     commands = {
         'dropdown-repos': _cmd_dropdown_repos,
         'dropdown-tokens': _cmd_dropdown_tokens,
+        'default-token': _cmd_default_token,
     }
     if command not in commands:
         print(f'Unknown command: {command}', file=sys.stderr)

@@ -26,6 +26,7 @@ from config.exceptions import InvalidConfigException
 from config.category_service import CategoryService, to_external as category_to_external
 from execution.execution_service import ExecutionService
 from execution.logging import ExecutionLoggingService, InvalidCursorException
+from features import gitea_origin
 from features.file_download_feature import FileDownloadFeature
 from features.file_upload_feature import FileUploadFeature
 from model import external_model
@@ -240,6 +241,24 @@ class AdminScriptEndpoint(BaseRequestHandler):
             return
         except InvalidAccessException as e:
             raise tornado.web.HTTPError(403, reason=str(e)) from e
+
+
+class AdminScriptOriginEndpoint(BaseRequestHandler):
+    """Where a script's runner came from - currently only "imported from Gitea" - so the script
+    header can offer a one-tap update. {"origin": null} for scripts with no recorded origin."""
+
+    @requires_admin_rights
+    @inject_user
+    def get(self, user, script_name):
+        try:
+            runner_relpath = self.application.config_service.find_runner_relpath(script_name, user)
+        except CorruptConfigFileException:
+            runner_relpath = None
+
+        if runner_relpath is None:
+            raise tornado.web.HTTPError(404, 'Failed to find config for name: ' + script_name)
+
+        self.write(json.dumps({'origin': gitea_origin.find_origin(runner_relpath)}))
 
 
 class AdminGetScriptCodeEndpoint(BaseRequestHandler):
@@ -894,6 +913,7 @@ def init(server_config: ServerConfig,
                 (r'/admin/scripts', AdminUpdateScriptEndpoint),
                 (r'/admin/scripts/([^/]+)', AdminScriptEndpoint),
                 (r'/admin/scripts/([^/]*)/code', AdminGetScriptCodeEndpoint),
+                (r'/admin/scripts/([^/]*)/origin', AdminScriptOriginEndpoint),
                 (r"/", ProxiedRedirectHandler, {"url": "/index.html"})]
 
     if auth.is_enabled():

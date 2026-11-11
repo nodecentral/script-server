@@ -169,6 +169,17 @@ class ConfigService:
         )
         shutil.move(path, unique_archive_file_path)
 
+    def find_runner_relpath(self, script_name, user):
+        """The runner file defining this script, relative to conf/runners (admins only) - None if
+        there's no such script. Used to look up where the runner came from (gitea_origin)."""
+        self._check_admin_access(user)
+
+        search_result = self._find_config(script_name, user)
+        if search_result is None:
+            return None
+
+        return os.path.relpath(search_result.path, self._script_configs_folder)
+
     def load_script_code(self, script_name, user):
         if not self._authorizer.can_edit_code(user.user_id):
             logging.warning('User ' + str(user) + ' is not allowed to edit code')

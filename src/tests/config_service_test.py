@@ -302,6 +302,18 @@ class ConfigServiceAuthTest(unittest.TestCase):
         self.assertEqual('Prices', configs['a1'].group)
         self.assertIsNone(configs['b2'].category)
 
+    def test_find_runner_relpath(self):
+        _create_script_config_file('my_script', name='My Script')
+
+        self.assertEqual('my_script.json', self.config_service.find_runner_relpath('My Script', self.admin_user))
+        self.assertIsNone(self.config_service.find_runner_relpath('Missing', self.admin_user))
+
+    def test_find_runner_relpath_non_admin(self):
+        _create_script_config_file('my_script', name='My Script')
+
+        self.assertRaises(AdminAccessRequiredException,
+                          self.config_service.find_runner_relpath, 'My Script', self.user1)
+
     def assert_list_config_names(self, user, expected_names, mode=None):
         configs = self.config_service.list_configs(user, mode)
         conf_names = [config.name for config in configs]
