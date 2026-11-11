@@ -180,15 +180,25 @@ For the usage please check [this ticket](https://github.com/bugy/script-server/i
 > **Host networking.** Both `deploy/` setups run the container with `network_mode: host` (Linux Docker
 > hosts only, which Container Station is), so the app listens directly on the NAS on `conf.json`'s
 > `port`. Three reasons:
-> - History shows each device's real IP or hostname, and `access.trusted_ips` in `conf.json` works.
->   Behind Docker's bridge network every request seems to come from one Docker address, so every
->   device looks like the same user (on a QNAP this showed up as an unrelated `...sbcglobal.net` name).
 > - A network scanner (e.g. `network_scan` from `ss_network_management`) sees your real LAN.
 > - With `cap_add: [NET_RAW, NET_ADMIN]`, nmap/arp-scan can resolve MAC addresses.
+> - The port is set in one place (`conf.json`), with no `ports:` mapping to keep in step.
+>
+> **Set `access.trusted_ips` in `conf.json` to your own LAN range** (the `deploy/` files use
+> `172.2.2.0/24`, this NAS's LAN). Without a match, each instance tells browsers apart with a signed
+> cookie, and two instances on one NAS keep replacing each other's cookie (cookies ignore the port).
+> History's User column shows each device's reverse-DNS name. On a LAN using public address space such
+> as `172.2.x.x` that name comes from public DNS (e.g. `...sbcglobal.net`): cosmetic, not a fault.
+>
+> **Service URLs under host networking:** other containers can't be reached by container name (that
+> only works inside Docker's own networks). Store `http://<NAS IP>:<published port>` instead, e.g.
+> `http://172.2.2.93:8777` for Paperless (`docker ps` shows the published port). If a service is
+> published on the same port it listens on, an `extra_hosts: ["name:<NAS IP>"]` entry in the compose
+> file also keeps the container name working.
 >
 > The trade-off is no network isolation from the NAS. To keep the container isolated instead, remove
-> `network_mode: host` and `cap_add`, add `ports: ["<host port>:<conf.json port>"]`, and accept that
-> History will show the Docker address for everyone.
+> `network_mode: host` and `cap_add` and add `ports: ["<host port>:<conf.json port>"]`; container
+> names then resolve only for containers on the same Docker network.
 
 #### Bind mounts and first-run seeding
 

@@ -4,6 +4,6 @@
   "title": "Node Central Scripts v2",
   "access": {
     "admin_users": ["*"],
-    "trusted_ips": ["192.168.0.0/16", "10.0.0.0/8", "172.16.0.0/12"]
+    "trusted_ips": ["172.2.2.0/24"]
   }
 }

@@ -1759,10 +1759,22 @@ preload 2.2.0, `scripts/shared/gitea_client.py`):
   instance had left `capabilities.json`/`secrets_defaults.json` missing,
   which crashed Install Package's dropdown ("Failed to connect to the
   server").
-- **Host networking, why:** behind the bridge, the app saw every request
-  from a Docker address (`172.2.2.31` on the NAS). History then showed its
-  public reverse-DNS name (`...sbcglobal.net`, since `172.2.x` isn't
-  private address space), and `trusted_ips` never matched.
+- **Host networking, why:** a network scanner needs it, and the port lives
+  in one place (`conf.json`). **Correction:** this entry originally blamed
+  bridge networking for History's odd `...sbcglobal.net` user name, calling
+  `172.2.2.31` a Docker address. It was the iPad's real address. This NAS's
+  LAN is `172.2.2.0/24` (NAS `172.2.2.93`), which is *public* address space
+  (AT&T's), not RFC 1918, so the reverse-DNS lookup goes to public DNS.
+  Docker's port mapping did preserve the client IP. The real fault was
+  `trusted_ips` not covering that range, so identity fell back to the
+  per-instance cookie. `deploy/*/conf/conf.json` now trust `172.2.2.0/24`.
+- **Container names don't resolve under host networking.** Paperless
+  Inventory Statistics failed on v2 with `paperlessngx:8000` not
+  resolving: under v1's bridge network Docker's DNS knew that name. Store
+  `http://<NAS IP>:<published port>` in the Secrets Store instead
+  (`http://172.2.2.93:8777` for Paperless), which works from bridge and
+  host containers alike. `extra_hosts` only helps when the published port
+  matches the container port.
 
 **Deploying now means building an image, not `--build`:** the
 `docker compose up -d --build` lines in older entries above predate

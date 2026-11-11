@@ -33,6 +33,11 @@ services:
     cap_add:
       - NET_RAW
       - NET_ADMIN
+    # Other containers' names (e.g. paperlessngx) don't resolve with host networking - store
+    # http://<NAS IP>:<published port> in the Secrets Store instead. A service published on the
+    # SAME port it listens on can keep its name with an entry here:
+    # extra_hosts:
+    #   - "paperlessngx:172.2.2.93"
 
     environment:
       - TZ=Europe/London
