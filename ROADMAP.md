@@ -537,9 +537,9 @@ change is in this repo:
   (Secrets Viewer, Secret Ingredients Check, MOTD, the import_from_gitea/motd/notify preloads).
   Option: a shared `scripts/shared/` helper that reads `/app/conf/theme/theme.css`'s
   `--primary-color` and hands scripts a palette, so output follows whatever theme is set.
-- **Sync upstream bugy/script-server** — *Core change*, not yet applied. Paginated history (#826),
-  cookie hardening, proxy-secret for header identity - see CLAUDE.md "Upstream Sync Status";
-  `git apply --3way` dry-run is clean.
+- **Sync upstream bugy/script-server** — *Core change*. Done 2026-11-11, up to upstream `62bd38a`
+  (paginated history, cookie hardening, header-identity secret) - see CLAUDE.md "Upstream Sync
+  Status" for how to repeat it. Recheck periodically.
 
 - **Self-seeding Docker image: a fresh install with EMPTY bind mounts works straight away** —
   `tools/Dockerfile` now also ships `conf/`, `conf/runners/`, `scripts/` and `data/` under

@@ -31,9 +31,17 @@ the sidebar. Newest first.
 - New indigo colour scheme, set by `conf/theme/theme.css`. Edit or empty that file to change it.
 - The version number is shown at the bottom of the sidebar, with this page one click away.
 
+### From upstream Script-Server (up to August 2026)
+- **History loads in pages:** a Rows / Previous / Next control under the list, so History stays
+  quick however many runs build up.
+- Login cookies are hardened (httponly; "secure" automatically when using HTTPS).
+- Only if `access.user_header_name` is set in `conf.json` (not used here): the identity header is
+  now trusted only with a matching `access.user_header_secret`.
+
 ### Under the hood
 - Missing-secret banners now link to Secrets Manager on the Settings page.
 - Runner JSON gains two fields: `category` and `placement`.
+- Fixed the script editor dialog occasionally erroring after it closes.
 
 ## 1.x — September – October 2026
 

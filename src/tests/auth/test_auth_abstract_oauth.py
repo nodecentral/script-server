@@ -153,11 +153,16 @@ def mock_request_handler(code):
     handler_mock = mock_object()
     handler_mock.get_argument = lambda arg, default: code if arg == 'code' else None
 
+    # Upstream's cookie hardening reads request_handler.application.server_config.cookie_secure
+    handler_mock.application = mock_object()
+    handler_mock.application.server_config = mock_object()
+    handler_mock.application.server_config.cookie_secure = False
+
     secure_cookies = {}
 
     handler_mock.get_secure_cookie = lambda cookie: secure_cookies.get(cookie)
 
-    def set_secure_cookie(cookie, value):
+    def set_secure_cookie(cookie, value, **kwargs):
         secure_cookies[cookie] = value.encode('utf-8')
 
     def clear_secure_cookie(cookie):

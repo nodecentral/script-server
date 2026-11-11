@@ -1683,31 +1683,61 @@ rule.
 ## Upstream Sync Status
 
 This fork was imported as a **snapshot, not a git fork**, so there is no
-shared history with `bugy/script-server` and `git merge` won't work. Its
-`src/` and `web-src/src` match upstream commit **`f92e29e` (2025-12-26)**
-exactly, which was confirmed by diffing the fork's first commit against
-upstream history.
+shared history with `bugy/script-server` and `git merge` won't work. Sync by
+patch instead:
 
-To check for new upstream work, fetch it into a local ref:
-`git fetch https://github.com/bugy/script-server.git
-master:refs/remotes/upstream/master`. Then list `git log f92e29e..upstream/master`.
-To bring changes in, use `git diff <last-synced> upstream/master | git apply
---3way`, and update the commit noted above afterwards.
+```bash
+git fetch https://github.com/bugy/script-server.git master:refs/remotes/upstream/master
+git log --oneline <last-synced>..upstream/master          # what's new
+git diff <last-synced> upstream/master | git apply --3way # bring it in
+```
 
-As of 2026-11-11 upstream has these code changes not yet applied here
-(`f92e29e..62bd38a`). A dry-run `git apply --3way` applied all of them
-cleanly:
+**Last synced: upstream `62bd38a` (2026-08-21), applied 2026-11-11.** The
+fork originally matched `f92e29e` (2025-12-26). Use `62bd38a` as
+`<last-synced>` next time, and update this line after every sync. That
+sync brought in:
 - **Paginated execution history (#826):** cursor-based paging, indexed in
-  the logging service, so the History page stays fast as runs pile up.
-  This is the one most worth having.
-- **Identity header needs a proxy secret ([Breaking] for
-  `user_header_name` users only):** this NAS doesn't set
-  `user_header_name`, so there's no impact.
-- **Cookie hardening:** httponly is always on; `cookie_secure` defaults to
-  whether SSL is on, so it's safe on plain-HTTP LAN access. Also #812, the
-  xsrf cookie fix.
-- **Housekeeping:** web folder configurable, `pyproject.toml`, Azure AD
-  OAuth scopes. Not relevant here.
+  the logging service. The History page now has Rows/Previous/Next
+  controls. `common/store/executions-module.js` changed, and it's shared
+  by the main app, admin Logs and the settings runner store; all three
+  were smoke-tested.
+- **Cookie hardening:** httponly always; `cookie_secure` defaults to
+  whether SSL is on, so it's fine on plain-HTTP LAN access. Also includes
+  #812, the xsrf cookie fix.
+- **[Breaking, only with `access.user_header_name`]:** the identity header
+  is now trusted only with `access.user_header_secret`. This NAS doesn't
+  use it.
+- **Housekeeping:** configurable `web` folder, `pyproject.toml`, Azure AD
+  OAuth scopes.
+
+**Test fixes made alongside the sync.** Each was a stale test, not a code
+bug:
+- Upstream's cookie change broke upstream's own OAuth/Keycloak tests,
+  because their mock request handlers had no `.application`. The mocks in
+  `tests/test_utils.py` and `tests/auth/test_auth_abstract_oauth.py` were
+  fixed, which turned 23 failing tests green. Upstream `master` still has
+  this bug.
+- `tests/web/script_config_socket_test.py` never learned about the fork's
+  `copyFrom` parameter field, so 4 tests failed from 1.x onwards.
+- `ScriptEditDialog.vue` had a `transitionend` listener that called
+  `$refs.codeEditor.resize()` after destroy. This is a latent upstream bug,
+  and it aborted the whole frontend unit run partway in this fork, which
+  hid 14 more failures. It's now guarded and removed on destroy.
+- The frontend tests for the sidebar list, `MainAppSidebar` and the admin
+  scripts module were rewritten or extended for v2, and
+  `tests/unit/main-app/utils/categories_test.js` was added.
+
+**Test baseline after the sync:**
+- **Frontend:** 693/693 pass (`NODE_OPTIONS=--openssl-legacy-provider npx
+  vue-cli-service test:unit -b ChromeHeadless`).
+- **Python:** 1679 pass and 31 fail. All 31 come from the container, not
+  the code:
+  - `bcrypt`/`crypt` modules missing (htpasswd login only; Python 3.13
+    dropped `crypt`)
+  - the container's own `HTTPS_PROXY`/`NO_PROXY` env (tornado client config)
+  - running as root, so "unreadable" dirs are readable (server_file)
+  - no pseudo-terminal (env_utils)
+  - pytest's `PYTEST_CURRENT_TEST` env var (executor)
 
 -----
 
