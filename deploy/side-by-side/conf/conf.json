@@ -1,9 +1,0 @@
-{
-  "port": 5013,
-  "address": "0.0.0.0",
-  "title": "Node Central Scripts v2",
-  "access": {
-    "admin_users": ["*"],
-    "trusted_ips": ["10.0.0.0/26"]
-  }
-}

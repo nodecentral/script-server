@@ -90,23 +90,18 @@ For the usage please check [this ticket](https://github.com/bugy/script-server/i
 > install pulls) unless you add `--allow-latest`. To update later: `git pull`, run it again, then
 > `docker compose pull && docker compose up -d` in the install folder.
 >
-> **Installing** — copy one of the ready-made folders in [`deploy/`](deploy) to the NAS and run
-> `docker compose up -d` from inside it. Never run compose from the source checkout itself.
-> - [`deploy/standalone/`](deploy/standalone) — a fresh install. Everything lives in folders next to the
->   compose file (`./conf`, `./scripts`, `./data`, `./logs`), so nothing is written anywhere else on the
->   NAS. Empty folders are fine; they're seeded on first start.
-> - [`deploy/side-by-side/`](deploy/side-by-side) — v2 next to an existing v1, sharing v1's runners,
->   scripts and data (same scripts, same Secrets Store) with its own config, theme, categories and
->   history. `SEED_DEFAULTS=conf` and `PLATFORM_REFRESH=conf` make sure it never adds or overwrites
->   files in v1's folders. Set `V1_DIR` if v1 isn't in `/share/Container/script-server-ext`.
->   **Also add `PLATFORM_REFRESH=false` to v1's own compose `environment:`.** Otherwise v1 puts its own
->   copies of the shared platform files (`scripts/shared/*`, `scripts/preload/*`) back every time it
->   starts, undoing newer copies placed there for v2. To give both instances the newer files, copy them
->   in by hand once (`cp <checkout>/scripts/shared/gitea_client.py <v1>/scripts/shared/` etc.).
+> **Installing** — pick one of the ready-made setups in [`deploy/`](deploy):
+> - [`deploy/container-station/`](deploy/container-station) — for QNAP Container Station (Applications ›
+>   Create, paste the file). Absolute paths, since Container Station doesn't run compose from a folder.
+>   This is how the NAS runs it.
+> - [`deploy/standalone/`](deploy/standalone) — the same with `./` paths, for `docker compose up -d` over
+>   SSH from a copy of that folder. Everything lives next to the compose file (`./conf`, `./scripts`,
+>   `./data`, `./logs`), so nothing is written anywhere else on the NAS.
 >
-> The **port and title are in `conf/conf.json`** in each folder (5012 standalone, 5013 side-by-side):
-> both use host networking, so there is no `ports:` mapping. Each folder's compose file explains the
-> rest line by line.
+> Either way: empty folders are fine (they're seeded on first start), and never run compose from the
+> source checkout itself. The **port and title are in `conf/conf.json`** (see
+> `deploy/standalone/conf/conf.json`, port 5012): host networking means there's no `ports:` mapping.
+> Each compose file explains the rest line by line.
 >
 > **Upgrading from v1 runners** — existing runner files aren't changed by a new image (they're your
 > content). `tools/migrate_runners_v2.py` moves them to the v2 layout in place: Import from Gitea,
@@ -245,10 +240,11 @@ Nothing is ever deleted. Consequences worth knowing:
   yourself: `docker exec script-server cp /app/defaults/runners/notify.json /app/conf/runners/notify.json`.
 - **Deleting a shipped runner/script doesn't stick** — a missing file can't be told apart from a never-seeded
   one, so it comes back on the next start. Set `SEED_DEFAULTS=false` if you'd rather manage those by hand.
-- **Sharing runners/scripts/data with another instance?** Use `SEED_DEFAULTS=conf` and `PLATFORM_REFRESH=conf`
-  (as `deploy/side-by-side/` does). The instance then seeds and refreshes only its own `conf/`, and never adds
-  or overwrites files in the shared folders. `SEED_DEFAULTS=false` would also leave its own `conf/` empty, so
-  files like `capabilities.json` would be missing and scripts that need them would fail to load.
+- **Sharing runners/scripts/data with another instance?** Not recommended: each instance's start-up refreshes
+  the shared platform files to *its own* image's copies, so two different versions keep undoing each other
+  (this happened while v1 and v2 ran side by side - see CLAUDE.md, v2.1.1). If you must, set
+  `SEED_DEFAULTS=conf` and `PLATFORM_REFRESH=conf` on the newer instance and `PLATFORM_REFRESH=false` on the
+  older one. `SEED_DEFAULTS=false` would leave the instance's own `conf/` empty (no `capabilities.json` etc.).
 - **Edits to a platform file are lost on the next start.** Keep local changes in your own files, not in the ones
   listed in `PLATFORM_FILES`. Adding a new file to `scripts/shared/` or `scripts/preload/` in this repo also means
   listing it in `tools/PLATFORM_FILES`; the build prints a notice for any that are missing.

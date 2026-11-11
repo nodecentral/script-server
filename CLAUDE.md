@@ -1829,6 +1829,18 @@ v1's Import from Gitea as well.
 helper without a fallback. Platform files can be older than the runner on a
 mixed install.
 
+**Outcome: v1 retired, side-by-side removed (same day).** Sharing
+`scripts/` between two images means each start-up puts that image's
+platform files back. Rather than keep managing that, v2 became a
+standalone install with its own copies of runners, scripts and data. It
+runs from QNAP Container Station at `/share/Container/script-server-v2`
+on port 5012, and is defined by `deploy/container-station/` (absolute
+paths; Container Station keeps its own copy of the YAML).
+`deploy/side-by-side/` was deleted. The `SEED_DEFAULTS=conf` /
+`PLATFORM_REFRESH=conf` entrypoint modes stay, as generic options. The
+README's bind-mount notes now advise against sharing folders between
+instances.
+
 ## Upstream Sync Status
 
 This fork was imported as a **snapshot, not a git fork**, so there is no

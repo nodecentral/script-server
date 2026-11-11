@@ -525,6 +525,10 @@ change is in this repo:
 
 ## In Progress
 
+- **v2 is live (2026-11-11):** runs standalone on the NAS via QNAP Container Station
+  (`deploy/container-station/`, port 5012). v1 is stopped and kept as a fallback, to be deleted
+  later. Still to do: retag the image `latest`; each `ss_*` repo adopts `"category"`
+  (SCRIPTING.md, "Where a Script Shows Up").
 - **v2.1.0 — Gitea token pre-fill, import report with versions/dates, one-tap update from Gitea,
   `deploy/` folders + build script + runner migration** — *Core change*, same branch. See CLAUDE.md
   Core Changes 2026-11-11 (v2.1.0). Open idea: a "check every imported repo for updates" view.

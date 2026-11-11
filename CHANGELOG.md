@@ -10,8 +10,9 @@ the sidebar. Newest first.
   `gitea_client.py` was an older copy, which happens when v1 runs alongside v2 and puts its own
   copy back on start. The form now always opens, without the token pre-fill in that case, and the
   import itself works with either copy.
-- Running v2 alongside v1: v1 now needs `PLATFORM_REFRESH=false` in its compose file so it stops
-  replacing shared scripts (see README).
+- v1 is retired: v2 now runs on its own (QNAP Container Station, port 5012), with its own copies
+  of the scripts, runners and data. `deploy/container-station/` holds the setup to paste into
+  Container Station. The temporary "v2 alongside v1" setup has been removed.
 
 ## 2.1.0 — 2026-11-11
 
@@ -38,8 +39,8 @@ the sidebar. Newest first.
   Settings page.
 
 ### Installing and updating
-- New ready-to-copy setups in `deploy/`: a standalone install, and v2 running alongside v1
-  sharing its scripts. Both use host networking, so History shows each device's real name and
+- New ready-to-copy setups in `deploy/`: a standalone install, plus (for a while) v2 running
+  alongside v1 sharing its scripts. Both use host networking, so History shows each device's real name and
   the port is set in `conf/conf.json`.
 - `tools/build_and_push.sh v2` builds the image and pushes it to the registry (it won't push
   `latest` unless you ask).
