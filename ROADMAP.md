@@ -525,6 +525,17 @@ change is in this repo:
 
 ## In Progress
 
+- **Decide: `check_script_permissions`** (shipped byte-identical from several `ss_*` repos) - it
+  uses the retired "Admin" group, its `Version     :` line only parses since importer 5.2.0, it
+  mostly repeats the chmod Import from Gitea and the entrypoint already do, and
+  ss_photo_file_management's copy has already diverged (`placement: settings`, 1.1.0). Either
+  retire it everywhere (keep CLAUDE.md's QNAP "Bad address" SSH chmod note), or give it one home
+  here as a Settings tool and remove it from every `ss_*` repo.
+- **Promote `ensure_module.lua` / `ensure_binary.lua` to platform files** - shipped from
+  ss_movie_file_management and ss_photo_file_management as identical copies under generic names.
+  Needs their source (from ss_movie_file_management) added under `scripts/shared/` here and in
+  `tools/PLATFORM_FILES`, then each repo deletes its copy. Until then SCRIPTING.md says keep copies
+  byte-identical to ss_movie_file_management's.
 - **v2 is live (2026-11-11):** runs standalone on the NAS via QNAP Container Station
   (`deploy/container-station/`, port 5012). v1 is stopped and kept as a fallback, to be deleted
   later. Still to do: retag the image `latest`; each `ss_*` repo adopts `"category"`

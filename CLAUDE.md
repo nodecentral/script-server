@@ -78,7 +78,12 @@ theoretical:
   and `ss_document_file_management`), it's harmless — re-import is
   idempotent and whichever import "wins" behaves the same. The warning is
   about **divergent** content sharing a name, not shared content sharing a
-  name.
+  name. A shared file must change in every repo in the same release, or
+  the last import wins. Since Import from Gitea 5.2.0, a repo dropping a
+  shared file no longer deletes it while another imported repo still ships
+  it (reported `KEPT`). `check_script_permissions` itself is now a
+  problem case (retired "Admin" group, unparseable version line, already
+  diverging) - see ROADMAP.
 - **Names under `scripts/shared/` and `scripts/preload/` are stricter
   still.** Any name listed in `tools/PLATFORM_FILES` is a platform file:
   the entrypoint overwrites a differing copy on every container start, so
@@ -1106,8 +1111,9 @@ in the mix.
 **Consuming a secret from a Python script:**
 
 ```python
+import os
 import sys
-sys.path.insert(0, '/app/scripts/shared')
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'shared'))
 from secrets_store import get_secret
 
 api_key = get_secret('finnhub', 'API_KEY', 'used by Portfolio Prices')
@@ -1124,6 +1130,12 @@ purpose argument is optional but always worth passing):
 API_KEY=$(python3 /app/scripts/shared/secrets_store.py get finnhub API_KEY "used by Portfolio Prices") \
   || { echo "finnhub.API_KEY is not set - pick 'finnhub | API_KEY' from Secrets Manager's Entry dropdown and set its value." >&2; exit 1; }
 ```
+
+**Service URLs stored here use `http://<NAS IP>:<published port>`, never
+a container name.** Script-Server runs with host networking, where Docker
+container names don't resolve (found when Paperless's
+`http://paperlessngx:8000` broke on the move to v2 - see Core Changes,
+v2.1.0). Scripts' banners and error messages must say the same.
 
 **Security posture — read before treating this as more than it is:**
 Storage is plaintext on disk (`chmod 600` best-effort after every write,
@@ -1841,6 +1853,33 @@ paths; Container Station keeps its own copy of the YAML).
 README's bind-mount notes now advise against sharing folders between
 instances.
 
+### 2026-11-12 — Import from Gitea 5.2.0, SCRIPTING.md 2.2.0 (feedback from a sibling repo)
+
+Seven learnings came back from the `ss_*` refresh (ss_photo_file_management's
+session), all accepted:
+- **Import from Gitea 5.2.0:**
+  - **A file one repo stops shipping is `KEPT` while another imported repo
+    still ships it.** `files_of_other_sources()` reads the state file.
+    Before, retiring a byte-identical shared file in one repo deleted it
+    for every repo.
+  - **Version lines match `Version\s*:`**, so
+    `Version     : 1.0.0` headers like check_script_permissions' now
+    parse, within the first 16 KB (was 4 KB).
+  - Tested with two local repos sharing a file.
+- **SCRIPTING.md 2.2.0:**
+  - service URLs (host networking: NAS IP + published port);
+  - the shared-file release rule;
+  - relative `sys.path` in the Python secrets example (was hard-coded
+    `/app/scripts/shared`, first flagged 2026-11-04);
+  - an arg[0]-relative Lua `dofile` example;
+  - Version line comment style per language;
+  - the `confirm` list parameter instead of prompts.
+
+  The matching rules were synced here.
+- **Open, needs the user's call:** retire or re-home
+  `check_script_permissions`, and promote `ensure_module.lua`/
+  `ensure_binary.lua` to platform files. Both are in ROADMAP.
+
 ## Upstream Sync Status
 
 This fork was imported as a **snapshot, not a git fork**, so there is no
@@ -1987,7 +2026,9 @@ Rules:
 - Hardcoded paths, IPs, or credentials anywhere in scripts
 - Assuming parameters always exist — always provide defaults
 - Claiming Script-Server has a UI for environment variables (it doesn’t)
-- Interactive prompts unless stdin automation is explicitly configured
+- Interactive prompts (no stdin) - use a `confirm` list parameter
+  (`["false","true"]`, default `"false"`: preview when false, write when
+  true), paired with a `limit` parameter where the old prompt was per item
 - `"shell": false` (or omitting `shell`) when the values script string uses
   quoting, empty literals `''`, or pipe operators — dropdown will be silently
   greyed out
