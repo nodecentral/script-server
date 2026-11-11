@@ -19,6 +19,9 @@
             <router-link :to="settingsScriptPath(script.name)" :title="script.name">{{ script.name }}</router-link>
           </li>
         </ul>
+        <a v-if="serverVersion" class="admin-version" href="index.html#/changelog" title="What's new in this version">
+          v{{ serverVersion }}
+        </a>
       </div>
       <div v-if="subheader" class="subheader">{{ subheader }}</div>
     </div>
@@ -81,6 +84,11 @@ export default {
 
   computed: {
     ...mapState(['subheader']),
+
+    // Loaded by the runner store's serverConfig module (GET conf) - the admin store has none
+    serverVersion() {
+      return settingsRunnerStore.state.serverConfig.version;
+    },
 
     // Read straight from the runner store (it's reactive), the admin store doesn't hold them
     settingsScripts() {
@@ -180,6 +188,21 @@ export default {
 /* Replaces Materialize's JS-positioned .indicator: same colour, drawn on the active link itself */
 .tabs.settings-tabs .tab a.active {
   box-shadow: inset 0 -2px 0 var(--font-on-primary-color-dark-main);
+}
+
+.admin-version {
+  flex: 0 0 auto;
+  align-self: center;
+  padding: 0 20px 0 12px;
+
+  font-size: 0.9em;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+  color: var(--font-on-primary-color-dark-medium);
+}
+
+.admin-version:hover {
+  color: var(--font-on-primary-color-dark-main);
 }
 
 /* Built-in admin pages | settings scripts */

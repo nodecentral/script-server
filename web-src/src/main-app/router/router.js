@@ -2,6 +2,8 @@ import {routerChildren as executionRouterChildren} from '@/common/components/his
 import Vue from 'vue';
 import VueRouter from 'vue-router';
 import AppWelcomePanel from '../components/AppWelcomePanel';
+import ChangelogHeader from '../components/changelog/ChangelogHeader';
+import ChangelogPanel from '../components/changelog/ChangelogPanel';
 import AppHistoryHeader from '../components/history/AppHistoryHeader';
 import AppHistoryPanel from '../components/history/AppHistoryPanel';
 import MainAppContent from '../components/scripts/MainAppContent';
@@ -19,6 +21,14 @@ const router = new VueRouter({
                 header: AppHistoryHeader
             },
             children: executionRouterChildren
+        },
+        {
+            // "What's new" - CHANGELOG.md. Must come before /:scriptName, which matches anything.
+            path: '/changelog',
+            components: {
+                default: ChangelogPanel,
+                header: ChangelogHeader
+            }
         },
         {
             path: '/:scriptName',

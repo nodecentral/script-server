@@ -62,6 +62,11 @@
         History
       </router-link>
 
+      <router-link class="version-panel" title="What's new in this version" to="/changelog">
+        <span v-if="versionString" class="version-number">{{ versionString }}</span>
+        <span class="whats-new">What's new</span>
+      </router-link>
+
       <div v-if="authEnabled" class="logout-panel bottom-panel">
         <span>{{ username }}</span>
         <a class="btn-icon-flat waves-effect logout-button waves-circle" @click="logout">
@@ -352,6 +357,32 @@ export default {
 .history-button {
   line-height: 3em;
   text-align: center;
+}
+
+/* Version + "What's new" link, under History */
+.version-panel {
+  flex-shrink: 0;
+  display: flex;
+  justify-content: center;
+  align-items: baseline;
+  gap: 8px;
+
+  padding: 4px 0 8px;
+  font-size: 0.85em;
+  color: var(--font-color-medium);
+}
+
+.version-panel:hover .whats-new {
+  text-decoration: underline;
+}
+
+.version-panel .version-number {
+  font-weight: 500;
+  color: var(--font-color-main);
+}
+
+.version-panel .whats-new {
+  color: var(--primary-color);
 }
 
 .bottom-panel {

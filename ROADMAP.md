@@ -532,6 +532,14 @@ change is in this repo:
   each `ss_*` repo adds `"category"` to its runners per SCRIPTING.md (Finance, Documents, Movies,
   Music, Photos, Health, Network...). Open question: whether a category should be able to carry
   its own description/tooltip in `categories.json`.
+- **Theme the scripts' own HTML output** — *Admin script*. The v2 indigo theme recolours the app,
+  but `html_iframe` output is a separate document and several scripts hard-code the old teal
+  (Secrets Viewer, Secret Ingredients Check, MOTD, the import_from_gitea/motd/notify preloads).
+  Option: a shared `scripts/shared/` helper that reads `/app/conf/theme/theme.css`'s
+  `--primary-color` and hands scripts a palette, so output follows whatever theme is set.
+- **Sync upstream bugy/script-server** — *Core change*, not yet applied. Paginated history (#826),
+  cookie hardening, proxy-secret for header identity - see CLAUDE.md "Upstream Sync Status";
+  `git apply --3way` dry-run is clean.
 
 - **Self-seeding Docker image: a fresh install with EMPTY bind mounts works straight away** —
   `tools/Dockerfile` now also ships `conf/`, `conf/runners/`, `scripts/` and `data/` under

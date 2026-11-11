@@ -131,6 +131,19 @@ class GetServerConf(BaseRequestHandler):
             self.application.server_version))
 
 
+class GetChangelog(BaseRequestHandler):
+    """CHANGELOG.md from the app folder (next to version.txt), shown in the UI's "What's new" page."""
+
+    @check_authorization
+    def get(self):
+        changelog_path = os.path.join(os.getcwd(), 'CHANGELOG.md')
+        if not os.path.exists(changelog_path):
+            raise tornado.web.HTTPError(404, 'CHANGELOG.md not found')
+
+        self.set_header('Content-Type', 'text/markdown; charset=utf-8')
+        self.write(file_utils.read_file(changelog_path))
+
+
 class GetScripts(BaseRequestHandler):
     @check_authorization
     @inject_user
@@ -835,6 +848,7 @@ def init(server_config: ServerConfig,
     downloads_folder = file_download_feature.get_result_files_folder()
 
     handlers = [(r'/conf', GetServerConf),
+                (r'/changelog', GetChangelog),
                 (r'/scripts', GetScripts),
                 (r'/scripts/([^/]*)', ScriptConfigSocket),
                 (r'/scripts/([^/]*)/([^/]*)/list-files', ScriptParameterListFiles),

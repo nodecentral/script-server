@@ -1650,6 +1650,65 @@ rule.
    restart, so they re-seed). `conf/categories.json` is new, so it seeds
    itself. `secrets_store.py` is a platform file and updates itself.
 
+### 2026-11-11 — v2.0.0: theme, visible version, "What's new" page
+
+- **Theme:** `samples/themes/indigo/theme.css` is this fork's default look. The
+  image seeds it to `/app/conf/theme/theme.css` (fill-if-missing). This uses
+  upstream's own hook: every page loads `theme/theme.css` after the built-in
+  CSS, and `ThemeStaticFileHandler` returns an empty body when the file is
+  missing. No upstream CSS was edited. **To recolour, edit
+  `/share/conf/theme/theme.css` and reload the browser.** No rebuild or
+  restart is needed. An empty file gives upstream's teal back, and
+  `samples/themes/orange|dark` are alternatives. Every colour in the Vue app
+  goes through the CSS variables in `web-src/src/assets/css/shared.css`; none
+  is hard-coded, as of v2.0.0.
+- **Known gap:** script `html_iframe` output can't see the theme, because an
+  iframe is a separate document. These scripts hard-code the old teal:
+  `secrets_viewer.py`, `secret_ingredients_check.py`, `motd.py` and the
+  `import_from_gitea`/`motd`/`notify` preloads. Tracked in `ROADMAP.md`.
+- **Version:** `version.txt` at the repo root, copied into `/app` by the
+  Dockerfile. It's read by upstream's existing `tool_utils.get_server_version`
+  and served in `GET /conf`. Before this the fork had no `version.txt`, so the
+  server ran as "custom version". It's shown at the bottom of the sidebar and
+  on the right of the admin header.
+- **Changelog:** `CHANGELOG.md` at the repo root, also copied into `/app`. It
+  is served by the new `GET /changelog` (`GetChangelog` in `server.py`) and
+  rendered with `marked` + `DOMPurify` at `#/changelog`
+  (`main-app/components/changelog/`). Both version links open it.
+- **Rule from now on:** every release bumps `version.txt` and adds a
+  `CHANGELOG.md` entry **in the same commit**. Write entries for the person
+  using the UI ("what changed for me"), not as a file list; file lists
+  belong in this Core Changes log.
+
+## Upstream Sync Status
+
+This fork was imported as a **snapshot, not a git fork**, so there is no
+shared history with `bugy/script-server` and `git merge` won't work. Its
+`src/` and `web-src/src` match upstream commit **`f92e29e` (2025-12-26)**
+exactly, which was confirmed by diffing the fork's first commit against
+upstream history.
+
+To check for new upstream work, fetch it into a local ref:
+`git fetch https://github.com/bugy/script-server.git
+master:refs/remotes/upstream/master`. Then list `git log f92e29e..upstream/master`.
+To bring changes in, use `git diff <last-synced> upstream/master | git apply
+--3way`, and update the commit noted above afterwards.
+
+As of 2026-11-11 upstream has these code changes not yet applied here
+(`f92e29e..62bd38a`). A dry-run `git apply --3way` applied all of them
+cleanly:
+- **Paginated execution history (#826):** cursor-based paging, indexed in
+  the logging service, so the History page stays fast as runs pile up.
+  This is the one most worth having.
+- **Identity header needs a proxy secret ([Breaking] for
+  `user_header_name` users only):** this NAS doesn't set
+  `user_header_name`, so there's no impact.
+- **Cookie hardening:** httponly is always on; `cookie_secure` defaults to
+  whether SSL is on, so it's safe on plain-HTTP LAN access. Also #812, the
+  xsrf cookie fix.
+- **Housekeeping:** web folder configurable, `pyproject.toml`, Azure AD
+  OAuth scopes. Not relevant here.
+
 -----
 
 ## Language Choice: Lua vs Python

@@ -85,6 +85,9 @@ RUN pip install --no-cache-dir \
 WORKDIR /app
 
 COPY launcher.py requirements.txt ./
+# version.txt is what the UI shows as the version (sidebar footer, admin header); CHANGELOG.md is
+# served at /changelog for the "What's new" page. Both are read from the working dir (/app).
+COPY version.txt CHANGELOG.md ./
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY src ./src
@@ -114,6 +117,9 @@ COPY conf/logging.json conf/capabilities.json conf/secrets_defaults.json conf/ca
 COPY conf/runners/ /app/defaults/runners/
 COPY scripts/ /app/defaults/scripts/
 COPY data/.gitkeep /app/defaults/data/.gitkeep
+# Default look for this fork (indigo, v2.0.0+): user content like the rest of defaults/conf, so
+# seeded only if /app/conf/theme/theme.css is missing - edit or empty it on the NAS to change it.
+COPY samples/themes/indigo/theme.css /app/defaults/conf/theme/theme.css
 COPY tools/PLATFORM_FILES /app/defaults/PLATFORM_FILES
 
 # Fail the build if the manifest names a file the image doesn't ship (a typo or a rename would
