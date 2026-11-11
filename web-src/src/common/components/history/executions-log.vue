@@ -2,6 +2,7 @@
   <div class="container">
     <PageProgress v-if="loading && !disableProgressIndicator"/>
     <executions-log-table v-else :rowClick="goToLog" :rows="executionRows"/>
+    <executions-paginator/>
   </div>
 </template>
 
@@ -9,6 +10,7 @@
 import {mapActions, mapState} from 'vuex';
 import PageProgress from '../PageProgress';
 import ExecutionsLogTable from './executions-log-table'
+import ExecutionsPaginator from './executions-paginator'
 
 export default {
   name: 'executions-log',
@@ -21,6 +23,7 @@ export default {
   },
   components: {
     'executions-log-table': ExecutionsLogTable,
+    'executions-paginator': ExecutionsPaginator,
     PageProgress
   },
 

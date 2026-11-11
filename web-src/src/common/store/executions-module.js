@@ -1,5 +1,10 @@
-import {isEmptyString, isNull, logError} from '@/common/utils/common';
+import {isBlankString, isEmptyString, isNull, logError} from '@/common/utils/common';
 import {axiosInstance} from '@/common/utils/axios_utils';
+
+export const DEFAULT_PAGE_SIZE = 25;
+export const PAGE_SIZE_OPTIONS = [10, 25, 50, 100, 250, 500];
+export const DEFAULT_SORT_COLUMN = 'startTime';
+export const DEFAULT_ORDER = 'desc';
 
 const store = () => ({
     state: {
@@ -7,20 +12,106 @@ const store = () => ({
         selectedExecution: null,
         selectedExecutionId: null,
         loading: false,
-        detailsLoading: false
+        detailsLoading: false,
+        pageSize: DEFAULT_PAGE_SIZE,
+        total: 0,
+        searchText: '',
+        sortColumn: DEFAULT_SORT_COLUMN,
+        order: DEFAULT_ORDER,
+        hasNext: false,
+        hasPrev: false,
+        // cursors of the pages visited before the current one; its length is also the current page index
+        cursorStack: [],
+        currentCursor: null,
+        nextCursor: null,
+        // incremented per request, so that a late response of an outdated request is dropped
+        requestToken: 0
     },
     namespaced: true,
     actions: {
-        init({commit}) {
-            commit('SET_LOADING', true);
+        init({commit, dispatch}) {
             commit('SET_EXECUTION_DETAILS', {execution: null, id: null});
 
-            axiosInstance.get('history/execution_log/short').then(({data}) => {
-                sortExecutionLogs(data);
+            return dispatch('loadFirstPage');
+        },
 
-                let executions = data.map(log => translateExecutionLog(log));
-                commit('SET_EXECUTIONS', executions);
+        loadFirstPage({dispatch}) {
+            return dispatch('loadPage', {cursor: null, cursorStack: []});
+        },
+
+        reload({dispatch}) {
+            return dispatch('loadFirstPage');
+        },
+
+        nextPage({dispatch, state}) {
+            if (!state.hasNext) {
+                return Promise.resolve();
+            }
+
+            return dispatch('loadPage', {
+                cursor: state.nextCursor,
+                cursorStack: [...state.cursorStack, state.currentCursor]
+            });
+        },
+
+        prevPage({dispatch, state}) {
+            if (!state.hasPrev) {
+                return Promise.resolve();
+            }
+
+            const cursorStack = [...state.cursorStack];
+            const cursor = cursorStack.pop();
+
+            return dispatch('loadPage', {cursor, cursorStack});
+        },
+
+        setPageSize({commit, dispatch}, pageSize) {
+            commit('SET_PAGE_SIZE', pageSize);
+
+            return dispatch('loadFirstPage');
+        },
+
+        setSearch({commit, dispatch}, searchText) {
+            commit('SET_SEARCH_TEXT', isNull(searchText) ? '' : searchText);
+
+            return dispatch('loadFirstPage');
+        },
+
+        setSort({commit, dispatch}, {column, order}) {
+            commit('SET_SORT', {column, order});
+
+            return dispatch('loadFirstPage');
+        },
+
+        loadPage({commit, state}, {cursor, cursorStack}) {
+            const requestToken = state.requestToken + 1;
+            commit('SET_REQUEST_TOKEN', requestToken);
+            commit('SET_LOADING', true);
+
+            const params = {
+                limit: state.pageSize,
+                sort: state.sortColumn,
+                order: state.order
+            };
+            if (!isBlankString(state.searchText)) {
+                params.search = state.searchText;
+            }
+            if (!isEmptyString(cursor)) {
+                params.after = cursor;
+            }
+
+            return axiosInstance.get('history/execution_log/short', {params}).then(({data}) => {
+                if (requestToken !== state.requestToken) {
+                    return;
+                }
+
+                commit('SET_PAGE', {data, cursor, cursorStack});
                 commit('SET_LOADING', false);
+            }).catch((error) => {
+                if (requestToken === state.requestToken) {
+                    commit('SET_LOADING', false);
+                }
+                logError(error);
             });
         },
 
@@ -72,31 +163,40 @@ const store = () => ({
 
         SET_DETAILS_LOADING(state, loading) {
             state.detailsLoading = loading;
+        },
+
+        SET_REQUEST_TOKEN(state, requestToken) {
+            state.requestToken = requestToken;
+        },
+
+        SET_PAGE_SIZE(state, pageSize) {
+            state.pageSize = pageSize;
+        },
+
+        SET_SEARCH_TEXT(state, searchText) {
+            state.searchText = searchText;
+        },
+
+        SET_SORT(state, {column, order}) {
+            state.sortColumn = column;
+            state.order = order;
+        },
+
+        SET_PAGE(state, {data, cursor, cursorStack}) {
+            const records = isNull(data) || isNull(data.records) ? [] : data.records;
+
+            state.executions = records.map(log => translateExecutionLog(log));
+            state.total = isNull(data) || isNull(data.total) ? 0 : data.total;
+            state.nextCursor = isNull(data) || isNull(data.nextCursor) ? null : data.nextCursor;
+            state.hasNext = !isNull(state.nextCursor);
+            state.currentCursor = isNull(cursor) ? null : cursor;
+            state.cursorStack = cursorStack;
+            state.hasPrev = cursorStack.length > 0;
         }
     }
 });
 
 export default store
-
-function sortExecutionLogs(logs) {
-    logs.sort(function (v1, v2) {
-        if (isNull(v1.startTime)) {
-            if (isNull(v2.startTime)) {
-                return v1.user.localeCompare(v2.user);
-            }
-            return 1;
-        } else if (isNull(v2.startTime)) {
-            return -1;
-        }
-
-        let dateCompare = Date.parse(v2.startTime) - Date.parse(v1.startTime);
-        if (dateCompare !== 0) {
-            return dateCompare;
-        }
-
-        return v1.user.localeCompare(v2.user);
-    });
-}
 
 export function translateExecutionLog(log) {
     log.startTimeString = getStartTimeString(log);

@@ -22,7 +22,16 @@ describe('Test AppHistoryPanel', function () {
                     namespaced: true,
                     state: {
                         loading: false,
-                        detailsLoading: false
+                        detailsLoading: false,
+                        executions: [],
+                        pageSize: 25,
+                        total: 0,
+                        searchText: '',
+                        sortColumn: 'startTime',
+                        order: 'desc',
+                        hasNext: false,
+                        hasPrev: false,
+                        cursorStack: []
                     }
                 },
                 page: pageModule

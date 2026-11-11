@@ -25,7 +25,7 @@ from config.config_service import ConfigService, ConfigNotAllowedException, Inva
 from config.exceptions import InvalidConfigException
 from config.category_service import CategoryService, to_external as category_to_external
 from execution.execution_service import ExecutionService
-from execution.logging import ExecutionLoggingService
+from execution.logging import ExecutionLoggingService, InvalidCursorException
 from features.file_download_feature import FileDownloadFeature
 from features.file_upload_feature import FileUploadFeature
 from model import external_model
@@ -701,18 +701,40 @@ class ReceiveAlertHandler(BaseRequestHandler):
             file_utils.write_file(file_path, value)
 
 
+def _parse_limit(limit_arg):
+    if limit_arg is None:
+        return None
+
+    try:
+        return int(limit_arg)
+    except ValueError:
+        raise ValueError('limit should be an integer')
+
+
 class GetShortHistoryEntriesHandler(BaseRequestHandler):
     @check_authorization
     @inject_user
     def get(self, user):
-        history_entries = self.application.execution_logging_service.get_history_entries(user.user_id)
-        running_script_ids = []
-        for entry in history_entries:
-            if self.application.execution_service.is_running(entry.id, user):
-                running_script_ids.append(entry.id)
+        try:
+            page = self.application.execution_logging_service.get_history_page(
+                user.user_id,
+                search=self.get_argument('search', None),
+                sort=self.get_argument('sort', None),
+                order=self.get_argument('order', None),
+                limit=_parse_limit(self.get_argument('limit', None)),
+                after=self.get_argument('after', None))
+        except (ValueError, InvalidCursorException) as e:
+            respond_error(self, 400, str(e))
+            return
 
-        short_logs = to_short_execution_log(history_entries, running_script_ids)
-        self.write(json.dumps(short_logs))
+        running_script_ids = [entry.id for entry in page.records
+                              if self.application.execution_service.is_running(entry.id, user)]
+
+        self.write(json.dumps({
+            'records': to_short_execution_log(page.records, running_script_ids),
+            'total': page.total,
+            'nextCursor': page.next_cursor
+        }))
 
 
 class GetLongHistoryEntryHandler(BaseRequestHandler):
@@ -843,7 +865,9 @@ def init(server_config: ServerConfig,
     if auth.is_enabled():
         identification = AuthBasedIdentification(auth)
     else:
-        identification = IpBasedIdentification(server_config.ip_validator, server_config.user_header_name)
+        identification = IpBasedIdentification(server_config.ip_validator,
+                                               server_config.user_header_name,
+                                               user_header_secret=server_config.user_header_secret)
 
     downloads_folder = file_download_feature.get_result_files_folder()
 
@@ -887,6 +911,12 @@ def init(server_config: ServerConfig,
         'websocket_ping_timeout': 300,
         'compress_response': True,
         'xsrf_cookies': server_config.xsrf_protection != XSRF_PROTECTION_DISABLED,
+        # _xsrf must NOT be httponly: the frontend reads it from document.cookie
+        # and sends it back as the X-XSRFToken header (double-submit pattern)
+        'xsrf_cookie_kwargs': {
+            'secure': server_config.cookie_secure,
+            'samesite': 'Lax'
+        },
     }
 
     application = tornado.web.Application(handlers, **settings)
