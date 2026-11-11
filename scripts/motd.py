@@ -166,7 +166,12 @@ def build_report():
             })
             continue
 
-        group = config.get('group') or 'Ungrouped'
+        # Same place the script shows up in the UI (v2.0.0): a Settings tab, or Category > Group
+        if str(config.get('placement') or '').lower() == 'settings':
+            group = 'Settings (admin)'
+        else:
+            group = ' \u203a '.join(part for part in (config.get('category'), config.get('group')) if part) \
+                or 'Uncategorised'
         script_file, script_exists = resolve_main_script(config)
         preload_file, preload_exists = resolve_preload(config)
 

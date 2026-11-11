@@ -4,6 +4,16 @@
       <a class="btn-flat rail-toggle-button" title="Expand sidebar" @click="$emit('toggle-expand')">
         <i class="material-icons">menu</i>
       </a>
+      <!-- One icon per category: opens the sidebar with that category already expanded -->
+      <div class="rail-categories">
+        <a v-for="category in categoryTree" :key="category.key"
+           :class="{'has-selected': category.key === selectedCategoryKey}"
+           :title="category.name"
+           class="btn-flat rail-category-button"
+           @click="openCategoryFromRail(category.key)">
+          <CategoryIcon :icon="category.icon"/>
+        </a>
+      </div>
     </div>
 
     <template v-else>
@@ -40,7 +50,11 @@
         </div>
       </div>
 
-      <ScriptsList :search-text="searchText"/>
+      <ScriptsList :active-category="activeCategory"
+                   :active-group="activeGroup"
+                   :search-text="searchText"
+                   @category-clicked="toggleCategory"
+                   @group-clicked="toggleGroup"/>
 
       <router-link
           class="waves-effect btn-flat bottom-panel primary-color-text history-button"
@@ -59,13 +73,17 @@
 </template>
 
 <script>
-import {mapActions, mapState} from 'vuex';
+import CategoryIcon from '@/common/components/CategoryIcon';
+import {isNull} from '@/common/utils/common';
+import {mapActions, mapGetters, mapState} from 'vuex';
+import {findScriptLocation} from '../utils/categories';
 import ScriptsList from './scripts/ScriptsList'
 import SearchPanel from './SearchPanel';
 
 export default {
   name: 'MainAppSidebar',
   components: {
+    CategoryIcon,
     SearchPanel,
     ScriptsList
   },
@@ -87,10 +105,28 @@ export default {
   data() {
     return {
       searchText: '',
+      // Keys from the category tree (utils/categories.js). Kept here rather than in ScriptsList
+      // because ScriptsList isn't rendered while the sidebar is collapsed to the rail.
+      activeCategory: null,
+      activeGroup: null
     }
   },
 
   computed: {
+    ...mapGetters('scripts', ['categoryTree']),
+    ...mapState('scripts', ['selectedScript']),
+
+    selectedLocation() {
+      if (isNull(this.selectedScript)) {
+        return null;
+      }
+      return findScriptLocation(this.categoryTree, this.selectedScript);
+    },
+
+    selectedCategoryKey() {
+      return this.selectedLocation ? this.selectedLocation.category.key : null;
+    },
+
     ...mapState('serverConfig', {
       versionString: state => state.version ? 'v' + state.version : null,
       serverName: 'serverName'
@@ -103,7 +139,59 @@ export default {
   },
 
   methods: {
-    ...mapActions(['logout'])
+    ...mapActions(['logout']),
+
+    toggleCategory(categoryKey) {
+      this.activeCategory = (this.activeCategory === categoryKey) ? null : categoryKey;
+      this.activeGroup = null;
+    },
+
+    toggleGroup(groupKey) {
+      this.activeGroup = (this.activeGroup === groupKey) ? null : groupKey;
+    },
+
+    openCategoryFromRail(categoryKey) {
+      if (this.activeCategory !== categoryKey) {
+        this.activeCategory = categoryKey;
+        this.activeGroup = null;
+      }
+      this.searchText = '';
+      this.$emit('toggle-expand');
+    },
+
+    revealSelectedScript() {
+      const location = this.selectedLocation;
+      if (isNull(location)) {
+        return;
+      }
+      this.activeCategory = location.category.key;
+      this.activeGroup = location.group ? location.group.key : null;
+    }
+  },
+
+  watch: {
+    // Follow the selected script (deep link, back/forward, a search pick) so the tree opens on it
+    selectedLocation: {
+      immediate: true,
+      handler(newLocation, oldLocation) {
+        const sameCategory = newLocation && oldLocation && (newLocation.category.key === oldLocation.category.key);
+        const sameGroup = sameCategory && ((newLocation.group && newLocation.group.key)
+            === (oldLocation.group && oldLocation.group.key));
+        if (!sameGroup) {
+          this.revealSelectedScript();
+        }
+      }
+    },
+
+    // Only one category in total (e.g. nothing categorised yet): no point making people click it open
+    categoryTree: {
+      immediate: true,
+      handler(tree) {
+        if ((tree.length === 1) && isNull(this.activeCategory)) {
+          this.activeCategory = tree[0].key;
+        }
+      }
+    }
   }
 }
 </script>
@@ -215,8 +303,50 @@ export default {
   align-items: center;
   justify-content: center;
 
+  flex-shrink: 0;
   border-radius: 50%;
   color: var(--font-color-main);
+}
+
+.rail-categories {
+  width: 100%;
+  margin-top: 8px;
+  padding: 8px 0;
+  border-top: 1px solid var(--separator-color);
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.rail-category-button {
+  width: 40px;
+  height: 40px;
+  margin: 2px 0;
+  padding: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  flex-shrink: 0;
+  border-radius: 50%;
+  color: var(--font-color-medium);
+}
+
+.rail-category-button:hover {
+  color: var(--font-color-main);
+}
+
+/* The category holding the open script - same primary/focus pairing as an active list item */
+.rail-category-button.has-selected {
+  color: var(--primary-color);
+  background-color: var(--focus-color);
 }
 
 .history-button {

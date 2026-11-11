@@ -3,7 +3,8 @@
                class="collection-item waves-effect script-list-item"
                :class="{ active: descriptor.active, 'parsing-failed': descriptor.parsingFailed}"
                :title="descriptor.parsingFailed ? 'Failed to parse config file' : ''">
-    {{ descriptor.name }}
+    <span class="script-name">{{ descriptor.name }}</span>
+    <span v-if="breadcrumb" class="script-breadcrumb">{{ breadcrumb }}</span>
 
     <div :class="descriptor.state" class="menu-item-state">
       <i class="material-icons check-icon">check</i>
@@ -37,6 +38,11 @@ export default {
   props: {
     script: {
       type: Object,
+      default: null
+    },
+    // "Category › Group" - only passed for search results, where the hierarchy isn't visible
+    breadcrumb: {
+      type: String,
       default: null
     }
   },
@@ -79,6 +85,22 @@ export default {
 .scripts-list .collection-item {
   border: none;
   padding-right: 32px;
+}
+
+.scripts-list .collection-item .script-name,
+.scripts-list .collection-item .script-breadcrumb {
+  display: block;
+}
+
+.scripts-list .collection-item .script-breadcrumb {
+  font-size: 0.8em;
+  line-height: 1.4;
+  color: var(--font-color-medium);
+}
+
+.scripts-list .collection-item.active .script-breadcrumb {
+  color: inherit;
+  opacity: 0.8;
 }
 
 .scripts-list .collection-item.parsing-failed {

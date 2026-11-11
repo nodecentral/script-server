@@ -1,93 +1,79 @@
 <template>
   <div ref="scriptList" class="scripts-list collection">
-    <template v-for="item in items">
-      <ScriptListGroup v-if="item.isGroup" :key="item.name" :group="item" @group-clicked="groupClicked($event)"/>
-      <ScriptListItem v-else :key="item.name" :script="item"/>
+    <template v-if="searching">
+      <ScriptListItem v-for="result in searchResults" :key="result.script.name"
+                      :breadcrumb="result.breadcrumb" :script="result.script"/>
+      <div v-if="searchResults.length === 0" class="no-search-results">No matching scripts</div>
+    </template>
+
+    <template v-else>
+      <ScriptListCategory v-for="category in categoryTree" :key="category.key"
+                          :active-group="activeGroup"
+                          :category="category"
+                          :expanded="category.key === activeCategory"
+                          @category-clicked="$emit('category-clicked', $event)"
+                          @group-clicked="$emit('group-clicked', $event)"/>
     </template>
   </div>
 </template>
 
 <script>
-import {isBlankString, isEmptyArray, isEmptyString, isNull, removeElement} from '@/common/utils/common';
-import {mapState} from 'vuex';
-import ScriptListGroup from './ScriptListGroup';
+import {isBlankString} from '@/common/utils/common';
+import {mapGetters} from 'vuex';
+import ScriptListCategory from './ScriptListCategory';
 import ScriptListItem from './ScriptListItem';
 
+/*
+ * Category > Group > Script tree (see utils/categories.js for the ordering rules). Which category
+ * and group are expanded is owned by MainAppSidebar, not here: the sidebar stays alive while it's
+ * collapsed to the slim rail (this list doesn't), and the rail's category icons need to open a
+ * specific category when the sidebar expands.
+ */
 export default {
   name: 'ScriptsList',
-  components: {ScriptListGroup, ScriptListItem},
+  components: {ScriptListCategory, ScriptListItem},
   props: {
     searchText: {
+      type: String,
+      default: null
+    },
+    activeCategory: {
+      type: String,
+      default: null
+    },
+    activeGroup: {
       type: String,
       default: null
     }
   },
 
-  data: function () {
-    return {
-      activeGroup: null
-    }
-  },
-
   computed: {
-    ...mapState('scripts', ['scripts', 'selectedScript']),
+    ...mapGetters('scripts', ['categoryTree']),
 
-    items() {
-      let groups = this.scripts.filter(script => !isBlankString(script.group))
-          .map(script => script.group)
-          .filter((v, i, a) => a.indexOf(v) === i) // unique elements
-          .map(group => ({name: group, isGroup: true, scripts: [], isActive: this.activeGroup === group}));
+    searching() {
+      return !isBlankString(this.searchText);
+    },
 
-      let foundScripts = this.scripts
-          .filter(script =>
-              isEmptyString(this.searchText) || (script.name.toLowerCase().includes(this.searchText.toLowerCase())));
+    // Search covers every category at once and shows where each match lives
+    searchResults() {
+      const search = this.searchText.trim().toLowerCase();
+      const showCategory = this.categoryTree.length > 1;
 
-      for (const script of foundScripts.slice()) {
-        if (isBlankString(script.group)) {
-          continue;
+      const results = [];
+      for (const category of this.categoryTree) {
+        const prefix = showCategory ? [category.name] : [];
+
+        for (const group of category.groups) {
+          for (const script of group.scripts) {
+            results.push({script, breadcrumb: prefix.concat([group.name]).join(' › ')});
+          }
         }
-        let foundGroup = groups.find(g => g.name === script.group);
-        foundGroup.scripts.push(script);
-        removeElement(foundScripts, script);
+        for (const script of category.scripts) {
+          results.push({script, breadcrumb: prefix.join(' › ')});
+        }
       }
 
-      const foundGroups = groups.filter(group => !isEmptyArray(group.scripts))
-
-      const result = foundScripts.concat(foundGroups);
-      result.sort((o1, o2) => o1.name.toLowerCase().localeCompare(o2.name.toLowerCase()));
-
-      return result;
-    }
-  },
-  methods: {
-    groupClicked(groupName) {
-      if (isNull(groupName) || (this.activeGroup === groupName)) {
-        this.activeGroup = null;
-        return;
-      }
-      this.activeGroup = groupName;
-    }
-  },
-  watch: {
-    selectedScript: {
-      immediate: true,
-      handler(selectedScript) {
-        if (isNull(selectedScript)) {
-          return;
-        }
-
-        let foundScript = this.scripts.find(script => script.name === selectedScript);
-        if (isNull(foundScript) || isNull(foundScript.group)) {
-          return;
-        }
-
-        let group = this.items.find(item => item.isGroup && (item.name === foundScript.group));
-        if (isNull(group) || group.isActive) {
-          return;
-        }
-
-        this.activeGroup = group.name;
-      }
+      return results.filter(result => result.script.name.toLowerCase().includes(search));
     }
   }
 }
@@ -103,4 +89,8 @@ export default {
   flex-grow: 1;
 }
 
+.no-search-results {
+  padding: 10px 20px;
+  color: var(--font-color-medium);
+}
 </style>

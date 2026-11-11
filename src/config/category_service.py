@@ -42,6 +42,27 @@ def _normalize_name(name):
     return name if name else None
 
 
+def _serialize(content):
+    """json.dumps(indent=2), except each entry of the 'categories' list stays on one line - the
+    hand-edited layout the file ships with, so an automatic append doesn't reflow the whole file
+    and the git/NAS diff shows just the added line."""
+    lines = ['{']
+    items = list(content.items())
+    for index, (key, value) in enumerate(items):
+        comma = ',' if index < len(items) - 1 else ''
+        key_json = json.dumps(key, ensure_ascii=False)
+        if (key == 'categories') and isinstance(value, list) and value:
+            entries = [json.dumps(entry, ensure_ascii=False) for entry in value]
+            lines.append('  ' + key_json + ': [')
+            lines.extend('    ' + entry + (',' if i < len(entries) - 1 else '') for i, entry in enumerate(entries))
+            lines.append('  ]' + comma)
+        else:
+            value_json = json.dumps(value, ensure_ascii=False, indent=2).replace('\n', '\n  ')
+            lines.append('  ' + key_json + ': ' + value_json + comma)
+    lines.append('}')
+    return '\n'.join(lines) + '\n'
+
+
 class CategoryService:
     def __init__(self, conf_folder):
         self._path = os.path.join(conf_folder, CATEGORIES_FILE)
@@ -65,8 +86,7 @@ class CategoryService:
         try:
             tmp_path = self._path + '.tmp'
             with open(tmp_path, 'w', encoding='utf-8') as f:
-                json.dump(content, f, indent=2, ensure_ascii=False)
-                f.write('\n')
+                f.write(_serialize(content))
             os.replace(tmp_path, self._path)
             return True
         except Exception:
