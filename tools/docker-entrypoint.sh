@@ -128,6 +128,28 @@ make_dir "$APP_ROOT/scripts" || true
 make_dir "$APP_ROOT/data" || true
 # Not seeded, but the app writes to both (execution logs, temp files) relative to its cwd.
 make_dir "$APP_ROOT/logs" || true
+# Where scripts' own Lua modules and Python packages go (see tools/rootless/ and the Dockerfile)
+DEPS_DIR="${SCRIPT_DEPS_DIR:-$APP_ROOT/data/.deps}"
+if [ -d "$APP_ROOT/data" ]; then
+    make_dir "$DEPS_DIR" || true
+fi
+
+# ---------------------------------------------------------------------------------------------
+# Installing system packages from scripts. sudo needs the app user to have a passwd entry, and
+# PUID usually has none in the image, so add one. ALLOW_APT=false turns the whole thing off.
+# ---------------------------------------------------------------------------------------------
+if [ "$CUR_UID" -eq 0 ]; then
+    if [ "${ALLOW_APT:-true}" = false ]; then
+        rm -f /etc/sudoers.d/script-server-apt
+        log "ALLOW_APT=false - scripts can't install system packages"
+    elif [ "$RUN_UID" -ne 0 ] && ! grep -q "^[^:]*:[^:]*:$RUN_UID:" /etc/passwd 2>/dev/null; then
+        if printf 'scriptserver:x:%s:%s:Script Server:/tmp:/usr/sbin/nologin\n' "$RUN_UID" "$RUN_GID" >> /etc/passwd; then
+            log "added uid $RUN_UID to /etc/passwd (so scripts can install system packages via sudo)"
+        else
+            warn "could not add uid $RUN_UID to /etc/passwd - scripts won't be able to apt-get install"
+        fi
+    fi
+fi
 make_dir "$APP_ROOT/temp" || true
 
 # ---------------------------------------------------------------------------------------------

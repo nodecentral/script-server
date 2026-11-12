@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 # Name: install_package.py
-# Version: 2.0.0
+# Version: 2.1.0
 # Description: Installs one or more optional packages (from
 #              conf/capabilities.json) into the running container via apt
-#              or pip. This is EPHEMERAL - lost when the container is
-#              rebuilt/recreated - unless you also add the package to
-#              tools/Dockerfile. Records what was installed to
-#              /app/data/installed_extras.json (see View Capabilities).
+#              or pip. Works without root (Script Server 2.3.0+): apt goes
+#              through the image's sudo rule and is lost when the container
+#              is recreated (add it to tools/Dockerfile to keep it); pip
+#              installs into /app/data/.deps/python and is kept. Records
+#              what was installed to /app/data/installed_extras.json (see
+#              View Capabilities).
 #              Run standalone (./install_package.py --packages
 #              "apt:jq | jq | ...;pip:psutil | psutil | ...") or from
 #              Script-Server.
@@ -90,7 +92,11 @@ def main():
             installed[f'pip:{name}'] = {'type': 'pip', 'name': name, 'installed_at': now}
 
     save_installed(installed)
-    print('Done. Note: this is ephemeral - add to tools/Dockerfile to make it permanent.')
+    if apt_names:
+        print('Done. apt packages are lost when the container is recreated - add them to '
+              'tools/Dockerfile to keep them.')
+    if pip_names:
+        print('Done. pip packages are kept in /app/data/.deps/python.')
 
 
 if __name__ == '__main__':

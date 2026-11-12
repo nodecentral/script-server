@@ -32,6 +32,8 @@ services:
       - TZ=Europe/London
       - PUID=1005      # owns seeded files; the app runs as this user (chown the folders to it)
       - PGID=1000
+      # Scripts may apt-get install what they need (via sudo, apt-get only). false = never.
+      # - ALLOW_APT=false
 
     volumes:
       - /share/Container/script-server/conf:/app/conf

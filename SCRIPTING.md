@@ -1,6 +1,6 @@
 # SCRIPTING.md — Script-Server Scripting Conventions (Focused)
 
-Version: 2.3.0
+Version: 2.4.0
 Last updated: 2026-11-12
 
 This is the **focused** convention doc for any Claude session writing
@@ -898,18 +898,27 @@ identical shape). Confirmed working end-to-end for real: forced `mkvtoolnix` to 
 self-install via `apt`, confirmed the script then completed
 (`ss_movie_file_management`).
 
-**Running as root is required, and the NAS does not run as root.** The
-NAS install sets `PUID`, so scripts run as that user and `apt-get`,
-`luarocks install` and a system-wide `pip install` all fail with
-`Permission denied`. Self-install only works in a root container (a
-sandbox, or an install without `PUID`). On the NAS, **any system package,
-binary or Lua module a script needs must be baked into Script-Server's
-image** (`tools/Dockerfile`): ask for it in the `nodecentral/script-server`
-session. That's how `lsqlite3` got there, for ss_photo_file_management's
-Photo Dashboard. Keep the `ensure` call anyway: it's a no-op when the
-dependency is present, and since `ensure_*.lua` 1.1.0 it says exactly this
-(with a temporary `docker exec -u 0` workaround) when it isn't, instead of
-running an install that can only fail.
+**Scripts install what they need themselves, without root (Script Server
+2.3.0+).** The NAS runs scripts as `PUID`, not root, and the image makes
+the usual install commands work anyway, so a script needs nothing special:
+- **Python:** the `pip install` pattern below installs into
+  `/app/data/.deps/python` (`PIP_USER`/`PYTHONUSERBASE`), which Python
+  finds automatically. It's kept when the container is recreated.
+- **Lua:** `luarocks install x` installs into `/app/data/.deps/lua`
+  (a `luarocks` wrapper adds `--tree`), found via `LUA_PATH`/`LUA_CPATH`.
+  Also kept.
+- **Programs:** `apt-get install x` goes through `sudo`, which the image
+  allows for apt-get only. These are lost when the container is
+  recreated; `ensure_binary.lua` reinstalls on the script's next run.
+  `ALLOW_APT=false` on the container turns this off.
+
+Use `ensure_binary.lua`/`ensure_module.lua` (Lua) or the try/except
+pattern (Python) as below; don't add `sudo` or `--user`/`--target`
+yourself. A dependency many scripts need, or a slow build, can still be
+asked for in the image (`tools/Dockerfile` in `nodecentral/script-server`),
+as `lsqlite3` was, but that's an optimisation, not a requirement. The
+server itself runs with `python3 -s`, so nothing a script installs can
+replace its own packages.
 
 **Loading a shared Lua helper** - relative to the script, so the same file
 works standalone in a sandbox and inside Script-Server (where it runs from

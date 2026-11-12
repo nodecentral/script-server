@@ -19,7 +19,7 @@
 --                     ensure_bin.ensure("mkvpropedit", "apt-get install -y mkvtoolnix")
 --                 end
 --
--- Version : 1.1.0
+-- Version : 1.2.0
 -- Date    : 2026-11-12
 --
 -- Platform file: shipped by the Script-Server image (tools/PLATFORM_FILES)
@@ -29,9 +29,9 @@
 
 local M = {}
 
--- Script-Server runs as PUID (not root) on the NAS, where apt-get/luarocks
--- can't install system packages. Detect that and say so up front instead of
--- running an install that can only fail with "Permission denied".
+-- Script-Server runs scripts as PUID (not root) on the NAS. Since image 2.3.0 that still works:
+-- apt-get goes through sudo, luarocks installs into /app/data/.deps (see tools/rootless/ in
+-- nodecentral/script-server). If an install fails as non-root anyway, say what to check.
 local function current_uid()
     local handle = io.popen("id -u 2>/dev/null")
     local uid = handle and handle:read("*l") or ""
@@ -39,17 +39,13 @@ local function current_uid()
     return tonumber(uid)
 end
 
-local function explain_not_root(kind, name, install_cmd, uid)
-    io.stderr:write(string.format(
-        "[SETUP] %s '%s' is not installed, and this script runs as uid %d, not\n" ..
-        "[SETUP] root, so it can't install system packages itself.\n" ..
-        "[SETUP] Fix for good: ask for it to be added to Script-Server's image\n" ..
-        "[SETUP] (tools/Dockerfile in nodecentral/script-server).\n" ..
-        "[SETUP] Until then, on the NAS (lost when the container is recreated):\n" ..
-        "[SETUP]   docker exec -u 0 script-server sh -c '%s'\n",
-        kind, name, uid, install_cmd))
-    io.stderr:flush()
-    os.exit(1)
+local function non_root_hint()
+    local uid = current_uid()
+    if not uid or uid == 0 then return "" end
+    return string.format(
+        "[SETUP] (Running as uid %d. Script Server 2.3.0+ lets scripts install packages\n" ..
+        "[SETUP] without root; an older image, or ALLOW_APT=false on the container, can't.)\n",
+        uid)
 end
 
 local function on_path(bin_name)
@@ -66,9 +62,6 @@ end
 function M.ensure(bin_name, install_cmd)
     if on_path(bin_name) then return true end
 
-    local uid = current_uid()
-    if uid and uid ~= 0 then explain_not_root("Binary", bin_name, install_cmd, uid) end
-
     io.stderr:write(string.format(
         "[SETUP] Binary '%s' not found -- attempting to install...\n", bin_name))
     io.stderr:write("[SETUP]   $ " .. install_cmd .. "\n")
@@ -84,8 +77,8 @@ function M.ensure(bin_name, install_cmd)
             "[SETUP] FAILED to install '%s' automatically.\n", bin_name))
         io.stderr:write(
             "[SETUP] This container may lack network access to apt mirrors,\n" ..
-            "[SETUP] or root permissions. Install manually and re-run:\n" ..
-            "[SETUP]   " .. install_cmd .. "\n")
+            "[SETUP] or permission to install. Install manually and re-run:\n" ..
+            "[SETUP]   " .. install_cmd .. "\n" .. non_root_hint())
         os.exit(1)
     end
 

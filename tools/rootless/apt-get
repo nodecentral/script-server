@@ -1,0 +1,16 @@
+#!/bin/sh
+# Script Server: apt-get for scripts. Installed as /usr/local/bin/apt-get (and apt), ahead of the
+# real /usr/bin/apt-get on PATH.
+#
+# The app runs as PUID on the NAS, not root, so a script's own "apt-get install x" (e.g. through
+# scripts/shared/ensure_binary.lua or Install Package) would fail with "Permission denied". This
+# runs the real apt-get through sudo instead, which /etc/sudoers.d/script-server-apt allows for
+# apt-get and nothing else. As root it just runs apt-get.
+#
+# What apt installs lives in the container, so it's gone after the container is recreated;
+# ensure_binary.lua installs it again on the script's next run. Turn this off with
+# ALLOW_APT=false on the container (the entrypoint then removes the sudo rule).
+real=/usr/bin/$(basename "$0")
+[ -x "$real" ] || real=/usr/bin/apt-get
+[ "$(id -u)" -eq 0 ] && exec "$real" "$@"
+exec sudo -n "$real" "$@"
