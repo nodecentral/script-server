@@ -1896,6 +1896,44 @@ session), all accepted:
   stale `ensure_binary.lua` left the installed one byte-identical, and
   deleting it from the repo removed nothing.
 
+### 2026-11-12 — v2.2.1/v2.3.0: scripts install dependencies without root
+
+**Symptom:** Photo Dashboard and Create Photo DB (ss_photo_file_management)
+failed on the NAS: `ensure_module`/`ensure_binary`'s `apt-get`/`luarocks
+install` hit `Permission denied`, because the app runs as `PUID=1005`. The
+self-install pattern had only ever been confirmed in a root container.
+
+**v2.2.1** built `lsqlite3` into the image and made `ensure_*.lua` 1.1.0
+refuse up front as non-root. **v2.3.0** (the user's call: scripts should
+install what they need, not wait for an image change) makes the installs
+work instead:
+- `tools/rootless/apt-get` → `/usr/local/bin/apt-get` (+ `apt` symlink):
+  `sudo -n /usr/bin/apt-get` when not root. `/etc/sudoers.d/script-server-apt`
+  allows apt-get/apt only, keeping `DEBIAN_FRONTEND`. This is effectively
+  root for scripts (a package's maintainer scripts run as root), accepted
+  under the home-lab posture. `ALLOW_APT=false` makes the entrypoint
+  delete the rule.
+- The entrypoint adds a passwd entry for `PUID` (sudo refuses a uid with
+  none: "you do not exist in the passwd database", confirmed) and creates
+  `/app/data/.deps`.
+- `tools/rootless/luarocks` → `/usr/local/bin/luarocks`: adds
+  `--tree=$SCRIPT_DEPS_DIR/lua` unless `--tree`/`--local` is given. The
+  Dockerfile's `LUA_PATH`/`LUA_CPATH` put that tree first.
+- `PIP_USER=1`, `PYTHONUSERBASE=/app/data/.deps/python`,
+  `PIP_BREAK_SYSTEM_PACKAGES=1`. The server runs `python3 -s` (no user
+  site) so a script's packages can't shadow tornado etc.; `-s` is a flag,
+  not inherited by child processes.
+- `ensure_*.lua` 1.2.0 install as before, with a hint on failure;
+  Install Package 2.1.0 says which installs are kept.
+
+**Verified here** as uid 1005 via `setpriv`: `luarocks install lua-cjson`
+through the wrapper and `ensure_module` (installed into the tree, found
+on the next run), the documented pip pattern (mutagen into the user base,
+importable), and `python3 -s` not seeing it. The sudoers file passes
+`visudo -c`. **Not verified here:** the sudo/apt path end to end (this
+session can't edit `/etc/sudoers`/`/etc/passwd`), and the Docker build.
+Check on the NAS with Create Photo DB (exiftool).
+
 ## Upstream Sync Status
 
 This fork was imported as a **snapshot, not a git fork**, so there is no
@@ -1986,18 +2024,27 @@ execution (`docker run` per invocation is the wrong model here, same
 principle as a dependency graduating into `tools/Dockerfile` once it's
 needed repeatedly rather than staying ad hoc).
 
-**Running as root is required, and the NAS does not run as root.** The
-NAS install sets `PUID`, so scripts run as that user and `apt-get`,
-`luarocks install` and a system-wide `pip install` all fail with
-`Permission denied`. Self-install only works in a root container (a
-sandbox, or an install without `PUID`). On the NAS, **any system package,
-binary or Lua module a script needs must be baked into Script-Server's
-image** (`tools/Dockerfile`): ask for it in the `nodecentral/script-server`
-session. That's how `lsqlite3` got there, for ss_photo_file_management's
-Photo Dashboard. Keep the `ensure` call anyway: it's a no-op when the
-dependency is present, and since `ensure_*.lua` 1.1.0 it says exactly this
-(with a temporary `docker exec -u 0` workaround) when it isn't, instead of
-running an install that can only fail.
+**Scripts install what they need themselves, without root (Script Server
+2.3.0+).** The NAS runs scripts as `PUID`, not root, and the image makes
+the usual install commands work anyway, so a script needs nothing special:
+- **Python:** the `pip install` pattern below installs into
+  `/app/data/.deps/python` (`PIP_USER`/`PYTHONUSERBASE`), which Python
+  finds automatically. It's kept when the container is recreated.
+- **Lua:** `luarocks install x` installs into `/app/data/.deps/lua`
+  (a `luarocks` wrapper adds `--tree`), found via `LUA_PATH`/`LUA_CPATH`.
+  Also kept.
+- **Programs:** `apt-get install x` goes through `sudo`, which the image
+  allows for apt-get only. These are lost when the container is
+  recreated; `ensure_binary.lua` reinstalls on the script's next run.
+  `ALLOW_APT=false` on the container turns this off.
+
+Use `ensure_binary.lua`/`ensure_module.lua` (Lua) or the try/except
+pattern (Python) as below; don't add `sudo` or `--user`/`--target`
+yourself. A dependency many scripts need, or a slow build, can still be
+asked for in the image (`tools/Dockerfile` in `nodecentral/script-server`),
+as `lsqlite3` was, but that's an optimisation, not a requirement. The
+server itself runs with `python3 -s`, so nothing a script installs can
+replace its own packages.
 
 **Python module:**
 ```python

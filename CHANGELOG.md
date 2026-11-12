@@ -4,6 +4,18 @@ This is the nodecentral fork of [Script-Server](https://github.com/bugy/script-s
 running on the home NAS. The version number is the one in `version.txt`, shown at the bottom of
 the sidebar. Newest first.
 
+## 2.3.0 — 2026-11-12
+
+- **Scripts can install what they need again.** A script that needs a program (like `exiftool`),
+  a Lua module or a Python package installs it on its first run, as it was meant to, even though
+  Script Server doesn't run scripts as root.
+- **Lua modules and Python packages are kept** in the data folder (`data/.deps`), so they
+  survive recreating the container and upgrading Script Server.
+- **Programs need installing again after the container is recreated:** the script does this by
+  itself on its next run, which is slower that one time.
+- **Install Package works the same way,** and says which installs are kept.
+- Don't want scripts installing system packages? Set `ALLOW_APT=false` on the container.
+
 ## 2.2.1 — 2026-11-12
 
 - **Photo Dashboard works:** the SQLite module for Lua (`lsqlite3`) now comes with Script Server.

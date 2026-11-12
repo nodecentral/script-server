@@ -1,6 +1,6 @@
 #!/bin/bash
 # Name: backup.sh
-# Version: 1.2.0
+# Version: 1.2.1
 # Description: Backs up conf/ and scripts/ (and optionally data/) into a
 #              timestamped tarball under /app/data/backups, offered as a
 #              download. Run standalone (./backup.sh) or from
@@ -37,7 +37,7 @@ if [ "$include_data" = "true" ]; then
   members+=(data)
 fi
 
-tar -czf "$backup_path" -C /app --exclude='data/backups' "${members[@]}"
+tar -czf "$backup_path" -C /app --exclude='data/backups' --exclude='data/.deps' "${members[@]}"
 
 size="$(du -h "$backup_path" | cut -f1)"
 echo "Backed up: ${members[*]}"

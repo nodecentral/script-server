@@ -1,8 +1,8 @@
 {
-  "_version": "2.0.0",
+  "_version": "2.1.0",
   "name": "Install Package",
   "placement": "settings",
-  "description": "Installs optional packages (apt/pip) into the running container. EPHEMERAL - lost on container rebuild/recreation unless also added to tools/Dockerfile. See View Capabilities for what's already installed.",
+  "description": "Installs optional packages (apt/pip) into the running container. pip packages are kept (in /app/data/.deps); apt packages are lost when the container is recreated unless also added to tools/Dockerfile. See View Capabilities for what's already installed.",
   "script_path": "install_package.py",
   "working_directory": "/app/scripts",
   "parameters": [

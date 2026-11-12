@@ -53,6 +53,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       lua-socket \
       libfinance-quote-perl \
       libfinance-quotehist-perl \
+      sudo \
     && rm -rf /var/lib/apt/lists/*
 
 # websocat isn't packaged for Debian at all - install the static binary directly.
@@ -149,6 +150,33 @@ RUN sed -i 's/\r$//' /usr/local/bin/docker-entrypoint.sh \
     && chmod +x /usr/local/bin/docker-entrypoint.sh \
     && for c in setpriv cmp find mktemp; do command -v "$c" >/dev/null || { echo "missing: $c" >&2; exit 1; }; done
 
+# Scripts install what they need without root (the app runs as PUID on the NAS):
+#   - apt-get/apt: wrappers that go through sudo, allowed for apt-get only (ALLOW_APT=false on the
+#     container removes the rule). Lost when the container is recreated; ensure_binary.lua
+#     reinstalls on the next run.
+#   - luarocks: a wrapper that installs into /app/data/.deps/lua, found via LUA_PATH/LUA_CPATH.
+#   - pip: PIP_USER + PYTHONUSERBASE install into /app/data/.deps/python, which Python adds to
+#     sys.path itself. The server runs with `python3 -s` (no user site), so nothing a script
+#     installs there can replace the server's own packages.
+# Both /app/data/.deps folders are on the data mount, so they survive recreating the container.
+COPY tools/rootless/apt-get tools/rootless/luarocks /usr/local/bin/
+RUN sed -i 's/\r$//' /usr/local/bin/apt-get /usr/local/bin/luarocks \
+    && chmod 755 /usr/local/bin/apt-get /usr/local/bin/luarocks \
+    && ln -s apt-get /usr/local/bin/apt \
+    && printf '%s\n' \
+         '# Script Server: scripts may install system packages (see /usr/local/bin/apt-get)' \
+         'Defaults env_keep += "DEBIAN_FRONTEND"' \
+         'ALL ALL=(root) NOPASSWD: /usr/bin/apt-get, /usr/bin/apt' \
+         > /etc/sudoers.d/script-server-apt \
+    && chmod 440 /etc/sudoers.d/script-server-apt \
+    && visudo -cf /etc/sudoers.d/script-server-apt
+ENV SCRIPT_DEPS_DIR=/app/data/.deps \
+    PYTHONUSERBASE=/app/data/.deps/python \
+    PIP_USER=1 \
+    PIP_BREAK_SYSTEM_PACKAGES=1 \
+    LUA_PATH="/app/data/.deps/lua/share/lua/5.1/?.lua;/app/data/.deps/lua/share/lua/5.1/?/init.lua;;" \
+    LUA_CPATH="/app/data/.deps/lua/lib/lua/5.1/?.so;;"
+
 EXPOSE 5000
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
-CMD [ "python3", "launcher.py" ]
+CMD [ "python3", "-s", "launcher.py" ]

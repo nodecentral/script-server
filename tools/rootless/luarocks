@@ -1,0 +1,15 @@
+#!/bin/sh
+# Script Server: luarocks for scripts. Installed as /usr/local/bin/luarocks, ahead of the real
+# /usr/bin/luarocks on PATH.
+#
+# Installs Lua modules into the persistent data folder (SCRIPT_DEPS_DIR, /app/data/.deps by
+# default) instead of /usr/local, so they need no root and survive the container being recreated
+# or the image being upgraded. LUA_PATH/LUA_CPATH (set in tools/Dockerfile) put that tree ahead
+# of the system one, so require() finds what's installed there. An explicit --tree or --local
+# is left alone.
+deps="${SCRIPT_DEPS_DIR:-/app/data/.deps}"
+case " $* " in
+    *" --tree"* | *" --local "*) ;;
+    *) set -- --tree="$deps/lua" "$@" ;;
+esac
+exec /usr/bin/luarocks "$@"
