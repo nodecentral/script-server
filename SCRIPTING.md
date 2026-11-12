@@ -1,6 +1,6 @@
 # SCRIPTING.md — Script-Server Scripting Conventions (Focused)
 
-Version: 2.2.0
+Version: 2.2.1
 Last updated: 2026-11-12
 
 This is the **focused** convention doc for any Claude session writing
@@ -200,6 +200,9 @@ category can't disagree about its icon.
 | `Health` | `favorite` | `ss_health_management` |
 | `Files` | `folder` | general file tools |
 | `Network` | `router` | `ss_network_management` |
+| `Audiobooks` | `headset` | `ss_audiobook_file_management` |
+| `Energy` | `flash_on` | `ss_energy_management` |
+| `Docker` | `layers` | `ss_docker_registry` |
 | `Script Server` | `dns` | script-server's own scripts: group `Tools` (real utilities) and `Demo` (examples) |
 
 **There is no "Admin" group any more.** Genuinely administrative tools use
