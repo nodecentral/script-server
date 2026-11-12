@@ -20,7 +20,7 @@
 --                     sqlite3 = require("lsqlite3")  -- last resort, errors loudly if missing
 --                 end
 --
--- Version : 1.0.1
+-- Version : 1.1.0
 -- Date    : 2026-11-12
 --
 -- Platform file: shipped by the Script-Server image (tools/PLATFORM_FILES)
@@ -30,6 +30,29 @@
 
 local M = {}
 
+-- Script-Server runs as PUID (not root) on the NAS, where apt-get/luarocks
+-- can't install system packages. Detect that and say so up front instead of
+-- running an install that can only fail with "Permission denied".
+local function current_uid()
+    local handle = io.popen("id -u 2>/dev/null")
+    local uid = handle and handle:read("*l") or ""
+    if handle then handle:close() end
+    return tonumber(uid)
+end
+
+local function explain_not_root(kind, name, install_cmd, uid)
+    io.stderr:write(string.format(
+        "[SETUP] %s '%s' is not installed, and this script runs as uid %d, not\n" ..
+        "[SETUP] root, so it can't install system packages itself.\n" ..
+        "[SETUP] Fix for good: ask for it to be added to Script-Server's image\n" ..
+        "[SETUP] (tools/Dockerfile in nodecentral/script-server).\n" ..
+        "[SETUP] Until then, on the NAS (lost when the container is recreated):\n" ..
+        "[SETUP]   docker exec -u 0 script-server sh -c '%s'\n",
+        kind, name, uid, install_cmd))
+    io.stderr:flush()
+    os.exit(1)
+end
+
 -- ensure(name, install_cmd): require(name), or if that fails, run
 -- install_cmd via the shell and retry once. install_cmd's combined
 -- stdout+stderr is echoed to stderr either way, so failures are visible
@@ -37,6 +60,9 @@ local M = {}
 function M.ensure(name, install_cmd)
     local ok, mod = pcall(require, name)
     if ok then return mod end
+
+    local uid = current_uid()
+    if uid and uid ~= 0 then explain_not_root("Module", name, install_cmd, uid) end
 
     io.stderr:write(string.format(
         "[SETUP] Module '%s' not found -- attempting to install...\n", name))

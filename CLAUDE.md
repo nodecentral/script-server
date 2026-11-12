@@ -1986,6 +1986,19 @@ execution (`docker run` per invocation is the wrong model here, same
 principle as a dependency graduating into `tools/Dockerfile` once it's
 needed repeatedly rather than staying ad hoc).
 
+**Running as root is required, and the NAS does not run as root.** The
+NAS install sets `PUID`, so scripts run as that user and `apt-get`,
+`luarocks install` and a system-wide `pip install` all fail with
+`Permission denied`. Self-install only works in a root container (a
+sandbox, or an install without `PUID`). On the NAS, **any system package,
+binary or Lua module a script needs must be baked into Script-Server's
+image** (`tools/Dockerfile`): ask for it in the `nodecentral/script-server`
+session. That's how `lsqlite3` got there, for ss_photo_file_management's
+Photo Dashboard. Keep the `ensure` call anyway: it's a no-op when the
+dependency is present, and since `ensure_*.lua` 1.1.0 it says exactly this
+(with a temporary `docker exec -u 0` workaround) when it isn't, instead of
+running an install that can only fail.
+
 **Python module:**
 ```python
 try:
