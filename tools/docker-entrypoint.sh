@@ -135,19 +135,28 @@ if [ -d "$APP_ROOT/data" ]; then
 fi
 
 # ---------------------------------------------------------------------------------------------
-# Installing system packages from scripts. sudo needs the app user to have a passwd entry, and
-# PUID usually has none in the image, so add one. ALLOW_APT=false turns the whole thing off.
+# Installing system packages from scripts. sudo needs the app user to have passwd and shadow
+# entries, and PUID usually has neither in the image, so add them. ALLOW_APT=false turns it off.
 # ---------------------------------------------------------------------------------------------
 if [ "$CUR_UID" -eq 0 ]; then
     if [ "${ALLOW_APT:-true}" = false ]; then
         rm -f /etc/sudoers.d/script-server-apt
         log "ALLOW_APT=false - scripts can't install system packages"
-    elif [ "$RUN_UID" -ne 0 ] && ! grep -q "^[^:]*:[^:]*:$RUN_UID:" /etc/passwd 2>/dev/null; then
-        if printf 'scriptserver:x:%s:%s:Script Server:/tmp:/usr/sbin/nologin\n' "$RUN_UID" "$RUN_GID" >> /etc/passwd; then
-            log "added uid $RUN_UID to /etc/passwd (so scripts can install system packages via sudo)"
-        else
-            warn "could not add uid $RUN_UID to /etc/passwd - scripts won't be able to apt-get install"
+    elif [ "$RUN_UID" -ne 0 ]; then
+        # sudo needs both: a passwd entry (else "you do not exist in the passwd database") and a
+        # shadow entry (else PAM's account check fails: "account validation failure, is your
+        # account locked?"). '*' = no password, never expires; the sudo rule is NOPASSWD.
+        app_user="$(awk -F: -v u="$RUN_UID" '$3 == u { print $1; exit }' /etc/passwd 2>/dev/null)"
+        if [ -z "$app_user" ]; then
+            app_user=scriptserver
+            printf '%s:x:%s:%s:Script Server:/tmp:/usr/sbin/nologin\n' "$app_user" "$RUN_UID" "$RUN_GID" >> /etc/passwd \
+                || warn "could not add uid $RUN_UID to /etc/passwd - scripts won't be able to apt-get install"
         fi
+        if ! grep -q "^$app_user:" /etc/shadow 2>/dev/null; then
+            printf '%s:*:20000:0:99999:7:::\n' "$app_user" >> /etc/shadow \
+                || warn "could not add $app_user to /etc/shadow - scripts won't be able to apt-get install"
+        fi
+        log "scripts run as $app_user (uid $RUN_UID) and may apt-get install via sudo"
     fi
 fi
 make_dir "$APP_ROOT/temp" || true

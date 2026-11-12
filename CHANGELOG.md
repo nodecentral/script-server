@@ -4,6 +4,11 @@ This is the nodecentral fork of [Script-Server](https://github.com/bugy/script-s
 running on the home NAS. The version number is the one in `version.txt`, shown at the bottom of
 the sidebar. Newest first.
 
+## 2.3.1 — 2026-11-12
+
+- **Fixed:** scripts still couldn't install programs ("account validation failure, is your account
+  locked?"). They can now, e.g. Create Photo DB.
+
 ## 2.3.0 — 2026-11-12
 
 - **Scripts can install what they need again.** A script that needs a program (like `exiftool`),
