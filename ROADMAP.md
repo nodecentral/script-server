@@ -525,6 +525,10 @@ change is in this repo:
 
 ## In Progress
 
+- **Done 2026-11-12:** `check_script_permissions` retired (each `ss_*` repo deletes it);
+  `ensure_module.lua`/`ensure_binary.lua` are platform files here (each repo deletes its copy).
+  Import from Gitea 5.3.0 protects platform files. Remaining: the `ss_*` repos act on SCRIPTING.md
+  2.2.0.
 - **v2 is live (2026-11-11):** runs standalone on the NAS via QNAP Container Station
   (`deploy/container-station/`, port 5012). v1 is stopped and kept as a fallback, to be deleted
   later. Still to do: retag the image `latest`; each `ss_*` repo adopts `"category"`

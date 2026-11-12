@@ -1,7 +1,7 @@
 # SCRIPTING.md — Script-Server Scripting Conventions (Focused)
 
-Version: 2.1.0
-Last updated: 2026-11-11
+Version: 2.2.0
+Last updated: 2026-11-12
 
 This is the **focused** convention doc for any Claude session writing
 scripts/runners destined for import into `nodecentral/script-server` —
@@ -116,20 +116,42 @@ repo silently overwrites it the moment either is applied. Check
 something generic like `check_script_permissions`.
 
 **Exception:** a deliberate, byte-for-byte identical generic admin
-script shared across sibling repos (e.g. `check_script_permissions` now
-shipping identically from several) is fine — re-import is idempotent,
+script shared across sibling repos is fine - re-import is idempotent,
 whichever import "wins" behaves the same. The warning above is about
 **divergent** content sharing a name, not shared content sharing a name.
 
-**Names under `scripts/shared/` and `scripts/preload/` are stricter
-still.** If the image ships that name (listed in `tools/PLATFORM_FILES`
-in the main script-server repo), it's a platform file: the container
-overwrites any differing copy on every start, so your version is quietly
-reverted at the next restart, whatever order things were imported in.
-The identical-copy exception above doesn't protect you either, since the
-next image upgrade changes the image's copy. Never reuse a shipped name
-there. Prefix shared helpers with your repo's subject
-(`network_inventory.py`, `energy_paperless.py`) so they can't clash.
+**But a shared file must change in every repo in the same release.** The
+moment one repo's copy differs, whichever repo was imported last decides
+what's installed. Change it everywhere at once, or not at all.
+**Retiring** a shared file is safe one repo at a time (Import from Gitea
+2.2.0+): a file one repo stops shipping is reported **KEPT** and left in
+place while another imported repo still ships it, and only removed when
+the last one drops it. Better still, don't share copies at all: anything
+several repos need belongs in the main repo as a platform file (next
+paragraph).
+
+**One home for shared code - the platform files.** Anything more than
+one repo needs lives **once**, in the main script-server repo, as a
+*platform file*: listed in `tools/PLATFORM_FILES`, shipped in the image
+and refreshed on every container start. Current ones include
+`scripts/shared/secrets_store.py`, `gitea_client.py`, `ensure_module.lua`
+and `ensure_binary.lua` (see that file for the full list). Rules:
+- **Use them, don't copy them.** Load them from `scripts/shared/` (see
+  "Loading a shared Lua helper" below for Lua; the Python secrets example
+  for Python). Never ship your own copy of a platform file. Import from
+  Gitea ignores a repo's copy (reported as `PLATFORM` - "delete it from the
+  repo"), never overwrites or deletes the installed one, and the container
+  would put the image's copy back on restart anyway.
+- **Never reuse a platform file's name** under `scripts/shared/` or
+  `scripts/preload/`, even for different content.
+- **Something you need isn't there?** If a helper is useful to more than
+  your repo, propose it in the script-server session to become a platform
+  file - don't copy it from a sibling repo. This is how `ensure_module.lua`
+  and `ensure_binary.lua` (originally ss_movie_file_management's) became
+  platform files instead of drifting copies.
+- **A helper only your repo uses** stays in your repo, prefixed with your
+  repo's subject (`network_inventory.py`, `energy_paperless.py`) so it can
+  never clash.
 
 -----
 
@@ -219,8 +241,12 @@ hand-building it.
 
 Import from Gitea's report (dry run and apply) lists every file in your
 repo's `scripts/` and `runners/` with the **installed version → Gitea
-version**, read from the runner's `"_version"` and the script's
-`# Version:` header line, plus when it last changed in Gitea and a status:
+version**, read from the runner's `"_version"` and a `Version: x.y.z`
+line in the script's header comment, plus when it last changed in Gitea
+and a status. Write that line in the script's own comment style: `# Version:`
+in bash/Python, `-- Version:` in Lua (`#` isn't a comment in Lua), inside a
+`--[[ ]]` block is fine too. Spaces before the colon are fine
+(`Version     : 1.0.0`).
 
 | Status | Meaning |
 |---|---|
@@ -230,11 +256,15 @@ version**, read from the runner's `"_version"` and the script's
 | `SAME` | identical |
 | `OLDER` | Gitea's version is *lower* than installed - usually the wrong branch |
 | `REMOVED` | imported from this repo before, gone from Gitea now - deleted on apply |
+| `KEPT` | gone from this repo, but another imported repo still ships the same file - left in place |
+| `PLATFORM` | your repo carries a copy of a Script-Server platform file - ignored, **delete it from the repo** |
 
 So the Matched Pair Rule's "bump both versions together" is what makes
 this readable: a file that only ever shows `CHANGED` gives the person
-importing it nothing to go on. Keep the `Version:` line within the first
-few lines of the script (the importer reads the first 4 KB).
+importing it nothing to go on. Keep the `Version:` line near the top of
+the header - within the first few lines, not at the bottom of a long
+comment block (the importer reads the first 16 KB; a line past that is
+missed and the file shows `CHANGED`).
 
 Once a repo has been imported, admins get a **cloud icon in the header of
 each of its scripts** that re-imports the repo straight away, no dry run -
@@ -282,6 +312,15 @@ container against a bind-mounted host folder can fail with
 command run natively on the NAS shell (over SSH) succeeds. If a script
 you added shows as greyed out after import, try a native `chmod +x`
 over SSH before assuming something else is wrong.
+
+**`check_script_permissions` is retired - delete it from your repo**
+(`scripts/check_script_permissions.sh` and `runners/check_script_permissions.json`).
+Both the container (on every start) and Import from Gitea (after every
+import) already make scripts executable, so it only duplicated that - and
+its copies had started to diverge across repos. Thanks to the `KEPT`
+behaviour, each repo can delete it in its own time; the installed copy
+disappears once the last repo that shipped it is re-imported without it.
+The QNAP "Bad address" note above is the part worth keeping.
 
 -----
 
@@ -531,8 +570,11 @@ in order of preference for most cases:
 
    **Consume from Python:**
    ```python
+   import os
    import sys
-   sys.path.insert(0, '/app/scripts/shared')
+   # Relative to this script, so it also runs standalone outside the container.
+   # A preload under scripts/preload/ needs one more os.path.dirname(...).
+   sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'shared'))
    from secrets_store import get_secret
 
    api_key = get_secret('finnhub', 'API_KEY', 'used by Portfolio Prices')
@@ -546,6 +588,14 @@ in order of preference for most cases:
    API_KEY=$(python3 /app/scripts/shared/secrets_store.py get finnhub API_KEY "used by Portfolio Prices") \
      || { echo "finnhub.API_KEY is not set - pick 'finnhub | API_KEY' from Secrets Manager's Entry dropdown and set its value." >&2; exit 1; }
    ```
+
+   **Service URLs: `http://<NAS IP>:<published port>`, never a container
+   name.** Script-Server runs with host networking (`network_mode: host`),
+   so Docker container names (`paperlessngx`, `sonarr`...) don't resolve
+   from it. A URL stored in the Secrets Store must use the NAS's address and
+   the port the service publishes (`docker ps` shows it), e.g.
+   `http://10.0.0.41:8777` - and any preload banner or error message that
+   tells the user what to set must say the same.
 
    **The workflow, for every secret a script needs:** the script's request
    writes a placeholder → it shows in Secrets Manager's **Entry** dropdown
@@ -845,6 +895,29 @@ identical shape). Confirmed working end-to-end for real: forced `mkvtoolnix` to 
 self-install via `apt`, confirmed the script then completed
 (`ss_movie_file_management`).
 
+**Loading a shared Lua helper** - relative to the script, so the same file
+works standalone in a sandbox and inside Script-Server (where it runs from
+`working_directory`, normally `/app/scripts`), never a hard-coded
+`/app/scripts/shared/...`:
+```lua
+local SHARED_DIR = ((arg and arg[0] or ""):match("^(.*)/") or ".") .. "/shared/"
+local ensure_binary = dofile(SHARED_DIR .. "ensure_binary.lua")
+```
+
+**`ensure_module.lua` and `ensure_binary.lua` are platform files** -
+Script-Server ships them in `scripts/shared/`. Load them as above; **delete
+any copy your repo carries** (Import from Gitea ignores it and reports
+`PLATFORM`). Python needs no helper - use the try/except pattern above.
+```lua
+local SHARED_DIR = ((arg and arg[0] or ""):match("^(.*)/") or ".") .. "/shared/"
+local ok_b, ensure_bin = pcall(dofile, SHARED_DIR .. "ensure_binary.lua")
+if ok_b then ensure_bin.ensure("mkvpropedit", "apt-get install -y mkvtoolnix") end
+local ok_m, ensure_mod = pcall(dofile, SHARED_DIR .. "ensure_module.lua")
+local sqlite3 = ok_m and ensure_mod.ensure("lsqlite3", "luarocks install lsqlite3") or require("lsqlite3")
+```
+Both exit the script with a clear `[SETUP] FAILED ...` message if the
+install doesn't work.
+
 -----
 
 ## Runner-Generator Pattern
@@ -893,7 +966,11 @@ result overwrite a vendor already known for that MAC.
 - Hardcoded paths, IPs, or credentials anywhere in scripts
 - Assuming parameters always exist — always provide defaults
 - Claiming Script-Server has a UI for environment variables (it doesn't)
-- Interactive prompts unless stdin automation is explicitly configured
+- Interactive prompts (there's no stdin) - use a `confirm` list parameter
+  instead: `"type": "list"`, `"values": ["false", "true"]`, `"default":
+  "false"` - preview/report only when false, actually write when true. Where
+  the old prompt was per item (y/N per row), it becomes all-or-nothing per
+  run, so pair it with a `limit` parameter
 - `"shell": false` (or omitting `shell`) when the values script string uses
   quoting, empty literals `''`, or pipe operators — dropdown will be silently
   greyed out
@@ -904,6 +981,10 @@ result overwrite a vendor already known for that MAC.
   runner, a more severe failure than a greyed-out dropdown
 - Inventing a parallel secrets mechanism instead of using the Secrets Store
 - Guessing a Secrets Store product/key name instead of confirming it
+- Copying a platform file (`secrets_store.py`, `ensure_binary.lua`...) or
+  another repo's helper into your repo - use the installed one, or propose
+  a new platform file in the script-server session
+- `check_script_permissions` - retired, delete it (see Execute Permissions)
 - A group called `Admin` - use `"placement": "settings"` for real admin
   tools, a proper category/group for everything else
 - Changing a script without bumping its version - Import from Gitea then

@@ -4,6 +4,20 @@ This is the nodecentral fork of [Script-Server](https://github.com/bugy/script-s
 running on the home NAS. The version number is the one in `version.txt`, shown at the bottom of
 the sidebar. Newest first.
 
+## 2.2.0 — 2026-11-12
+
+- **Import from Gitea keeps shared files.** If two repos ship the same file and one of them stops,
+  the file now stays (shown as **KEPT**, "still shipped by …") instead of being deleted for both.
+- **More versions recognised in the import report:** lines like `Version     : 1.0.0`, and version
+  lines further down a long header, no longer show as CHANGED.
+- **Shared helpers now ship with Script Server:** `ensure_module.lua` and `ensure_binary.lua` (which
+  install a missing Lua module or program on first use) come with Script Server itself instead of
+  being copied between repos. Import from Gitea never overwrites or deletes Script Server's own shared
+  files; a repo still carrying a copy is shown **PLATFORM**, with a note to delete it.
+- **Check Script Permissions is retired:** Script Server already makes scripts runnable on start-up
+  and after every import.
+- Updated scripting guide (SCRIPTING.md 2.2.0) for the `ss_*` repos.
+
 ## 2.1.1 — 2026-11-11
 
 - **Fixed:** Import from Gitea wouldn't open ("Failed to connect to the server") when the shared

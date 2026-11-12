@@ -18,6 +18,8 @@ scripts/preload/import_from_gitea.py
 scripts/preload/motd.py
 scripts/preload/notify.py
 
+scripts/shared/ensure_binary.lua
+scripts/shared/ensure_module.lua
 scripts/shared/gitea_client.py
 scripts/shared/list_mounts.sh
 scripts/shared/list_optional_packages.py

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Name: import_from_gitea.py
-# Version: 5.1.1
+# Version: 5.3.0
 # Description: Clones a Gitea repo (expected to have its own top-level
 #              scripts/ and runners/ folders) and mirrors scripts/ into
 #              /app/scripts and runners/ into /app/conf/runners: existing
@@ -38,6 +38,16 @@
 #              commit, its time and how to repeat the import in the state
 #              file, which is what the script header's one-tap "update from
 #              Gitea" button (admins only) re-runs.
+#              5.2.0: a file this repo stopped shipping is KEPT (not deleted)
+#              while another imported repo still ships the same file - so
+#              one repo retiring a shared file (e.g. a byte-identical
+#              helper several repos carry) can't remove it from the others.
+#              Version lines may have spaces before the colon
+#              ("Version     : 1.0.0") and are looked for in the first 16 KB.
+#              5.3.0: Script-Server's own platform files (tools/PLATFORM_FILES,
+#              e.g. scripts/shared/secrets_store.py, ensure_binary.lua) are never
+#              overwritten or deleted by an import - a repo still carrying a copy
+#              gets a PLATFORM row telling it to delete that copy.
 
 import argparse
 import filecmp
@@ -107,11 +117,30 @@ def list_files(root):
     return sorted(result)
 
 
-VERSION_PATTERN = re.compile(r'Version:\s*v?([0-9]+(?:\.[0-9]+)*)')
+# "Version: 1.2.0" in any comment style (# -- //), also "Version     : 1.2.0"
+VERSION_PATTERN = re.compile(r'Version\s*:\s*v?([0-9]+(?:\.[0-9]+)*)')
+VERSION_SEARCH_BYTES = 16384
 
-STATUS_ORDER = ['OLDER', 'NEW', 'UPDATE', 'CHANGED', 'REMOVED', 'SAME']
-SUMMARY_LABELS = {'OLDER': 'older', 'NEW': 'new', 'UPDATE': 'updated', 'CHANGED': 'changed',
-                  'REMOVED': 'removed', 'SAME': 'unchanged'}
+STATUS_ORDER = ['OLDER', 'PLATFORM', 'NEW', 'UPDATE', 'CHANGED', 'REMOVED', 'KEPT', 'SAME']
+SUMMARY_LABELS = {'OLDER': 'older', 'PLATFORM': 'skipped (Script-Server platform file - delete it from the repo)',
+                  'NEW': 'new', 'UPDATE': 'updated', 'CHANGED': 'changed', 'REMOVED': 'removed',
+                  'KEPT': 'kept (another repo ships it)', 'SAME': 'unchanged'}
+
+# The image's list of files it owns and refreshes on every start (see tools/PLATFORM_FILES).
+PLATFORM_MANIFEST = '/app/defaults/PLATFORM_FILES'
+
+
+def platform_files(category):
+    """Relative paths under scripts/ (or runners/) that Script-Server itself ships. Empty when
+    run outside the image (no manifest) - then there's nothing to protect."""
+    try:
+        with open(PLATFORM_MANIFEST) as f:
+            lines = [line.strip() for line in f]
+    except OSError:
+        return set()
+    prefix = category + '/'
+    return {line[len(prefix):] for line in lines
+            if line and not line.startswith('#') and line.startswith(prefix)}
 
 
 def read_version(path):
@@ -124,7 +153,7 @@ def read_version(path):
                 value = json.load(f).get('_version')
             return str(value) if value else None
         with open(path, encoding='utf-8', errors='replace') as f:
-            head = f.read(4096)
+            head = f.read(VERSION_SEARCH_BYTES)
     except (OSError, ValueError, AttributeError):
         return None
     match = VERSION_PATTERN.search(head)
@@ -158,15 +187,24 @@ def last_commit_time(clone_dir, repo_relpath):
     return format_time(result.stdout.strip()) if result.returncode == 0 else ''
 
 
-def sync_category(clone_dir, category, dest_root, label, apply_changes, previous_files):
+def sync_category(clone_dir, category, dest_root, label, apply_changes, previous_files, other_sources=None):
+    """other_sources: {relpath: 'owner/repo'} for files OTHER imported repos ship in this same
+    folder - a file this repo dropped but another still ships is kept, not deleted."""
     """Reports (and with apply_changes, mirrors) one top-level folder of the clone. Returns
     (current_files, status_counts)."""
     src_root = os.path.join(clone_dir, category)
     current_files = list_files(src_root)
-    stale_files = sorted(set(previous_files) - set(current_files))
+    other_sources = other_sources or {}
+    protected = platform_files(category)
+    repo_copies_of_platform = [rel for rel in current_files if rel in protected]
+    current_files = [rel for rel in current_files if rel not in protected]
+    previous_files = [rel for rel in previous_files if rel not in protected]
+    dropped_files = sorted(set(previous_files) - set(current_files))
+    stale_files = [rel for rel in dropped_files if rel not in other_sources]
+    kept_files = [rel for rel in dropped_files if rel in other_sources]
     counts = {}
 
-    if not current_files and not stale_files:
+    if not current_files and not dropped_files and not repo_copies_of_platform:
         print(f'{label}: nothing found upstream')
         print()
         return current_files, counts
@@ -182,6 +220,12 @@ def sync_category(clone_dir, category, dest_root, label, apply_changes, previous
                      last_commit_time(clone_dir, os.path.join(category, rel))))
     for rel in stale_files:
         rows.append(('REMOVED', rel, read_version(os.path.join(dest_root, rel)), None, ''))
+    for rel in repo_copies_of_platform:
+        rows.append(('PLATFORM', rel, read_version(os.path.join(dest_root, rel)),
+                     read_version(os.path.join(src_root, rel)), 'Script-Server ships this - delete it from the repo'))
+    for rel in kept_files:
+        rows.append(('KEPT', rel, read_version(os.path.join(dest_root, rel)), None,
+                     f'still shipped by {other_sources[rel]}'))
 
     rows.sort(key=lambda r: (STATUS_ORDER.index(r[0]), r[1].lower()))
     for row in rows:
@@ -193,6 +237,9 @@ def sync_category(clone_dir, category, dest_root, label, apply_changes, previous
     for status, rel, installed_version, gitea_version, changed in rows:
         versions = f'{installed_version or "-"} -> {gitea_version or "-"}'
         print(f'    {status:<8} {rel:<{name_width}}  {versions:<22} {changed}')
+    if counts.get('PLATFORM'):
+        print(f'    NOTE: {counts["PLATFORM"]} file(s) are Script-Server platform files - the installed copy '
+              'is kept and the repo\'s copy ignored. Delete them from the repo.')
     if counts.get('OLDER'):
         print(f'    WARNING: {counts["OLDER"]} file(s) in Gitea have a LOWER version than what is '
               'installed - is this the right branch?')
@@ -214,6 +261,19 @@ def sync_category(clone_dir, category, dest_root, label, apply_changes, previous
 
     print()
     return current_files, counts
+
+
+def files_of_other_sources(state, source_key, category):
+    """{relpath: 'owner/repo'} for every file other recorded imports placed in this folder."""
+    result = {}
+    for key, entry in state.items():
+        if key == source_key or not isinstance(entry, dict):
+            continue
+        _url, _, rest = key.partition('|')
+        name = rest.replace('|', '/')
+        for rel in entry.get(category) or []:
+            result.setdefault(rel, name)
+    return result
 
 
 def head_commit(clone_dir):
@@ -362,10 +422,10 @@ def main():
 
         scripts_files, script_counts = sync_category(
             clone_dir, 'scripts', '/app/scripts', 'scripts/',
-            args.apply, previous.get('scripts', []))
+            args.apply, previous.get('scripts', []), files_of_other_sources(state, source_key, 'scripts'))
         runners_files, runner_counts = sync_category(
             clone_dir, 'runners', '/app/conf/runners', 'runners/',
-            args.apply, previous.get('runners', []))
+            args.apply, previous.get('runners', []), files_of_other_sources(state, source_key, 'runners'))
 
     totals = {}
     for counts in (script_counts, runner_counts):
