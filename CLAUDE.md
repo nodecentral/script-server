@@ -1913,9 +1913,16 @@ work instead:
   root for scripts (a package's maintainer scripts run as root), accepted
   under the home-lab posture. `ALLOW_APT=false` makes the entrypoint
   delete the rule.
-- The entrypoint adds a passwd entry for `PUID` (sudo refuses a uid with
-  none: "you do not exist in the passwd database", confirmed) and creates
-  `/app/data/.deps`.
+- The entrypoint adds passwd **and shadow** entries for `PUID` and creates
+  `/app/data/.deps`. sudo refuses a uid with no passwd entry ("you do not
+  exist in the passwd database"), and with no shadow entry PAM's account
+  check fails ("account validation failure, is your account locked?").
+  2.3.0 only added the passwd line, which the NAS hit at once (Create Photo
+  DB); 2.3.1 adds `name:*:20000:0:99999:7:::`. Reproduced and fixed in an
+  `unshare --mount` namespace with bind-mounted copies of `/etc/passwd`,
+  `/etc/shadow` and `/etc/sudoers.d`, running the entrypoint's own block,
+  then Create Photo DB's install as uid 1005: apt-get got its lock via
+  sudo and dkjson installed into the tree.
 - `tools/rootless/luarocks` → `/usr/local/bin/luarocks`: adds
   `--tree=$SCRIPT_DEPS_DIR/lua` unless `--tree`/`--local` is given. The
   Dockerfile's `LUA_PATH`/`LUA_CPATH` put that tree first.
@@ -1930,9 +1937,8 @@ work instead:
 through the wrapper and `ensure_module` (installed into the tree, found
 on the next run), the documented pip pattern (mutagen into the user base,
 importable), and `python3 -s` not seeing it. The sudoers file passes
-`visudo -c`. **Not verified here:** the sudo/apt path end to end (this
-session can't edit `/etc/sudoers`/`/etc/passwd`), and the Docker build.
-Check on the NAS with Create Photo DB (exiftool).
+`visudo -c`. **Not verified here:** the Docker build, and `apt-get update`
+through sudo (this sandbox's proxy refuses the plain-HTTP mirrors).
 
 ## Upstream Sync Status
 
