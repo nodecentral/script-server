@@ -64,6 +64,12 @@ RUN curl -fsSL -o /usr/local/bin/websocat \
       https://github.com/vi/websocat/releases/download/v1.14.1/websocat.x86_64-unknown-linux-musl \
     && chmod +x /usr/local/bin/websocat
 
+# Lua modules used by sibling-repo scripts. The app runs as PUID (not root) on the NAS, so a
+# script's own ensure_module.lua can't luarocks-install anything at run time - every Lua module a
+# script needs has to be baked in here. lsqlite3: ss_photo_file_management (Photo Dashboard).
+# Builds against libsqlite3-dev + build-essential from the apt list above.
+RUN luarocks install lsqlite3
+
 # Python packages used by scripts (spreadsheet/PDF handling, OCR, browser automation),
 # installed before the app code is copied so they cache independently of app changes.
 RUN pip install --no-cache-dir \

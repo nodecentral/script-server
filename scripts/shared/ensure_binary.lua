@@ -19,7 +19,7 @@
 --                     ensure_bin.ensure("mkvpropedit", "apt-get install -y mkvtoolnix")
 --                 end
 --
--- Version : 1.0.1
+-- Version : 1.1.0
 -- Date    : 2026-11-12
 --
 -- Platform file: shipped by the Script-Server image (tools/PLATFORM_FILES)
@@ -28,6 +28,29 @@
 -- ============================================================
 
 local M = {}
+
+-- Script-Server runs as PUID (not root) on the NAS, where apt-get/luarocks
+-- can't install system packages. Detect that and say so up front instead of
+-- running an install that can only fail with "Permission denied".
+local function current_uid()
+    local handle = io.popen("id -u 2>/dev/null")
+    local uid = handle and handle:read("*l") or ""
+    if handle then handle:close() end
+    return tonumber(uid)
+end
+
+local function explain_not_root(kind, name, install_cmd, uid)
+    io.stderr:write(string.format(
+        "[SETUP] %s '%s' is not installed, and this script runs as uid %d, not\n" ..
+        "[SETUP] root, so it can't install system packages itself.\n" ..
+        "[SETUP] Fix for good: ask for it to be added to Script-Server's image\n" ..
+        "[SETUP] (tools/Dockerfile in nodecentral/script-server).\n" ..
+        "[SETUP] Until then, on the NAS (lost when the container is recreated):\n" ..
+        "[SETUP]   docker exec -u 0 script-server sh -c '%s'\n",
+        kind, name, uid, install_cmd))
+    io.stderr:flush()
+    os.exit(1)
+end
 
 local function on_path(bin_name)
     local handle = io.popen("command -v " .. bin_name .. " 2>/dev/null")
@@ -42,6 +65,9 @@ end
 -- visible in Script-Server's live output, not swallowed.
 function M.ensure(bin_name, install_cmd)
     if on_path(bin_name) then return true end
+
+    local uid = current_uid()
+    if uid and uid ~= 0 then explain_not_root("Binary", bin_name, install_cmd, uid) end
 
     io.stderr:write(string.format(
         "[SETUP] Binary '%s' not found -- attempting to install...\n", bin_name))

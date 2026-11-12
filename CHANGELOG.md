@@ -4,6 +4,15 @@ This is the nodecentral fork of [Script-Server](https://github.com/bugy/script-s
 running on the home NAS. The version number is the one in `version.txt`, shown at the bottom of
 the sidebar. Newest first.
 
+## 2.2.1 — 2026-11-12
+
+- **Photo Dashboard works:** the SQLite module for Lua (`lsqlite3`) now comes with Script Server.
+  Scripts can't install it themselves because Script Server doesn't run them as root.
+- **Clearer message for a missing dependency.** When a script needs a program or Lua module that
+  isn't installed, it now says straight away that it can't install it, and how to add it,
+  instead of failing with "Permission denied".
+- New categories with their own icons: **Audiobooks**, **Energy**, **Docker**.
+
 ## 2.2.0 — 2026-11-12
 
 - **Import from Gitea keeps shared files.** If two repos ship the same file and one of them stops,
