@@ -1,7 +1,7 @@
 # SCRIPTING.md — Script-Server Scripting Conventions (Focused)
 
-Version: 2.4.0
-Last updated: 2026-11-12
+Version: 2.5.0
+Last updated: 2026-11-13
 
 This is the **focused** convention doc for any Claude session writing
 scripts/runners destined for import into `nodecentral/script-server` —
@@ -839,6 +839,42 @@ common they are:
   text that must never be misread as ANSI - `terminal` is still the right
   default for anything colour-coded.
 
+### Terminal colours: which ANSI codes are readable
+
+The `terminal` output panel is **light grey, `#EEEEEE`** (`--surface-color`
+in `web-src/src/assets/css/shared.css`; the indigo `theme.css` doesn't
+change it). Each ANSI code is drawn in a fixed colour from
+`web-src/src/assets/css/bash_styles.css`, picked for a dark terminal, so
+several are close to invisible here. Only the 16 basic colours plus bold
+(`1`), dim (`2`) and underline (`4`) work: 256-colour (`38;5;n`) and
+true-colour (`38;2;r;g;b`) codes are ignored.
+
+**Use these for these jobs:**
+
+| Content | Code | Shown as | Contrast on `#EEEEEE` |
+|---|---|---|---|
+| Normal text | none (or `0`) | near-black | 13.6 |
+| Title / section heading | `1;34` bold blue | `#1976D2`, closest to the theme | 4.0 |
+| Important / must-read | `1;30` bold black | `#000000` | 18.1 |
+| Success / OK / done | `1;32` bold green | `#689F38` | 2.7 (needs bold) |
+| Warning / needs attention | `1;35` bold magenta | `#D81B60` | 4.3 |
+| Error / failed | `1;31` bold red | `#F44336` | 3.2 |
+| Values, paths, names to pick out | `36` cyan | `#0097A7` | 3.0 |
+| Secondary: timestamps, DEBUG, hints | `90` dark grey | `#616161` | 5.3 |
+| Highlighted badge (e.g. `WARN`) | `30;43` black on yellow | `#000` on `#FDD835` | 15+ |
+
+**Don't use these for text:** `33` yellow (1.2), `93` light yellow (1.0),
+`97` white (1.2) and `37` light grey (1.6) are effectively invisible, and
+the other light/bright colours (`91`, `92`, `94`, `96`, `95`) are too
+faint (1.5 to 2.6). This is why warnings aren't yellow here: yellow only
+works as a **background** behind black text (the badge row). For grey, use
+`90`, never `37`.
+
+Keep colour as a second signal, not the only one. Start a line with a word
+such as `OK`, `WARN` or `ERROR` too, so it still reads in Copy/Download
+(plain text) and for anyone who can't tell red from green. Reset with `0`
+at the end of every coloured span (`\033[1;31mERROR\033[0m ...`).
+
 **Progress indicators in html_iframe** (CSS spinners never self-terminate):
 1. Emit `<span class="spinner" id="spin-x"></span>` with the phase label
 2. Do the work
@@ -991,6 +1027,9 @@ result overwrite a vendor already known for that MAC.
 - Hardcoded paths, IPs, or credentials anywhere in scripts
 - Assuming parameters always exist — always provide defaults
 - Claiming Script-Server has a UI for environment variables (it doesn't)
+- ANSI yellow (`33`/`93`), white (`97`) or light grey (`37`) for text in
+  `terminal` output — near-invisible on the light grey panel; see Terminal
+  colours above
 - Interactive prompts (there's no stdin) - use a `confirm` list parameter
   instead: `"type": "list"`, `"values": ["false", "true"]`, `"default":
   "false"` - preview/report only when false, actually write when true. Where
