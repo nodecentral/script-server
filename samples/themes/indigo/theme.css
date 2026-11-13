@@ -23,3 +23,26 @@ html:root {
     --script-header-background: linear-gradient(110deg, #E8EAF6 0%, #C5CAE9 38%, #E3F2FD 72%, #F3E5F5 100%);
     --login-header-background: linear-gradient(110deg, #283593 0%, #3F51B5 60%, #5C6BC0 100%);
 }
+
+/*
+ * Terminal output colours (v2.3.2). The output panel is light grey (#EEEEEE), but the built-in
+ * ANSI colours (web-src/src/assets/css/bash_styles.css) were picked for a dark terminal, so
+ * yellow, white, light grey and the bright variants were close to invisible. These darker
+ * shades keep each colour's meaning and read at about 4:1 or better on #EEEEEE. Only text
+ * colours change: background colours (e.g. a black-on-yellow badge) are left alone.
+ * "html body" outranks the built-in rules, whichever stylesheet loads last (as html:root does above).
+ * See SCRIPTING.md, "Terminal colours".
+ */
+html body span.text_color_red, html body span.text_color_red a                   { color: #D32F2F; }  /* 31 */
+html body span.text_color_green, html body span.text_color_green a               { color: #4E7A27; }  /* 32 */
+html body span.text_color_yellow, html body span.text_color_yellow a             { color: #8A6D00; }  /* 33 */
+html body span.text_color_blue, html body span.text_color_blue a                 { color: #1565C0; }  /* 34 */
+html body span.text_color_cyan, html body span.text_color_cyan a                 { color: #00838F; }  /* 36 */
+html body span.text_color_lightgray, html body span.text_color_lightgray a       { color: #6E6E6E; }  /* 37 */
+html body span.text_color_lightred, html body span.text_color_lightred a         { color: #C62828; }  /* 91 */
+html body span.text_color_lightgreen, html body span.text_color_lightgreen a     { color: #4E7A27; }  /* 92 */
+html body span.text_color_lightyellow, html body span.text_color_lightyellow a   { color: #7A5C00; }  /* 93 */
+html body span.text_color_lightblue, html body span.text_color_lightblue a       { color: #1976D2; }  /* 94 */
+html body span.text_color_lightmagenta, html body span.text_color_lightmagenta a { color: #AD1457; }  /* 95 */
+html body span.text_color_lightcyan, html body span.text_color_lightcyan a       { color: #00796B; }  /* 96 */
+html body span.text_color_white, html body span.text_color_white a               { color: #424242; }  /* 97 */

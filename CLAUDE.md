@@ -1412,6 +1412,13 @@ faint (1.5 to 2.6). This is why warnings aren't yellow here: yellow only
 works as a **background** behind black text (the badge row). For grey, use
 `90`, never `37`.
 
+**Script Server 2.3.2+ darkens the faint colours** through the default
+indigo `theme.css`, so existing scripts that use yellow or the light
+variants become readable (yellow shows as dark gold, white as dark grey).
+Still follow the table above: the figures in it are the built-in colours,
+which is what any other theme, or an install with an older `theme.css`,
+shows.
+
 Keep colour as a second signal, not the only one. Start a line with a word
 such as `OK`, `WARN` or `ERROR` too, so it still reads in Copy/Download
 (plain text) and for anyone who can't tell red from green. Reset with `0`
@@ -1725,6 +1732,12 @@ rule.
   `samples/themes/orange|dark` are alternatives. Every colour in the Vue app
   goes through the CSS variables in `web-src/src/assets/css/shared.css`; none
   is hard-coded, as of v2.0.0.
+- **Terminal colours (v2.3.2):** the indigo `theme.css` also overrides the
+  ANSI text colours from `bash_styles.css` (yellow, white, light grey and the
+  bright variants were near-invisible on the `#EEEEEE` panel). Selectors are
+  `html body span.text_color_*`, which outrank the built-in rules whichever
+  file loads last. Background colours are untouched. An existing install
+  keeps its old `theme.css` (fill-if-missing), so copy the block in by hand.
 - **Known gap:** script `html_iframe` output can't see the theme, because an
   iframe is a separate document. These scripts hard-code the old teal:
   `secrets_viewer.py`, `secret_ingredients_check.py`, `motd.py` and the

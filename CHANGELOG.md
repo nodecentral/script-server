@@ -4,6 +4,15 @@ This is the nodecentral fork of [Script-Server](https://github.com/bugy/script-s
 running on the home NAS. The version number is the one in `version.txt`, shown at the bottom of
 the sidebar. Newest first.
 
+## 2.3.2 — 2026-11-13
+
+- **Readable script output.** Yellow, white, light grey and the other pale colours in script
+  output were hard or impossible to read on the light grey background. They're now shown in
+  darker shades of the same colours. On an existing install, copy the new lines at the end of
+  `theme.css` into `conf/theme/theme.css` and reload the page.
+- Updated scripting guide (SCRIPTING.md 2.5.0): which colours to use for titles, warnings, errors
+  and so on.
+
 ## 2.3.1 — 2026-11-12
 
 - **Fixed:** scripts still couldn't install programs ("account validation failure, is your account

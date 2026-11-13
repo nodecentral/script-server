@@ -870,6 +870,13 @@ faint (1.5 to 2.6). This is why warnings aren't yellow here: yellow only
 works as a **background** behind black text (the badge row). For grey, use
 `90`, never `37`.
 
+**Script Server 2.3.2+ darkens the faint colours** through the default
+indigo `theme.css`, so existing scripts that use yellow or the light
+variants become readable (yellow shows as dark gold, white as dark grey).
+Still follow the table above: the figures in it are the built-in colours,
+which is what any other theme, or an install with an older `theme.css`,
+shows.
+
 Keep colour as a second signal, not the only one. Start a line with a word
 such as `OK`, `WARN` or `ERROR` too, so it still reads in Copy/Download
 (plain text) and for anyone who can't tell red from green. Reset with `0`
