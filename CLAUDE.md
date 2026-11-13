@@ -1381,6 +1381,49 @@ not case 2.
   (`TextOutput.js` logs a console warning if attempted). Use only when
   output is genuinely plain text that must never be misread as ANSI.
 
+### Terminal colours: which ANSI codes are readable
+
+The `terminal` output panel is **light grey, `#EEEEEE`** (`--surface-color`
+in `web-src/src/assets/css/shared.css`; the indigo `theme.css` doesn't
+change it). Each ANSI code is drawn in a fixed colour from
+`web-src/src/assets/css/bash_styles.css`, picked for a dark terminal, so
+several are close to invisible here. Only the 16 basic colours plus bold
+(`1`), dim (`2`) and underline (`4`) work: 256-colour (`38;5;n`) and
+true-colour (`38;2;r;g;b`) codes are ignored.
+
+**Use these for these jobs:**
+
+| Content | Code | Shown as | Contrast on `#EEEEEE` |
+|---|---|---|---|
+| Normal text | none (or `0`) | near-black | 13.6 |
+| Title / section heading | `1;34` bold blue | `#1976D2`, closest to the theme | 4.0 |
+| Important / must-read | `1;30` bold black | `#000000` | 18.1 |
+| Success / OK / done | `1;32` bold green | `#689F38` | 2.7 (needs bold) |
+| Warning / needs attention | `1;35` bold magenta | `#D81B60` | 4.3 |
+| Error / failed | `1;31` bold red | `#F44336` | 3.2 |
+| Values, paths, names to pick out | `36` cyan | `#0097A7` | 3.0 |
+| Secondary: timestamps, DEBUG, hints | `90` dark grey | `#616161` | 5.3 |
+| Highlighted badge (e.g. `WARN`) | `30;43` black on yellow | `#000` on `#FDD835` | 15+ |
+
+**Don't use these for text:** `33` yellow (1.2), `93` light yellow (1.0),
+`97` white (1.2) and `37` light grey (1.6) are effectively invisible, and
+the other light/bright colours (`91`, `92`, `94`, `96`, `95`) are too
+faint (1.5 to 2.6). This is why warnings aren't yellow here: yellow only
+works as a **background** behind black text (the badge row). For grey, use
+`90`, never `37`.
+
+**Script Server 2.3.2+ darkens the faint colours** through the default
+indigo `theme.css`, so existing scripts that use yellow or the light
+variants become readable (yellow shows as dark gold, white as dark grey).
+Still follow the table above: the figures in it are the built-in colours,
+which is what any other theme, or an install with an older `theme.css`,
+shows.
+
+Keep colour as a second signal, not the only one. Start a line with a word
+such as `OK`, `WARN` or `ERROR` too, so it still reads in Copy/Download
+(plain text) and for anyone who can't tell red from green. Reset with `0`
+at the end of every coloured span (`\033[1;31mERROR\033[0m ...`).
+
 **Progress indicators in html_iframe:**
 CSS spinners never self-terminate. Pattern for live progress feedback:
 
@@ -1689,6 +1732,12 @@ rule.
   `samples/themes/orange|dark` are alternatives. Every colour in the Vue app
   goes through the CSS variables in `web-src/src/assets/css/shared.css`; none
   is hard-coded, as of v2.0.0.
+- **Terminal colours (v2.3.2):** the indigo `theme.css` also overrides the
+  ANSI text colours from `bash_styles.css` (yellow, white, light grey and the
+  bright variants were near-invisible on the `#EEEEEE` panel). Selectors are
+  `html body span.text_color_*`, which outrank the built-in rules whichever
+  file loads last. Background colours are untouched. An existing install
+  keeps its old `theme.css` (fill-if-missing), so copy the block in by hand.
 - **Known gap:** script `html_iframe` output can't see the theme, because an
   iframe is a separate document. These scripts hard-code the old teal:
   `secrets_viewer.py`, `secret_ingredients_check.py`, `motd.py` and the
