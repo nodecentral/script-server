@@ -1,6 +1,6 @@
 # SCRIPTING.md — Script-Server Scripting Conventions (Focused)
 
-Version: 2.6.0
+Version: 2.7.0
 Last updated: 2026-11-14
 
 This is the **focused** convention doc for any Claude session writing
@@ -183,6 +183,12 @@ Every runner should say where it belongs:
   come first (alphabetical), then scripts with no group (alphabetical). So a
   script with neither category nor group is listed at the bottom of
   Uncategorised, and it still shows up.
+- **A group named `Overview` is always listed first** in its category
+  (Script Server 2.4.0+; any case, exact name). Use it for a category's
+  landing page, e.g. a summary runner with an `html_iframe` preload.
+  Optional: only add one when the category has a real summary to show.
+  Don't number or prefix group names (`(0) Overview`) to force an order;
+  that text shows in the sidebar.
 
 ### Default categories (`conf/categories.json`)
 

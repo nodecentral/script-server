@@ -140,7 +140,12 @@ levels are optional, in the same way upstream treats `group`. Missing
 category → **Uncategorised**, always last. Inside a category, groups come
 first and ungrouped scripts sit at the bottom, so a script with neither field
 still shows, at the very bottom of Uncategorised. Search spans every
-category and shows each hit's `Category › Group` breadcrumb.
+category and shows each hit's `Category › Group` breadcrumb. A group named exactly
+`Overview` (any case) is the exception: always listed first, as a
+category's optional landing page (2.4.0, `byGroupOrder` in
+`main-app/utils/categories.js`). It came from ss_health_management, which
+had been naming its group `(0) Overview` to sort it first; that works,
+since punctuation sorts before letters, but shows the prefix.
 
 **Icons are central, never per-runner** (`conf/categories.json`). Sibling
 repos import into one flat namespace, so per-runner icons would let two repos

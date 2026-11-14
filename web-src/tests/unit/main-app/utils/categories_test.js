@@ -50,6 +50,31 @@ describe('Test category tree', function () {
         expect(category.allScripts.length).toBe(5);
     });
 
+    it('Test Overview group always first, any case', function () {
+        const scripts = [
+            {name: 'steps', category: 'Health', group: 'Activity'},
+            {name: 'summary', category: 'Health', group: 'overview'},
+            {name: 'weight', category: 'Health', group: 'Body'},
+            {name: 'old', category: 'Health', group: '(0) Old trick'},
+            {name: 'loose', category: 'Health'}];
+
+        const [category] = buildCategoryTree(scripts, [{name: 'Health', icon: 'favorite'}], UNCATEGORISED);
+
+        expect(category.groups.map(g => g.name)).toEqual(['overview', '(0) Old trick', 'Activity', 'Body']);
+        expect(category.scripts.map(s => s.name)).toEqual(['loose']);
+    });
+
+    it('Test Overview only pinned when the name matches exactly', function () {
+        const scripts = [
+            {name: 'a', group: 'Overviews'},
+            {name: 'b', group: 'Alpha'},
+            {name: 'c', group: ' Overview '}];
+
+        const [category] = buildCategoryTree(scripts, [], UNCATEGORISED);
+
+        expect(category.groups.map(g => g.name)).toEqual([' Overview ', 'Alpha', 'Overviews']);
+    });
+
     it('Test blank category and group count as missing', function () {
         const tree = buildCategoryTree(
             [{name: 'a', category: ' ', group: ''}, {name: 'b', category: null, group: ' \n'}],

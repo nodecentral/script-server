@@ -9,12 +9,29 @@ function byName(o1, o2) {
     return o1.name.toLowerCase().localeCompare(o2.name.toLowerCase());
 }
 
+// A group named exactly "Overview" (any case) is a category's landing page: always listed first.
+export const OVERVIEW_GROUP = 'overview';
+
+function isOverviewGroup(group) {
+    return group.name.trim().toLowerCase() === OVERVIEW_GROUP;
+}
+
+function byGroupOrder(g1, g2) {
+    const overview1 = isOverviewGroup(g1);
+    const overview2 = isOverviewGroup(g2);
+    if (overview1 !== overview2) {
+        return overview1 ? -1 : 1;
+    }
+    return byName(g1, g2);
+}
+
 /**
  * Builds the user view's Category > Group > Script hierarchy.
  *
  * - Categories keep the order of conf/categories.json; ones with no visible scripts are dropped.
  * - The Uncategorised bucket always comes last and holds every script with no category.
- * - Inside a category: groups first (alphabetical), then scripts with no group (alphabetical) -
+ * - Inside a category: groups first (alphabetical, except a group named "Overview", which always
+ *   comes first), then scripts with no group (alphabetical) -
  *   so a script with neither category nor group ends up at the very bottom of Uncategorised.
  *
  * Returns [{key, name, icon, uncategorised, groups: [{key, name, scripts}], scripts, allScripts}]
@@ -83,7 +100,7 @@ export function buildCategoryTree(scripts, categories, uncategorised) {
         .map(node => {
             const groups = Object.values(node.groupsByName);
             groups.forEach(group => group.scripts.sort(byName));
-            groups.sort(byName);
+            groups.sort(byGroupOrder);
             node.scripts.sort(byName);
 
             const {groupsByName, ...rest} = node;
