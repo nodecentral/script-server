@@ -50,10 +50,13 @@ services:
       - ./scripts:/app/scripts
       - ./data:/app/data
       - ./logs:/app/logs
-      # Read-only media libraries some ss_* repos expect - uncomment the ones you use:
-      # - /share/Movies:/app/movies:ro
-      # - /share/Music:/app/music:ro
-      # - /share/Pictures:/app/pictures:ro
-      # - /share/health:/app/health:ro
+      # Media libraries the ss_* repos work on - one bind per NAS share, under /app/media.
+      # Not :ro - the scripts write to them (tags, EXIF, conversions), so each share must be
+      # writable by PUID. Script-Server's own data goes in /app/data/<subject>, already mounted.
+      # Uncomment the ones you use:
+      # - /share/Movies:/app/media/movies
+      # - /share/Music:/app/media/music
+      # - /share/Pictures:/app/media/pictures
+      # - /share/Audiobooks:/app/media/audiobooks
       # Lets scripts control Docker on the NAS - full host control, only if a script needs it:
       # - /var/run/docker.sock:/var/run/docker.sock
