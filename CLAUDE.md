@@ -140,7 +140,12 @@ levels are optional, in the same way upstream treats `group`. Missing
 category → **Uncategorised**, always last. Inside a category, groups come
 first and ungrouped scripts sit at the bottom, so a script with neither field
 still shows, at the very bottom of Uncategorised. Search spans every
-category and shows each hit's `Category › Group` breadcrumb.
+category and shows each hit's `Category › Group` breadcrumb. A group named exactly
+`Overview` (any case) is the exception: always listed first, as a
+category's optional landing page (2.4.0, `byGroupOrder` in
+`main-app/utils/categories.js`). It came from ss_health_management, which
+had been naming its group `(0) Overview` to sort it first; that works,
+since punctuation sorts before letters, but shows the prefix.
 
 **Icons are central, never per-runner** (`conf/categories.json`). Sibling
 repos import into one flat namespace, so per-runner icons would let two repos
@@ -1367,6 +1372,43 @@ not case 2.
 
 -----
 
+## Asking for Input While a Script Runs
+
+Scripts **do** get input. While a run is going, the run console shows an
+input box (`your input >>`) under the output, for every output format
+including `html_iframe`. Each line typed there is sent to the script's
+stdin (`ScriptStreamSocket` in `src/web/server.py`, the input panel in
+`script-view.vue`). Only the main script gets this: a preload or a
+dropdown script has no stdin.
+
+- **It's a pseudo-terminal by default on Linux.** `requires_terminal`
+  defaults to true, so `isatty()` is true and prompts behave as in a
+  shell. Set `"requires_terminal": false` in the runner for a plain pipe.
+- **Always read with a timeout and a safe default.** Nobody types during a
+  scheduled run, so a bare `input()`/`read` waits forever. Time out to
+  the safe choice (preview, skip, no) and say so in the output.
+- **Prefer a `confirm` list parameter for one up-front yes/no.** It's on
+  the form, works when scheduled, and is recorded in the run's history.
+  Keep console prompts for questions that only make sense mid-run (per
+  item, or after showing a preview).
+
+Python (checked through a pipe and a pseudo-terminal, answered and not):
+```python
+import select, sys
+
+def ask(prompt, timeout=120, default='n'):
+    print(prompt, flush=True)
+    ready, _, _ = select.select([sys.stdin], [], [], timeout)
+    if not ready:
+        print(f'(no answer in {timeout}s - using "{default}")', flush=True)
+        return default
+    return (sys.stdin.readline().strip() or default).lower()
+```
+Bash: `read -r -t 120 answer || answer=n`. Lua has no read timeout of its
+own; use `io.popen` on that bash line, or a `confirm` parameter.
+
+-----
+
 ## Output Formats
 
 - `terminal` — plain stdout, ANSI colour codes supported
@@ -2159,9 +2201,11 @@ Rules:
 - Hardcoded paths, IPs, or credentials anywhere in scripts
 - Assuming parameters always exist — always provide defaults
 - Claiming Script-Server has a UI for environment variables (it doesn’t)
-- Interactive prompts (no stdin) - use a `confirm` list parameter
-  (`["false","true"]`, default `"false"`: preview when false, write when
-  true), paired with a `limit` parameter where the old prompt was per item
+- A console prompt without a timeout - a scheduled run has nobody to
+  answer and waits forever (see Asking for Input While a Script Runs).
+  For a simple yes/no, use a `confirm` list parameter instead
+  (`["false","true"]`, default `"false"`: preview when false, write
+  when true)
 - `"shell": false` (or omitting `shell`) when the values script string uses
   quoting, empty literals `''`, or pipe operators — dropdown will be silently
   greyed out

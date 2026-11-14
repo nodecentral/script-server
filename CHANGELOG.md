@@ -4,6 +4,13 @@ This is the nodecentral fork of [Script-Server](https://github.com/bugy/script-s
 running on the home NAS. The version number is the one in `version.txt`, shown at the bottom of
 the sidebar. Newest first.
 
+## 2.4.0 — 2026-11-14
+
+- **Overview first.** In the sidebar, a group called **Overview** is now always listed first in its
+  category, so a category's summary page sits at the top.
+- Updated scripting guide (SCRIPTING.md 2.7.0): scripts can ask questions in the run console (with
+  a time limit so scheduled runs never get stuck), and the new Overview group.
+
 ## 2.3.2 — 2026-11-13
 
 - **Readable script output.** Yellow, white, light grey and the other pale colours in script

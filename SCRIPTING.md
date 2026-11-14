@@ -1,7 +1,7 @@
 # SCRIPTING.md — Script-Server Scripting Conventions (Focused)
 
-Version: 2.5.0
-Last updated: 2026-11-13
+Version: 2.7.0
+Last updated: 2026-11-14
 
 This is the **focused** convention doc for any Claude session writing
 scripts/runners destined for import into `nodecentral/script-server` —
@@ -183,6 +183,12 @@ Every runner should say where it belongs:
   come first (alphabetical), then scripts with no group (alphabetical). So a
   script with neither category nor group is listed at the bottom of
   Uncategorised, and it still shows up.
+- **A group named `Overview` is always listed first** in its category
+  (Script Server 2.4.0+; any case, exact name). Use it for a category's
+  landing page, e.g. a summary runner with an `html_iframe` preload.
+  Optional: only add one when the category has a real summary to show.
+  Don't number or prefix group names (`(0) Overview`) to force an order;
+  that text shows in the sidebar.
 
 ### Default categories (`conf/categories.json`)
 
@@ -821,6 +827,43 @@ common they are:
 
 -----
 
+## Asking for Input While a Script Runs
+
+Scripts **do** get input. While a run is going, the run console shows an
+input box (`your input >>`) under the output, for every output format
+including `html_iframe`. Each line typed there is sent to the script's
+stdin (`ScriptStreamSocket` in `src/web/server.py`, the input panel in
+`script-view.vue`). Only the main script gets this: a preload or a
+dropdown script has no stdin.
+
+- **It's a pseudo-terminal by default on Linux.** `requires_terminal`
+  defaults to true, so `isatty()` is true and prompts behave as in a
+  shell. Set `"requires_terminal": false` in the runner for a plain pipe.
+- **Always read with a timeout and a safe default.** Nobody types during a
+  scheduled run, so a bare `input()`/`read` waits forever. Time out to
+  the safe choice (preview, skip, no) and say so in the output.
+- **Prefer a `confirm` list parameter for one up-front yes/no.** It's on
+  the form, works when scheduled, and is recorded in the run's history.
+  Keep console prompts for questions that only make sense mid-run (per
+  item, or after showing a preview).
+
+Python (checked through a pipe and a pseudo-terminal, answered and not):
+```python
+import select, sys
+
+def ask(prompt, timeout=120, default='n'):
+    print(prompt, flush=True)
+    ready, _, _ = select.select([sys.stdin], [], [], timeout)
+    if not ready:
+        print(f'(no answer in {timeout}s - using "{default}")', flush=True)
+        return default
+    return (sys.stdin.readline().strip() or default).lower()
+```
+Bash: `read -r -t 120 answer || answer=n`. Lua has no read timeout of its
+own; use `io.popen` on that bash line, or a `confirm` parameter.
+
+-----
+
 ## Output Formats
 
 - `terminal` — plain stdout, ANSI colour codes supported (full terminal
@@ -1037,11 +1080,11 @@ result overwrite a vendor already known for that MAC.
 - ANSI yellow (`33`/`93`), white (`97`) or light grey (`37`) for text in
   `terminal` output — near-invisible on the light grey panel; see Terminal
   colours above
-- Interactive prompts (there's no stdin) - use a `confirm` list parameter
-  instead: `"type": "list"`, `"values": ["false", "true"]`, `"default":
-  "false"` - preview/report only when false, actually write when true. Where
-  the old prompt was per item (y/N per row), it becomes all-or-nothing per
-  run, so pair it with a `limit` parameter
+- A console prompt without a timeout - a scheduled run has nobody to
+  answer and waits forever (see Asking for Input While a Script Runs).
+  For a simple yes/no, use a `confirm` list parameter instead
+  (`["false","true"]`, default `"false"`: preview when false, write
+  when true)
 - `"shell": false` (or omitting `shell`) when the values script string uses
   quoting, empty literals `''`, or pipe operators — dropdown will be silently
   greyed out
