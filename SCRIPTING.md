@@ -1,6 +1,6 @@
 # SCRIPTING.md — Script-Server Scripting Conventions (Focused)
 
-Version: 2.7.0
+Version: 2.8.0
 Last updated: 2026-11-14
 
 This is the **focused** convention doc for any Claude session writing
@@ -726,9 +726,27 @@ Never hardcode secrets, paths, or IPs directly in a script.
 
 ## Storage
 
-- Persistent storage base: `/app/data`
-- Never hardcode paths
-- Outputs under `/app/data/<job_name>/`
+Two kinds of storage, two places:
+
+| What | Where | Mount |
+|---|---|---|
+| Data Script-Server owns: databases, caches, reports, state | `/app/data/<subject>` (e.g. `/app/data/photos`) | the existing data mount; nothing to add |
+| Libraries other apps own: photos, films, music, audiobooks | `/app/media/<library>` (e.g. `/app/media/pictures`) | one bind per NAS share, added to the compose file |
+
+- **Media binds are writable, not `:ro`.** Every current media repo writes
+  to its library (photo EXIF geotags, movie conversion, music tag saves
+  and quarantine, audiobook `metadata.opf`). Make each share writable by
+  the `PUID` user on the NAS.
+- **Any other path outside `/app/data` needs its own bind mount** that
+  the `PUID` user can write to. Without one, the script fails with
+  `Permission denied`: the app doesn't run as root, so it can't create
+  `/app/<x>` itself. ss_health_management hit this on its first live run.
+  `/app/backups` is an existing exception, documented by the repo that
+  uses it; don't add new ones without raising it here first.
+- **Library paths are defaults, not hard-coded.** Put `/app/media/<library>`
+  in the runner parameter's default and as the script's fallback, so a
+  different mount only needs a new value.
+- Never hardcode other paths.
 
 -----
 

@@ -40,6 +40,13 @@ services:
       - /share/Container/script-server/scripts:/app/scripts
       - /share/Container/script-server/data:/app/data
       - /share/Container/script-server/logs:/app/logs
+      # Media libraries the ss_* repos work on - one bind per NAS share, under /app/media.
+      # Not :ro - the scripts write to them (tags, EXIF, conversions), so each share must be
+      # writable by PUID. Script-Server's own data goes in /app/data/<subject>, already mounted.
+      # - /share/Movies:/app/media/movies
+      # - /share/Music:/app/media/music
+      # - /share/Pictures:/app/media/pictures
+      # - /share/Audiobooks:/app/media/audiobooks
       # Only if your scripts use organize / Docker:
       # - /share/Container/script-server/organize/logs:/var/log/organize/
       # - /share/Container/script-server/organize/config:/root/.config/organize
