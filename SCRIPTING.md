@@ -1,6 +1,6 @@
 # SCRIPTING.md — Script-Server Scripting Conventions (Focused)
 
-Version: 2.11.0
+Version: 2.12.0
 Last updated: 2026-11-15
 
 This is the **focused** convention doc for any Claude session writing
@@ -742,6 +742,21 @@ Never hardcode secrets, paths, or IPs directly in a script.
   Script-Server sets this automatically for every parameter (v1.18+)
 - Default env var name: `PARAM_{CAPITALIZED_NAME_WITH_UNDERSCORES}`,
   override with `"env_var": "MY_CUSTOM_NAME"` in the runner
+- **A cleared field arrives as an empty `PARAM_X`; its flag is dropped.**
+  Checked on a real server: clearing a field that has a default gives
+  `PARAM_X=""` in the environment and no `--x` on the command line. A
+  field that was never sent at all (e.g. no default and never touched)
+  has no `PARAM_X`. So:
+  - `os.environ.get('PARAM_X') or default` turns blank into the default,
+    because `""` is falsy. Use `os.environ.get('PARAM_X', default)`: the
+    default applies only when the variable is absent (a standalone run),
+    and blank stays blank.
+  - argparse (`--x`, `default=...`) can't tell blank from not given,
+    because the flag is missing either way. Read the `PARAM_` variable
+    when blank has to mean "none".
+  - Bash: `${PARAM_X-default}` (no colon) keeps blank; `${PARAM_X:-default}`
+    doesn't. Lua: `os.getenv('PARAM_X')` is `''` when cleared, `nil` when
+    absent.
 
 -----
 

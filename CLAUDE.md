@@ -583,6 +583,28 @@ browser; the script receives the path of the saved copy.
 - All parameters are passed as both arguments AND env variables by default.
   Default env var name: `PARAM_{CAPITALIZED_NAME_WITH_UNDERSCORES}`
   Override with `"env_var": "MY_CUSTOM_NAME"` in the runner
+- **A cleared field arrives as an empty `PARAM_X`; its flag is dropped.**
+  Checked on a real server: clearing a field that has a default gives
+  `PARAM_X=""` in the environment and no `--x` on the command line. A
+  field that was never sent at all (e.g. no default and never touched)
+  has no `PARAM_X`. So:
+  - `os.environ.get('PARAM_X') or default` turns blank into the default,
+    because `""` is falsy. Use `os.environ.get('PARAM_X', default)`: the
+    default applies only when the variable is absent (a standalone run),
+    and blank stays blank.
+  - argparse (`--x`, `default=...`) can't tell blank from not given,
+    because the flag is missing either way. Read the `PARAM_` variable
+    when blank has to mean "none".
+  - Bash: `${PARAM_X-default}` (no colon) keeps blank; `${PARAM_X:-default}`
+    doesn't. Lua: `os.getenv('PARAM_X')` is `''` when cleared, `nil` when
+    absent.
+  Source: `_build_env_variables` in `src/execution/executor.py` skips
+  only `None` (a field not sent), and `parametersToFormData` in
+  `web-src/src/main-app/store/mainStoreHelper.js` sends `""` for a
+  cleared field; `build_command_args` drops empty values. Reported
+  2026-11-15 from ss_energy_management as "a cleared field is not passed
+  at all", but the server test showed `PARAM_X=""`; their symptom came
+  from `or default`.
 
 -----
 
