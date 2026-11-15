@@ -527,6 +527,27 @@ For pure file/folder picking without custom logic, Script-Server has a built-in
 Use the chained dynamic dropdown pattern instead when you need:
 icon decoration, per-level filtering, or processing logic at each level.
 
+### Uploading a file: `file_upload` and its size limit
+
+A `"type": "file_upload"` parameter lets the user send a file from their
+browser; the script receives the path of the saved copy.
+
+- **The limit is `max_request_size` in `conf/conf.json`, in MB, default
+  10.** A bigger upload (an Apple Health `export.zip`, a photo batch) is
+  refused before the script starts (`src/model/server_conf.py`, applied in
+  `src/web/server.py` with `set_max_body_size`). Raising it means editing
+  the NAS's `conf.json`, e.g. `"max_request_size": 2048`, and restarting
+  the container: `conf.json` is only read at start-up.
+- **Uploads are temporary.** They're saved under `/app/temp` inside the
+  container (not a NAS share) and deleted after 24 hours, so copy anything
+  the script needs later into `/app/data/<subject>`.
+- **For large or repeated files, skip the upload.** Have the user copy the
+  file over SMB into the script's `/app/data/<subject>` folder (or a media
+  library), and let the script pick it from there, e.g. with a
+  `server_file` parameter (above). No size limit, and the file stays.
+- Say the limit in the parameter's `description`, so a refused upload
+  isn't a mystery.
+
 -----
 
 ## Secrets
