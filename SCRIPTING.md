@@ -1,6 +1,6 @@
 # SCRIPTING.md — Script-Server Scripting Conventions (Focused)
 
-Version: 2.12.0
+Version: 2.13.0
 Last updated: 2026-11-15
 
 This is the **focused** convention doc for any Claude session writing
@@ -189,6 +189,44 @@ Every runner should say where it belongs:
   Optional: only add one when the category has a real summary to show.
   Don't number or prefix group names (`(0) Overview`) to force an order;
   that text shows in the sidebar.
+
+#### What an Overview runner should contain
+
+Recommended for every category whose scripts keep data (anything under
+`/app/data/<subject>` or `/app/media/<library>`). It answers two
+questions in order: **is this category set up and up to date**, then
+**what does the data say**. Proven in ss_health_management (Health
+Overview, 2026-11-15), where the first half caught a data folder that
+wasn't mounted, an export left unimported and files nobody had filed.
+Reference: its `scripts/health_overview.py`, `preload/health_overview.py`
+and `shared/health_status.py`.
+
+One runner, group `Overview`, named `<Category> Overview`,
+`output_format: html_iframe`:
+
+1. **Preload banner:** one line, e.g. `3 to do · newest data 2 days old`.
+   Read-only, under a second, no network calls: it runs every time
+   someone opens the script.
+2. **Tab 1, Data foundations: is everything here and current?**
+   - **Prerequisites:** each folder the category's scripts use (create it
+     if missing and allowed; if it can't be created, say why, e.g. not
+     mounted, see Storage), each secret (presence only, through
+     `get_secret()`, never the value), each package.
+   - **One tile per data source:** how fresh it is, with a `Stale` or
+     `Missing` badge.
+   - **Coverage by month**, so gaps show.
+   - **Next actions:** each names the runner that fixes it.
+3. **Tab 2, What the data tells us:** the category's key figures and
+   trends, worked out from the same sources.
+4. **Optional, a "process new data" step** (a parameter, default on): file
+   and import whatever is waiting before drawing the page, with streamed
+   progress (a spinner, then ✓ or ✗ per step, see Output Formats) and a
+   "Just processed" summary.
+5. **Optional, an extra tab only while files need a decision** (e.g. an
+   Inbox): what each file contains and what to do with it.
+
+The tabs are the page's own HTML/JS; Script-Server has no tab feature for
+output. Never block: a missing source is a Next action, not a failed run.
 
 ### Default categories (`conf/categories.json`)
 

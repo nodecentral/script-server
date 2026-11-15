@@ -147,6 +147,16 @@ category's optional landing page (2.4.0, `byGroupOrder` in
 had been naming its group `(0) Overview` to sort it first; that works,
 since punctuation sorts before letters, but shows the prefix.
 
+**What goes in an Overview** (SCRIPTING.md has the full list): one
+`html_iframe` runner, `<Category> Overview`, with a one-line preload
+banner, a "Data foundations" tab (prerequisites, freshness per source,
+coverage by month, Next actions naming the runner that fixes each) and a
+"What the data tells us" tab. Learned 2026-11-15 from
+ss_health_management's Health Overview, whose readiness tab caught an
+unmounted data folder, an unimported export and unfiled files on its
+first live use. Recommended, not required, for every category that keeps
+data; reconsider making it a rule once a second category has one.
+
 **Icons are central, never per-runner** (`conf/categories.json`). Sibling
 repos import into one flat namespace, so per-runner icons would let two repos
 disagree about the same category's icon. The file is user content: it is
