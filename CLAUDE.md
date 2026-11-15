@@ -1207,8 +1207,21 @@ Lua/bash: `python3 /app/scripts/shared/notify_send.py --title 'Tariff Watch'
   yet` placeholders, with your `purpose`, and `NotifyError` names the
   entries to pick in Secrets Manager. Pass a `purpose` so the user knows
   which script wants alerts.
-- **`priority`** is -2 to 2 on both services (2 = emergency; Pushover repeats
-  it until acknowledged). **`url`** adds a link to the alert.
+- **Common options:** `priority` -2 to 2 on both services (2 = emergency;
+  Pushover repeats it until acknowledged), `url` for a link.
+- **Provider-only options** go in a dict per provider; the other provider
+  ignores them, so one call works whichever is set up:
+  `pushover={'sound': 'cashregister', 'device': 'iphone', 'url_title':
+  'Open', 'format': 'html', 'ttl': 3600}`, `prowl={'application': 'Tariff
+  Watch'}`. Over-long text is trimmed to each provider's limits. The
+  command line has the same as `--sound`, `--device`, `--url-title`,
+  `--format`, `--ttl`, `--application`.
+- To see a result per service (Prowl's API calls left, a Pushover
+  emergency receipt), use `send_detailed()`, which returns
+  `(sent, failed)` lists.
+- **Try it first in Script Server › Tools › Send Notification**: it has
+  every option on its form, and its banner shows which service is set up
+  and your Pushover devices.
 - Standard library only: nothing to install.
 
 Added 2026-11-15 from ss_energy_management, which had written its own

@@ -1,11 +1,12 @@
 {
-  "_version": "1.5.0",
+  "_version": "1.6.0",
   "name": "Send Notification",
   "category": "Script Server",
   "group": "Tools",
-  "description": "Sends a push notification via Pushover or Prowl. Built from each service's public API docs but not verified against a live account - test with your own credentials first. Token/user key fall back to the Secrets Store (pushover.TOKEN / pushover.USER_KEY / prowl.TOKEN, set via Secrets Manager) when left blank here, so credentials don't need re-entering every run. The banner (before you click Run) shows which services are ready, and for any that are not, which entry to pick in Secrets Manager's Entry dropdown.",
+  "description": "Sends (or tests) a push notification via Pushover, Prowl or both. The banner shows which are set up in Secrets Manager and, for Pushover, your devices. Fields marked 'Pushover:' or 'Prowl:' only apply to that service and are ignored by the other. Other scripts send their own alerts with the shared notify_send.py helper (see SCRIPTING.md).",
   "script_path": "notify.py",
   "working_directory": "/app/scripts",
+  "output_format": "terminal",
   "preload_script": {
     "script": "/app/scripts/preload/notify.py",
     "output_format": "html_iframe"
@@ -15,37 +16,127 @@
       "name": "service",
       "param": "--service",
       "type": "list",
-      "values": ["pushover", "prowl"],
+      "values": [
+        "auto",
+        "pushover",
+        "prowl",
+        "all"
+      ],
       "values_ui_mapping": {
+        "auto": "Whichever is set up (Pushover first)",
         "pushover": "Pushover",
-        "prowl": "Prowl"
+        "prowl": "Prowl",
+        "all": "All that are set up"
       },
-      "default": "pushover",
-      "description": "Notification service"
+      "default": "auto",
+      "description": "Where to send it"
+    },
+    {
+      "name": "title",
+      "param": "--title",
+      "default": "Script Server test",
+      "description": "Title (Pushover title, Prowl event)"
+    },
+    {
+      "name": "message",
+      "param": "--message",
+      "type": "multiline_text",
+      "required": true,
+      "default": "Test notification from Script Server.",
+      "description": "Message (Pushover allows 1,024 characters, Prowl 10,000; longer is trimmed)"
+    },
+    {
+      "name": "priority",
+      "param": "--priority",
+      "type": "list",
+      "values": [
+        "-2",
+        "-1",
+        "0",
+        "1",
+        "2"
+      ],
+      "values_ui_mapping": {
+        "-2": "-2 Lowest (no alert)",
+        "-1": "-1 Low (quiet)",
+        "0": "0 Normal",
+        "1": "1 High (bypasses quiet hours)",
+        "2": "2 Emergency (Pushover repeats every minute for an hour until acknowledged)"
+      },
+      "default": "0",
+      "description": "Priority (both services)"
+    },
+    {
+      "name": "url",
+      "param": "--url",
+      "description": "Link to include, optional (both services)"
+    },
+    {
+      "name": "pushover_url_title",
+      "param": "--url-title",
+      "description": "Pushover: text shown for the link, optional"
+    },
+    {
+      "name": "pushover_sound",
+      "param": "--sound",
+      "type": "list",
+      "values": {
+        "script": "/app/scripts/shared/notify_send.py dropdown-sounds"
+      },
+      "default": "(default)",
+      "description": "Pushover: sound ((default) = your app's setting)"
+    },
+    {
+      "name": "pushover_device",
+      "param": "--device",
+      "type": "list",
+      "values": {
+        "script": "/app/scripts/shared/notify_send.py dropdown-devices"
+      },
+      "default": "(default)",
+      "description": "Pushover: only this device ((default) = all your devices)"
+    },
+    {
+      "name": "pushover_format",
+      "param": "--format",
+      "type": "list",
+      "values": [
+        "plain",
+        "html",
+        "monospace"
+      ],
+      "values_ui_mapping": {
+        "plain": "Plain text",
+        "html": "HTML (<b>, <i>, <u>, <font color>, <a>)",
+        "monospace": "Monospace"
+      },
+      "default": "plain",
+      "description": "Pushover: message formatting"
+    },
+    {
+      "name": "pushover_ttl",
+      "param": "--ttl",
+      "type": "int",
+      "min": 1,
+      "description": "Pushover: delete the message from your devices after this many seconds, optional (not for Emergency)"
+    },
+    {
+      "name": "prowl_application",
+      "param": "--application",
+      "default": "Script-Server",
+      "description": "Prowl: sender name shown on the notification"
     },
     {
       "name": "token",
       "param": "--token",
       "secure": true,
-      "description": "Pushover: app token. Prowl: API key. Leave blank to use the Secrets Store value."
+      "description": "Optional: test a key before saving it - a Pushover app token or Prowl API key for this run only (pick Pushover or Prowl above). Leave blank to use Secrets Manager."
     },
     {
       "name": "user_key",
       "param": "--user-key",
       "secure": true,
-      "description": "Pushover only: your user key. Leave blank for Prowl, or to use the Secrets Store value."
-    },
-    {
-      "name": "title",
-      "param": "--title",
-      "default": "Script-Server",
-      "description": "Notification title"
-    },
-    {
-      "name": "message",
-      "param": "--message",
-      "required": true,
-      "description": "Notification message"
+      "description": "Optional, Pushover only: user key for this run. Leave blank to use Secrets Manager."
     }
   ]
 }

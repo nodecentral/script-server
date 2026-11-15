@@ -4,6 +4,19 @@ This is the nodecentral fork of [Script-Server](https://github.com/bugy/script-s
 running on the home NAS. The version number is the one in `version.txt`, shown at the bottom of
 the sidebar. Newest first.
 
+## 2.6.0 — 2026-11-15
+
+- **Send Notification is now a full notification tester.** Its banner shows whether Pushover and
+  Prowl are set up, and lists your Pushover devices. The form has every option each service
+  offers:
+  - both: priority (up to Emergency) and a link;
+  - Pushover: sound (including your custom sounds), a single device, link text, HTML or
+    monospace formatting, and auto-delete after a time;
+  - Prowl: the sender name.
+- Send to Pushover, Prowl, or both at once. The result shows what each service said, such as
+  Prowl's calls left this hour.
+- Scripts that send their own alerts can use all of these options too.
+
 ## 2.5.0 — 2026-11-15
 
 - **Any script can send you an alert.** A new shared helper sends a Pushover or Prowl notification
