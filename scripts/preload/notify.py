@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Name: preload/notify.py
-# Version: 1.1.0
+# Version: 1.2.0
 # Description: preload_script for conf/runners/notify.json - checks which notification
 #              services have their credentials in the Secrets Store before the form loads, per
 #              the "every script owns preparing for its own secret" pattern (CLAUDE.md/
@@ -10,7 +10,9 @@
 #              least one ready, it confirms which, and names the other's entries to pick
 #              in Secrets Manager rather than warning about a service you may never use. Either way every
 #              missing secret is registered as a placeholder in Secrets Manager (via
-#              get_secret()). Run standalone (./preload/notify.py) or from Script-Server.
+#              get_secret()). With Pushover ready it also lists your active Pushover devices
+#              (shared/notify_send.py's pushover_devices(), one validate call).
+#              Run standalone (./preload/notify.py) or from Script-Server.
 
 import html
 import os
@@ -20,6 +22,11 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(
 from secrets_store import (  # noqa: E402
     dropdown_entry_label, get_secret, missing_secrets_banner_html, secrets_manager_link,
 )
+
+try:
+    from notify_send import pushover_devices  # noqa: E402
+except ImportError:  # an older shared/ folder on a mixed install - just skip the device list
+    pushover_devices = None
 
 SERVICES = {
     'Pushover': [('pushover', 'TOKEN', 'Send Notification via Pushover'),
@@ -67,8 +74,16 @@ def main():
     extra = (f' Not set up (only needed to use them) - to add, <a href="{secrets_manager_link()}" '
              f'target="_top">open Secrets Manager</a> and pick {", ".join(others)} from the Entry '
              'dropdown.') if others else ''
+    devices = ''
+    if 'Pushover' in ready and pushover_devices:
+        names, problem = pushover_devices()
+        if names:
+            devices = (' Pushover devices: <b class="mono">' + html.escape(', '.join(names))
+                       + '</b> (pick one under Pushover: device, or leave it to send to all).')
+        elif problem:
+            devices = f' Couldn\'t list Pushover devices: {html.escape(problem)}.'
     print(f'<div class="banner">Ready to send via {html.escape(" and ".join(ready))} '
-          f'(Secrets Store) - or type a token below to override.{extra}</div>')
+          f'(Secrets Store) - or type a token below to override.{devices}{extra}</div>')
 
 
 if __name__ == '__main__':
