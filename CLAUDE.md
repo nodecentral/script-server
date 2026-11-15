@@ -1179,6 +1179,44 @@ home-lab, trusted-network API key; genuine encryption-at-rest with real key
 management is a separate, bigger piece of work (tracked in `ROADMAP.md`'s
 Ideas/Backlog) — don't assume this store provides it.
 
+### Sending a notification from your script
+
+Don't write your own Pushover/Prowl sender. `scripts/shared/notify_send.py`
+is a platform file that sends through whichever service is set up in the
+Secrets Store (`pushover.TOKEN` + `pushover.USER_KEY`, or `prowl.TOKEN`):
+
+```python
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'shared'))
+from notify_send import send, NotifyError
+
+try:
+    send('Tariff Watch', 'Agile price below 5p', priority=1,
+         url='https://...', purpose='used by Tariff Watch')
+except NotifyError as e:
+    print(f'WARN alert not sent: {e}', flush=True)   # don't fail the run over it
+```
+
+Lua/bash: `python3 /app/scripts/shared/notify_send.py --title 'Tariff Watch'
+--message 'Price low' --priority 1 --purpose 'used by Tariff Watch'` (exit
+0 sent, 1 not sent, reason on stderr).
+
+- **Which service:** by default the first one set up, Pushover then Prowl.
+  `service='all'` sends to every one set up; `'pushover'`/`'prowl'` forces
+  one.
+- **Nothing set up:** both services' secrets are registered as `not set
+  yet` placeholders, with your `purpose`, and `NotifyError` names the
+  entries to pick in Secrets Manager. Pass a `purpose` so the user knows
+  which script wants alerts.
+- **`priority`** is -2 to 2 on both services (2 = emergency; Pushover repeats
+  it until acknowledged). **`url`** adds a link to the alert.
+- Standard library only: nothing to install.
+
+Added 2026-11-15 from ss_energy_management, which had written its own
+Prowl sender (`energy_tariffs/prowl.py`) because the only sender was inside
+the Send Notification runner's script. `scripts/notify.py` 1.5.0 now uses
+`notify_send.send_pushover`/`send_prowl` itself, so the HTTP code lives in
+one place.
+
 -----
 
 ## Network Scanning Scripts Need Host Networking

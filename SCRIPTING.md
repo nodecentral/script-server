@@ -1,6 +1,6 @@
 # SCRIPTING.md — Script-Server Scripting Conventions (Focused)
 
-Version: 2.9.0
+Version: 2.10.0
 Last updated: 2026-11-15
 
 This is the **focused** convention doc for any Claude session writing
@@ -134,8 +134,8 @@ paragraph).
 one repo needs lives **once**, in the main script-server repo, as a
 *platform file*: listed in `tools/PLATFORM_FILES`, shipped in the image
 and refreshed on every container start. Current ones include
-`scripts/shared/secrets_store.py`, `gitea_client.py`, `ensure_module.lua`
-and `ensure_binary.lua` (see that file for the full list). Rules:
+`scripts/shared/secrets_store.py`, `gitea_client.py`, `notify_send.py`,
+`ensure_module.lua` and `ensure_binary.lua` (see that file for the full list). Rules:
 - **Use them, don't copy them.** Load them from `scripts/shared/` (see
   "Loading a shared Lua helper" below for Lua; the Python secrets example
   for Python). Never ship your own copy of a platform file. Import from
@@ -1080,6 +1080,38 @@ dynamic data (e.g. live API values into a `multiselect`).
 - After the generator runs, the user must **refresh the browser** —
   Script-Server does not hot-reload runner configs
 - Use `_version` in the runner JSON to confirm the update took effect
+
+### Sending a notification from your script
+
+Don't write your own Pushover/Prowl sender. `scripts/shared/notify_send.py`
+is a platform file that sends through whichever service is set up in the
+Secrets Store (`pushover.TOKEN` + `pushover.USER_KEY`, or `prowl.TOKEN`):
+
+```python
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'shared'))
+from notify_send import send, NotifyError
+
+try:
+    send('Tariff Watch', 'Agile price below 5p', priority=1,
+         url='https://...', purpose='used by Tariff Watch')
+except NotifyError as e:
+    print(f'WARN alert not sent: {e}', flush=True)   # don't fail the run over it
+```
+
+Lua/bash: `python3 /app/scripts/shared/notify_send.py --title 'Tariff Watch'
+--message 'Price low' --priority 1 --purpose 'used by Tariff Watch'` (exit
+0 sent, 1 not sent, reason on stderr).
+
+- **Which service:** by default the first one set up, Pushover then Prowl.
+  `service='all'` sends to every one set up; `'pushover'`/`'prowl'` forces
+  one.
+- **Nothing set up:** both services' secrets are registered as `not set
+  yet` placeholders, with your `purpose`, and `NotifyError` names the
+  entries to pick in Secrets Manager. Pass a `purpose` so the user knows
+  which script wants alerts.
+- **`priority`** is -2 to 2 on both services (2 = emergency; Pushover repeats
+  it until acknowledged). **`url`** adds a link to the alert.
+- Standard library only: nothing to install.
 
 -----
 
