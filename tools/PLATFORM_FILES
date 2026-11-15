@@ -23,4 +23,5 @@ scripts/shared/ensure_module.lua
 scripts/shared/gitea_client.py
 scripts/shared/list_mounts.sh
 scripts/shared/list_optional_packages.py
+scripts/shared/notify_send.py
 scripts/shared/secrets_store.py

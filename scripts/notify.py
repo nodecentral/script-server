@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Name: notify.py
-# Version: 1.4.0
+# Version: 1.5.0
 # Description: Sends a push notification via Pushover or Prowl. Designed to
 #              be run manually, or shelled out to from another script (e.g.
 #              python3 /app/scripts/notify.py --service pushover --message
@@ -15,6 +15,9 @@
 #              with a purpose), and preload/notify.py shows which services
 #              are ready before the form is even submitted.
 #
+#              The sending itself is shared/notify_send.py (a platform file), which other
+#              scripts import to send their own alerts.
+#
 #              NOTE: built from Pushover's and Prowl's long-stable public
 #              API docs, but not verified against a live account - test
 #              with your own credentials before relying on it.
@@ -23,13 +26,9 @@ import argparse
 import os
 import sys
 
-import requests
-
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'shared'))
+from notify_send import NotifyError, send_prowl, send_pushover  # noqa: E402
 from secrets_store import get_secret  # noqa: E402
-
-PUSHOVER_URL = 'https://api.pushover.net/1/messages.json'
-PROWL_URL = 'https://api.prowlapp.com/publicapi/add'
 
 DEBUG = os.environ.get('DEBUG', 'false') == 'true'
 
@@ -37,42 +36,6 @@ DEBUG = os.environ.get('DEBUG', 'false') == 'true'
 def log_debug(msg):
     if DEBUG:
         print(f'DEBUG: {msg}', flush=True)
-
-
-def send_pushover(token, user_key, title, message):
-    if not token or not user_key:
-        print('Pushover requires both --token (app token) and --user-key', file=sys.stderr)
-        sys.exit(1)
-
-    response = requests.post(PUSHOVER_URL, data={
-        'token': token,
-        'user': user_key,
-        'title': title,
-        'message': message,
-    }, timeout=15)
-    log_debug(f'Pushover response: {response.status_code} {response.text}')
-
-    if response.status_code != 200:
-        print(f'Pushover send failed: HTTP {response.status_code} {response.text}', file=sys.stderr)
-        sys.exit(1)
-
-
-def send_prowl(token, title, message):
-    if not token:
-        print('Prowl requires --token (apikey)', file=sys.stderr)
-        sys.exit(1)
-
-    response = requests.post(PROWL_URL, data={
-        'apikey': token,
-        'application': 'Script-Server',
-        'event': title,
-        'description': message,
-    }, timeout=15)
-    log_debug(f'Prowl response: {response.status_code} {response.text}')
-
-    if response.status_code != 200:
-        print(f'Prowl send failed: HTTP {response.status_code} {response.text}', file=sys.stderr)
-        sys.exit(1)
 
 
 def main():
@@ -98,14 +61,22 @@ def main():
                   'pick "pushover | TOKEN" / "pushover | USER_KEY" from Secrets Manager\'s Entry '
                   'dropdown and set their values.', file=sys.stderr)
             sys.exit(1)
-        send_pushover(token, user_key, args.title, args.message)
+        try:
+            send_pushover(token, user_key, args.title, args.message)
+        except NotifyError as e:
+            print(f'Pushover send failed: {e}', file=sys.stderr)
+            sys.exit(1)
     elif args.service == 'prowl':
         token = args.token or get_secret('prowl', 'TOKEN', 'Send Notification via Prowl') or ''
         if not token:
             print('Prowl requires a token - pass --token, or pick "prowl | TOKEN" from Secrets '
                   'Manager\'s Entry dropdown and set its value.', file=sys.stderr)
             sys.exit(1)
-        send_prowl(token, args.title, args.message)
+        try:
+            send_prowl(token, args.title, args.message)
+        except NotifyError as e:
+            print(f'Prowl send failed: {e}', file=sys.stderr)
+            sys.exit(1)
     else:
         print(f'Unknown service: {args.service} (expected pushover or prowl)', file=sys.stderr)
         sys.exit(1)

@@ -4,6 +4,14 @@ This is the nodecentral fork of [Script-Server](https://github.com/bugy/script-s
 running on the home NAS. The version number is the one in `version.txt`, shown at the bottom of
 the sidebar. Newest first.
 
+## 2.5.0 — 2026-11-15
+
+- **Any script can send you an alert.** A new shared helper sends a Pushover or Prowl notification
+  through whichever you've set up in Secrets Manager, so scripts no longer need their own sender.
+  Send Notification uses it too.
+- Updated scripting guide (SCRIPTING.md 2.10.0): how to send an alert from a script, and the size
+  limit on uploading files through the browser (10 MB unless raised in `conf.json`).
+
 ## 2.4.0 — 2026-11-14
 
 - **Overview first.** In the sidebar, a group called **Overview** is now always listed first in its
