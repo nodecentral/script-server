@@ -1,7 +1,7 @@
 # SCRIPTING.md — Script-Server Scripting Conventions (Focused)
 
-Version: 2.13.0
-Last updated: 2026-11-15
+Version: 2.14.0
+Last updated: 2026-11-16
 
 This is the **focused** convention doc for any Claude session writing
 scripts/runners destined for import into `nodecentral/script-server` —
@@ -312,6 +312,31 @@ importing it nothing to go on. Keep the `Version:` line near the top of
 the header - within the first few lines, not at the bottom of a long
 comment block (the importer reads the first 16 KB; a line past that is
 missed and the file shows `CHANGED`).
+
+**If the script prints its own version, read it from that `Version:` line
+when it runs; don't keep a second copy in a constant.** A
+`VERSION = "2.4.0"` constant is never bumped with the header:
+ss_finance_management's importer printed 2.4.0 in its run log for two
+releases, so an up-to-date install looked stale while it was being
+debugged. Tested:
+
+```python
+import re
+def own_version():
+    with open(__file__, encoding='utf-8') as f:
+        m = re.search(r'Version\s*:\s*([0-9][^\s]*)', f.read(16384))
+    return m.group(1) if m else 'unknown'
+```
+```lua
+local function own_version()
+  local f = io.open(arg[0], 'r'); if not f then return 'unknown' end
+  local head = f:read(16384) or ''; f:close()
+  return head:match('Version%s*:%s*(%d[^%s]*)') or 'unknown'
+end
+```
+```bash
+VERSION=$(grep -m1 -oE 'Version[[:space:]]*:[[:space:]]*[0-9][^[:space:]]*' "$0" | sed -E 's/.*:[[:space:]]*//')
+```
 
 Once a repo has been imported, admins get a **cloud icon in the header of
 each of its scripts** that re-imports the repo straight away, no dry run -

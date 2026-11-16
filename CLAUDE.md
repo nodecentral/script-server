@@ -123,6 +123,11 @@ Every solution MUST produce a matched pair:
 - Increment both the script header `# Version:` AND runner `"_version"` together
   on every meaningful change, using semver:
   patch = bug fix · minor = new feature · major = breaking change
+- A script that prints its own version reads it from its `Version:` line
+  at run time (snippets in SCRIPTING.md), never from a `VERSION`
+  constant: a second copy is never bumped. ss_finance_management's
+  importer logged a stale 2.4.0 for two releases (2026-11-16), which made
+  an up-to-date install look out of date while debugging.
 
 -----
 
