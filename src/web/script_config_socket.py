@@ -194,12 +194,18 @@ class ScriptConfigSocket(tornado.websocket.WebSocketHandler):
             self.close(code=403, reason='Access to the script is denied')
             return None
         except CorruptConfigFileException as e:
-            self.close(code=CorruptConfigFileException.HTTP_CODE, reason=str(e))
+            self.safe_write(wrap_to_server_event(event_type='loadError', data={'message': str(e)}))
+            self.ioloop.add_callback(self.close, CorruptConfigFileException.HTTP_CODE, _truncate_utf8(str(e), 120))
             return None
-        except Exception:
+        except Exception as e:
             message = 'Failed to load script config ' + str(config_name)
             LOGGER.exception(message)
-            self.close(code=500, reason=message)
+            # The close reason is capped at 123 bytes, so the full detail goes
+            # in an event first; the page shows it instead of a bare
+            # "Failed to connect to the server".
+            detail = describe_load_error(e)
+            self.safe_write(wrap_to_server_event(event_type='loadError', data={'message': detail}))
+            self.ioloop.add_callback(self.close, 500, _truncate_utf8(message, 120))
             return None
 
         if not config_model:
@@ -244,3 +250,37 @@ class ScriptConfigSocket(tornado.websocket.WebSocketHandler):
             self.safe_write(self._create_event('preloadScript', {'output': text, 'format': format}))
         except ExecutionException:
             LOGGER.exception('Failed to execute preload script for ' + self.config_model.name)
+
+
+def describe_load_error(error, max_length=2000):
+    """What went wrong loading a runner, for the person looking at the page.
+
+    Follows the exception chain (e.g. a parameter wrapping a failed values
+    script) and keeps each distinct message once, so a failing dropdown script
+    reads as: Parameter "repo": Execution failed. Code 126: ... Permission denied
+    """
+    parts = []
+    seen = set()
+    current = error
+    while current is not None and len(parts) < 5:
+        text = str(current).strip() or type(current).__name__
+        if not any(text in p for p in parts) and text not in seen:
+            parts.append(text)
+        seen.add(text)
+        current = current.__cause__ or current.__context__
+
+    detail = parts[0] if parts else 'Unknown error'
+    for extra in parts[1:]:
+        if extra not in detail:
+            detail += '\nCaused by: ' + extra
+
+    if len(detail) > max_length:
+        detail = detail[:max_length] + '...'
+    return detail
+
+
+def _truncate_utf8(text, max_bytes):
+    encoded = text.encode('utf-8')
+    if len(encoded) <= max_bytes:
+        return text
+    return encoded[:max_bytes].decode('utf-8', errors='ignore')

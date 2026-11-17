@@ -228,8 +228,10 @@ an existing install's runner files in place.
 
 ## Execute Permissions — CRITICAL
 
-Script-Server will silently fail to run any `.sh` file without the execute bit.
-For values scripts this means the dropdown is **greyed out with no error shown**.
+Script-Server will fail to run any `.sh` file without the execute bit.
+For a values script with no `${...}`, or a `default` script, the whole
+runner fails to load (see "A failing values or default script stops the
+whole runner loading" below), not just a greyed-out dropdown.
 
 **Fix at the Docker level** — add to your `docker-compose.yml` so permissions
 are set automatically on every container start. Use `;` (or `2>/dev/null;`),
@@ -366,11 +368,31 @@ API results, database entries, etc.
 - Store shared helpers in `scripts/shared/` — they are not standalone SS scripts,
   just callables used by runner JSON
 - Use absolute paths in `values.script` to avoid working_directory ambiguity
-- The helper MUST have the execute bit set (`chmod +x`) — missing execute
+- Call the helper through its interpreter (`python3 /app/scripts/shared/x.py`)
+  and make it always exit 0 (see the next section). The older advice
+  follows: the helper MUST have the execute bit set (`chmod +x`) — missing execute
   permission silently greys out the dropdown with no error in the UI
 - Keep helpers fast — they run on every upstream parameter change
 - Return a sentinel first line (e.g. `-- skip --`) so users can opt out of
   a level without the main script failing
+
+### A failing values or default script stops the whole runner loading
+
+Reported 2026-11-17 by a sibling repo, reproduced with `ConfigModel`, and
+confirmed here in code and on a live server. A `values.script` with no
+`${...}` runs in `ScriptValuesProvider.__init__`
+(`src/config/script/list_values.py`), and a `default` script runs in
+`ParameterModel`'s constructor. Both run while the runner loads, and any
+`ExecutionException` (non-zero exit, 126 for a missing execute bit)
+aborts the load. `DependantScriptValuesProvider` (with `${...}`) runs
+later, catches the error, logs a warning and returns `[]`, so only that
+case is "greyed out". The 2.1.1 `default-token` incident was the default
+script case.
+
+Rule (in SCRIPTING.md): call these scripts through their interpreter and
+always exit 0, printing a sentinel or nothing when there are no values.
+Since 2.7.0 the page says which parameter failed and why (see Core
+Changes).
 
 ### shell option
 
@@ -2157,6 +2179,47 @@ importable), and `python3 -s` not seeing it. The sudoers file passes
 `visudo -c`. **Not verified here:** the Docker build, and `apt-get update`
 through sudo (this sandbox's proxy refuses the plain-HTTP mirrors).
 
+### 2026-11-17 — v2.7.0: "Failed to load script info" says what failed
+
+**Symptom:** any runner that failed to load showed "Failed to load script
+info. Try to reload the page. Error message: Failed to connect to the
+server", whatever the cause. The real error was only in the server log.
+
+**Cause:** `ScriptConfigSocket._prepare_model` closed the websocket with
+code 500 and a fixed reason, and `scriptConfig.js` replaced any close
+before the first config with that text. A websocket close reason is also
+capped at 123 bytes, too short for most errors.
+
+**Fix:**
+- `src/model/script_config.py`: `ParameterLoadException` wraps any error
+  from building a `ParameterModel` (`_create_parameter`, used for
+  original and included parameters), naming the parameter.
+- `src/web/script_config_socket.py`: before closing, sends a `loadError`
+  event with the full detail (`describe_load_error()` follows the
+  exception chain, max 2000 chars). The close reason is cut to 120 bytes
+  (`_truncate_utf8`). The 422 (cannot parse) path sends it too.
+- `src/config/config_service.py` / `ShortConfig.parsing_error`: for
+  admins only, a JSON parse failure keeps `file.json: <JSON error>` and
+  `CorruptConfigFileException` carries it. Non-admins still get the plain
+  message, because it names the file.
+- `web-src/src/main-app/store/scriptConfig.js`: a `loadError` event sets
+  the error and stops the following close from replacing it.
+  `GENERIC_LOAD_ERRORS` lists the messages that have no detail.
+- `MainAppContent.vue`: the detail is shown in a pre-wrapped box. "Try to
+  reload the page" now shows only for generic errors; otherwise the panel
+  points to the server log.
+
+**Verified:**
+- `tests/runner_load_error_test.py` (new, 9 tests) and a new
+  `scriptConfig_test.js` case.
+- Python suite: the same 23 sandbox-only failures before and after.
+- Frontend: 701/701.
+- On a live server, with Playwright against the built page: a values
+  script with no execute bit, a values script exiting 3, and invalid
+  runner JSON each showed their real cause.
+
+**Still needs** a look on the NAS (iPad).
+
 ## Upstream Sync Status
 
 This fork was imported as a **snapshot, not a git fork**, so there is no
@@ -2335,8 +2398,10 @@ Rules:
 - `"shell": false` (or omitting `shell`) when the values script string uses
   quoting, empty literals `''`, or pipe operators — dropdown will be silently
   greyed out
-- Forgetting `chmod +x` on helper scripts — missing execute bit silently
-  greys out any dropdown that depends on that script, with no UI error
+- A values or `default` script that can exit non-zero (missing execute
+  bit, unset secret, unreachable service): with no `${...}` in it, the
+  whole runner fails to load. Call it through its interpreter and always
+  exit 0
 - Substituting a `secure`/`constant`/`no_value` parameter into another
   parameter's `values.script` — Script-Server refuses to even load the
   runner (see Parameter substitution in script strings above), a more

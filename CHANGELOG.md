@@ -4,6 +4,16 @@ This is the nodecentral fork of [Script-Server](https://github.com/bugy/script-s
 running on the home NAS. The version number is the one in `version.txt`, shown at the bottom of
 the sidebar. Newest first.
 
+## 2.7.0 — 2026-11-17
+
+- **A script that won't open now says why.** Instead of "Failed to connect to the server", the
+  page shows what went wrong, e.g. which field's dropdown script failed and its error
+  ("Permission denied", "cannot reach Gitea"). A runner file with a JSON mistake shows the file
+  and the line, for admins.
+- Updated scripting guide (SCRIPTING.md 2.15.0): a dropdown or default script that fails stops the
+  whole script from opening, not just its dropdown. Call these scripts through their interpreter,
+  and always have them exit 0.
+
 ## 2.6.0 — 2026-11-15
 
 - **Send Notification is now a full notification tester.** Its banner shows whether Pushover and

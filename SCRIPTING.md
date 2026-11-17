@@ -1,7 +1,7 @@
 # SCRIPTING.md — Script-Server Scripting Conventions (Focused)
 
-Version: 2.14.0
-Last updated: 2026-11-16
+Version: 2.15.0
+Last updated: 2026-11-17
 
 This is the **focused** convention doc for any Claude session writing
 scripts/runners destined for import into `nodecentral/script-server` —
@@ -374,9 +374,11 @@ deleted upstream, exactly like ticking *apply*.
 
 ## Execute Permissions — CRITICAL
 
-Script-Server will silently fail to run any `.sh` file without the execute bit.
-For values scripts this means the dropdown is **greyed out with no error shown**.
-Always `chmod +x` any new `.sh`/`.py`/`.lua` file.
+Script-Server will fail to run any `.sh` file without the execute bit.
+For a dropdown's values script, or a `default` script, it's worse than a
+greyed-out dropdown - see "A failing values or default script stops the
+whole runner loading" below. Always `chmod +x` any new `.sh`/`.py`/`.lua`
+file, and call dropdown helpers through their interpreter.
 
 **QNAP quirk, confirmed on a real NAS:** `chmod` from *inside* a
 container against a bind-mounted host folder can fail with
@@ -476,11 +478,38 @@ mechanism for dropdowns whose content depends on live state.
 - The helper must print **one value per line** to stdout.
 - Store shared helpers in `scripts/shared/`.
 - Use absolute paths in `values.script`.
-- Execute bit required (see above) — missing it silently greys out the dropdown.
+- **A failing values script can stop the whole runner loading** (below).
+  Call it through its interpreter and always exit 0.
 - Keep helpers fast — they run on every upstream parameter change.
 - Return a sentinel first line (e.g. `-- skip --` or `-- error: <reason> --`)
   so a failure or an optional level is visible/selectable, never a
   silently empty dropdown.
+
+### A failing values or default script stops the whole runner loading
+
+**Confirmed against Script-Server's own code and a live server.** A
+`values.script` with **no** `${...}` variables, and every `default`
+script, runs while Script-Server loads the runner (`ScriptValuesProvider`'s
+constructor in `src/config/script/list_values.py`). If it exits non-zero
+(including **126, no execute bit**), the whole runner fails to load: no
+form, just the error panel. A dropdown is *not* simply greyed out. A
+values script **with** `${...}` variables runs later; if that one fails,
+its dropdown is just empty and a warning goes to the server log.
+
+So every values or default script:
+- **Is called through its interpreter**, so the execute bit doesn't
+  matter: `python3 /app/scripts/shared/x.py`, `bash /app/scripts/shared/x.sh`,
+  `lua /app/scripts/shared/x.lua`.
+- **Always exits 0.** When it can't produce values (no secret yet, service
+  down), print a sentinel such as `-- error: Gitea unreachable --`, or
+  nothing at all, and exit 0. For a default script, add
+  `2>/dev/null || true` with `"shell": true`, as Import from Gitea's
+  `token_key` default does.
+
+Script Server 2.7.0+ says what failed instead of only "Failed to connect
+to the server", e.g. `Parameter "repo": Execution failed. Code 126:
+/bin/sh: 1: /app/scripts/shared/x.sh: Permission denied`. A runner file
+that isn't valid JSON shows the file and the JSON error to admins.
 
 ### shell option
 
@@ -1250,8 +1279,10 @@ result overwrite a vendor already known for that MAC.
 - `"shell": false` (or omitting `shell`) when the values script string uses
   quoting, empty literals `''`, or pipe operators — dropdown will be silently
   greyed out
-- Forgetting `chmod +x` on helper scripts — missing execute bit silently
-  greys out any dropdown that depends on that script, with no UI error
+- A values or `default` script that can exit non-zero (missing execute
+  bit, unset secret, unreachable service): with no `${...}` in it, the
+  whole runner fails to load. Call it through its interpreter and always
+  exit 0
 - Substituting a `secure`/`constant`/`no_value` parameter into another
   parameter's `values.script` — Script-Server refuses to even load the
   runner, a more severe failure than a greyed-out dropdown

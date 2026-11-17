@@ -252,6 +252,19 @@ describe('Test scriptConfig module', function () {
             expect(store.state.scriptConfig.loadError).toBe('Failed to connect to the server')
         });
 
+        it('Test load error detail is kept when the socket closes', function () {
+            const store = createStore();
+            store.dispatch('scriptConfig/reloadScript', {selectedScript: 'my script'});
+
+            const detail = 'Parameter "repo": Execution failed. Code 126: /bin/sh: x.sh: Permission denied';
+            sendEventFromServer(JSON.stringify({event: 'loadError', data: {message: detail}}));
+            sendSocketError(new SocketClosedError(500, 'Failed to load script config my script'));
+
+            expect(store.state.scriptConfig.scriptConfig).toBeNil()
+            expect(store.state.scriptConfig.loadError).toBe(detail)
+            expect(store.state.scriptConfig.loading).toBeFalse()
+        });
+
         it('Test disconnect after initial config', async function () {
             const store = createStore();
             store.dispatch('scriptConfig/reloadScript', {selectedScript: 'my script'});

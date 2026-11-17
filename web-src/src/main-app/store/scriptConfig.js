@@ -53,6 +53,9 @@ function sendReloadModelRequest(parameterValues, clientModelId, websocket, newSt
 
 export const NOT_FOUND_ERROR_PREFIX = `Failed to find the script`;
 export const CANNOT_PARSE_ERROR_PREFIX = `Cannot parse script config file`;
+// messages with no server-side detail: only for these is "reload the page" worth suggesting
+export const GENERIC_LOAD_ERRORS = ['Failed to connect to the server', 'Failed to reconnect',
+    'Connection to server closed', 'Unexpected error occurred'];
 
 export default () => ({
     state: {
@@ -283,6 +286,9 @@ export default () => ({
 
 function reconnect(state, internalState, commit, dispatch, selectedScript) {
     let dataReceived = false;
+    // set when the server explains why the runner couldn't load ('loadError'),
+    // so the close that follows doesn't replace it with a generic message
+    let loadErrorReceived = false;
 
     let initWithValues = false
     if (!isNull(state.scriptConfig) && !isEmptyObject(state.sentValues)) {
@@ -306,6 +312,13 @@ function reconnect(state, internalState, commit, dispatch, selectedScript) {
                 commit('RESET_AWAITED_DEPENDENCIES', {clientStateVersion});
             } else if (eventType === 'parameterChanged') {
                 commit('RESET_AWAITED_DEPENDENCIES', {clientStateVersion, singleParameterName: data?.name});
+            }
+
+            if (eventType === 'loadError') {
+                loadErrorReceived = true;
+                commit('SET_ERROR', data.message || 'Unexpected error occurred');
+                commit('SET_LOADING', false);
+                return;
             }
 
             if (isNull(state.scriptConfig) && (eventType !== 'initialConfig')) {
@@ -351,6 +364,10 @@ function reconnect(state, internalState, commit, dispatch, selectedScript) {
 
         onError: function (error) {
             logError(error);
+
+            if (loadErrorReceived) {
+                return;
+            }
 
             if (error instanceof SocketClosedError) {
 

@@ -23,6 +23,26 @@ OUTPUT_FORMATS = [OUTPUT_FORMAT_TERMINAL, 'html', 'html_iframe', 'text']
 
 LOGGER = logging.getLogger('script_server.script_config')
 
+
+class ParameterLoadException(Exception):
+    """A parameter's values or default script failed while the runner loaded.
+
+    Names the parameter, so the "Failed to load script info" panel says which
+    field broke instead of only the command's exit code."""
+
+    def __init__(self, parameter_name, cause):
+        super().__init__('Parameter "' + str(parameter_name) + '": ' + str(cause))
+        self.parameter_name = parameter_name
+        self.cause = cause
+
+
+def _create_parameter(parameter_config, *args):
+    try:
+        return ParameterModel(parameter_config, *args)
+    except Exception as e:
+        name = parameter_config.get('name') if isinstance(parameter_config, dict) else None
+        raise ParameterLoadException(name or '?', e) from e
+
 PLACEMENT_SETTINGS = 'settings'
 PLACEMENTS = [PLACEMENT_SETTINGS]
 
@@ -39,6 +59,8 @@ class ShortConfig:
     allowed_users: List[str] = field(default_factory=list)
     admin_users: List[str] = field(default_factory=list)
     parsing_failed: bool = False
+    # why parsing failed (file + JSON error), filled in for admins only
+    parsing_error: str = None
 
 
 def create_failed_short_config(path, has_admin_rights):
@@ -185,11 +207,11 @@ class ConfigModel:
     def _init_parameters(self, username, audit_name):
         original_parameter_configs = self._original_config.get('parameters', [])
         for parameter_config in original_parameter_configs:
-            parameter = ParameterModel(parameter_config, username, audit_name,
-                                       lambda: self.parameters,
-                                       self._process_invoker,
-                                       self.parameter_values,
-                                       self.working_directory)
+            parameter = _create_parameter(parameter_config, username, audit_name,
+                                          lambda: self.parameters,
+                                          self._process_invoker,
+                                          self.parameter_values,
+                                          self.working_directory)
             self.parameters.append(parameter)
 
         self._reload_parameters({})
@@ -250,11 +272,11 @@ class ConfigModel:
                 parameter_name = parameter_config.get('name')
                 parameter = self.find_parameter(parameter_name)
                 if parameter is None:
-                    parameter = ParameterModel(parameter_config, self._username, self._audit_name,
-                                               lambda: self.parameters,
-                                               self._process_invoker,
-                                               self.parameter_values,
-                                               self.working_directory)
+                    parameter = _create_parameter(parameter_config, self._username, self._audit_name,
+                                                  lambda: self.parameters,
+                                                  self._process_invoker,
+                                                  self.parameter_values,
+                                                  self.working_directory)
                     self.parameters.append(parameter)
 
                     if parameter.name not in self.parameter_values:

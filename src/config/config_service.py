@@ -336,8 +336,10 @@ class ConfigService:
 
                 if short_config is None:
                     return None
-            except json.decoder.JSONDecodeError:
+            except json.decoder.JSONDecodeError as e:
                 short_config = create_failed_short_config(path, has_admin_rights)
+                if has_admin_rights:
+                    short_config.parsing_error = os.path.basename(path) + ': ' + str(e)
                 config_object = None
 
             except Exception:
@@ -356,6 +358,9 @@ class ConfigService:
         found_config = configs[0]
 
         if found_config.short_config.parsing_failed:
+            parsing_error = found_config.short_config.parsing_error
+            if parsing_error:
+                raise CorruptConfigFileException(CorruptConfigFileException.VERBOSE_ERROR + ': ' + parsing_error)
             raise CorruptConfigFileException()
 
         return found_config
