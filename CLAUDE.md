@@ -372,7 +372,8 @@ API results, database entries, etc.
   and make it always exit 0 (see the next section). The older advice
   follows: the helper MUST have the execute bit set (`chmod +x`) — missing execute
   permission silently greys out the dropdown with no error in the UI
-- Keep helpers fast — they run on every upstream parameter change
+- Keep helpers fast (a second or two) — they run on form open, on every
+  upstream parameter change, and again on Execute (next-but-one section)
 - Return a sentinel first line (e.g. `-- skip --`) so users can opt out of
   a level without the main script failing
 
@@ -393,6 +394,27 @@ Rule (in SCRIPTING.md): call these scripts through their interpreter and
 always exit 0, printing a sentinel or nothing when there are no values.
 Since 2.7.0 the page says which parameter failed and why (see Core
 Changes).
+
+### Dropdown scripts run again on Execute, blocking the server
+
+Reported 2026-11-18 from ss_finance_management ("Connection error. Please
+contact the system administrator" on Execute, a slow form). `ScriptExecute.post`
+(`src/web/server.py`) is synchronous: it calls `load_config_model`, which
+builds every `ParameterModel` (runs each static values script and default
+script), then `set_all_param_values`, which re-runs the dependent ones, all
+on the Tornado IOLoop thread. Measured here with a `sleep 3` values script:
+Execute took 3.2 s and an unrelated `GET /conf` sent meanwhile waited 2.7 s.
+The config websocket instead loads the model with `_start_task` on its own
+`ThreadPoolExecutor`, so a slow form open only slows that page (parallel
+`GET /conf`: 7 ms). If Execute takes long enough, `executions/start` gets no
+usable response and `scriptExecutionManager.js` shows "Connection error".
+
+Rule (in SCRIPTING.md, with a tested cache helper): keep values scripts to
+a second or two, fetch only what's needed, cache remote answers for a few
+minutes in the temp folder, never cache errors. Possible Core fix (not done):
+run `ScriptExecute`'s model load off the IOLoop, like the websocket does.
+That would stop one slow helper from blocking everyone, but Execute would
+still wait for it.
 
 ### shell option
 

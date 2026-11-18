@@ -1,7 +1,7 @@
 # SCRIPTING.md — Script-Server Scripting Conventions (Focused)
 
-Version: 2.15.0
-Last updated: 2026-11-17
+Version: 2.16.0
+Last updated: 2026-11-18
 
 This is the **focused** convention doc for any Claude session writing
 scripts/runners destined for import into `nodecentral/script-server` —
@@ -480,7 +480,9 @@ mechanism for dropdowns whose content depends on live state.
 - Use absolute paths in `values.script`.
 - **A failing values script can stop the whole runner loading** (below).
   Call it through its interpreter and always exit 0.
-- Keep helpers fast — they run on every upstream parameter change.
+- Keep helpers fast (a second or two): they run on form open, on every
+  upstream change, **and again on Execute**, which blocks the whole server
+  while they run (see below).
 - Return a sentinel first line (e.g. `-- skip --` or `-- error: <reason> --`)
   so a failure or an optional level is visible/selectable, never a
   silently empty dropdown.
@@ -510,6 +512,60 @@ Script Server 2.7.0+ says what failed instead of only "Failed to connect
 to the server", e.g. `Parameter "repo": Execution failed. Code 126:
 /bin/sh: 1: /app/scripts/shared/x.sh: Permission denied`. A runner file
 that isn't valid JSON shows the file and the JSON error to admins.
+
+### Keep dropdown scripts to a second or two: they run again on Execute
+
+**Confirmed in the source and on a live server.** A values script runs
+when the form opens, when a field it depends on changes, **and again when
+you press Execute**: the server reloads the runner and checks each picked
+value is still in its list. The Execute pass runs on the server's single
+request thread, so while a slow helper runs, **the whole Script-Server
+waits**, for every user and page. In the test, a 3-second helper held up an
+unrelated request for 2.7 s. Slow enough, and Execute fails with
+"Connection error. Please contact the system administrator" before your
+script starts. Opening the form is slow too, but doesn't block anyone else.
+
+So:
+- **Fetch only what the list needs**, in as few requests as you can (one
+  call with the right fields, not one per item; no paging through a whole
+  API for a dropdown).
+- **Cache a remote API's answer briefly** (a few minutes) in the temp
+  folder, keyed on everything the answer depends on. **Never cache an
+  error**: the next try should ask again. Tested:
+
+```python
+import hashlib, json, os, tempfile, time
+
+def cached(key, max_age, fetch):
+    """fetch()'s result, reused for max_age seconds. Errors are never cached."""
+    path = os.path.join(tempfile.gettempdir(),
+                        'ss_cache_' + hashlib.sha1(key.encode()).hexdigest() + '.json')
+    try:
+        if time.time() - os.path.getmtime(path) < max_age:
+            with open(path, encoding='utf-8') as f:
+                return json.load(f)
+    except (OSError, ValueError):
+        pass
+    result = fetch()                      # raises on failure: nothing is written
+    tmp = path + '.tmp'
+    with open(tmp, 'w', encoding='utf-8') as f:
+        json.dump(result, f)
+    os.replace(tmp, path)
+    return result
+
+# in the dropdown helper: key on everything the answer depends on
+try:
+    for symbol in cached('finance-symbols-' + account, 300, fetch_symbols):
+        print(symbol)
+except Exception as e:
+    print(f'-- error: {e} --')         # a sentinel, and still exit 0
+```
+
+- A list's values must still contain the picked value when Execute
+  re-runs the script, so don't put anything that changes by the second
+  (times, counts) into the values themselves.
+
+Reported from ss_finance_management (2026-11-18).
 
 ### shell option
 
