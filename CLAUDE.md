@@ -298,6 +298,17 @@ script types: `.py`, `.lua`, `.sh`.
 - Display labels use `"values_ui_mapping": {"value": "Label"}` — a key/value object
 - ⚠ `"labels": []` does NOT exist in Script-Server — silently ignored, never use it
 - Label strings in `values_ui_mapping` are plain text. Only use UTF-8 characters or plain ASCII
+- `"type": "editable_list"`: free text plus autocomplete from `values`
+  (static or a script, via `textfield.vue`). `ParameterModel.validate_value`
+  only checks `list`, `multiselect` and plain `server_file` against their
+  values, so any typed value is accepted. Use it for "pick an existing one
+  or type a new one".
+- **Field width:** `"ui": {"width_weight": N}` (`ParameterModel.ui_width_weight`).
+  `script-parameters-view.vue` makes `floor(width / 200px)` grid columns
+  and spans a field `min(N, columns)`, so 10 is a full row;
+  `multiline_text` is always full width. `"separator_before"`:
+  `{"type": "new_line"}`, `{"type": "line"}` or `{"title": ...}`
+  (`_read_ui_separator`, `ParameterSeparator.vue`).
 
 ### list example
 
@@ -505,6 +516,40 @@ the upstream value changes; no browser refresh needed.
 }
 ```
 
+### Substitution details, and fields that follow an Action field
+
+From ss_finance_management (2026-11-19), source-checked and tested here
+in a browser against a live server:
+- `fill_parameter_values` substitutes `str(mapped_script_value)`, with no
+  quoting. A multiselect becomes a Python list repr (`['a | b', 'c']`),
+  not comma-joined: comma-joined is only how the main script's own
+  argument/env is built (`to_script_args`). A value containing `'` breaks
+  `'${x}'` in a shell command.
+- `DependantScriptValuesProvider.get_values` returns `[]` without running
+  the script while any referenced field is empty, so give the controlling
+  field a default.
+- A `default` with `${...}` is a `TemplateProperty`
+  (`ParameterModel._set_default_value`'s `update_default`), re-run whenever
+  a referenced value changes. On the client, `scriptSetup.initFromParameters`
+  (fired by the `scriptConfig.parameters` watcher in `store/index.js`)
+  applies a new default only when the field is empty or still equals
+  the last default it set (`_default_values_from_config`). `combobox.vue`
+  drops a value that isn't in the new options (`_fixValueByAllowedValues`).
+  So unused fields can offer and hold a sentinel such as `N/A (not used
+  for this action)`.
+- **Typed text is kept.** In the browser test, a Note typed by hand
+  survived every later Action switch. So the main script must ignore
+  fields the chosen action doesn't use, not rely on the sentinel.
+- A script that moves its own listed items elsewhere rejects an immediate
+  re-run with the same ticks (`validate_value`: `has value X, but should
+  be in [...]`), the same mechanism as the stale-time-in-dropdown case in
+  the Gitea token history (Core Changes, v2.1.0).
+
+SCRIPTING.md has the runner example and the form-writing advice: lead
+with the Action, label actions `(read-only)`/`(changes …)`, and prefer one
+runner with N/A fields over several runners. Reference:
+ss_finance_management `statement_categorise.json` 2.2.0.
+
 ### Sentinel pattern for optional levels
 
 When chaining 3+ levels, the user may want to stop at level 1 or 2 without
@@ -642,6 +687,12 @@ browser; the script receives the path of the saved copy.
 - All parameters are passed as both arguments AND env variables by default.
   Default env var name: `PARAM_{CAPITALIZED_NAME_WITH_UNDERSCORES}`
   Override with `"env_var": "MY_CUSTOM_NAME"` in the runner
+- A parameter's `name` is its form label and may have spaces and capitals
+  (`"Current category"`); there is no `label` key. `executor._to_env_name`
+  transliterates, turns each run of `[^0-9a-zA-Z_]` into `_` and upper-cases:
+  `PARAM_CURRENT_CATEGORY`. `${Current category}` works in another field's
+  script, because `model_helper.fill_parameter_values` is a plain
+  `str.replace`.
 - **A cleared field arrives as an empty `PARAM_X`; its flag is dropped.**
   Checked on a real server: clearing a field that has a default gives
   `PARAM_X=""` in the environment and no `--x` on the command line. A

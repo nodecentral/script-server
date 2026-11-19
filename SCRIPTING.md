@@ -1,6 +1,6 @@
 # SCRIPTING.md — Script-Server Scripting Conventions (Focused)
 
-Version: 2.17.0
+Version: 2.18.0
 Last updated: 2026-11-19
 
 This is the **focused** convention doc for any Claude session writing
@@ -417,6 +417,25 @@ script types: `.py`, `.lua`, `.sh`.
 - Display labels use `"values_ui_mapping": {"value": "Label"}` — a key/value object
 - ⚠ `"labels": []` does NOT exist in Script-Server — silently ignored, never use it
 - Label strings in `values_ui_mapping` are plain text. Only use UTF-8 characters or plain ASCII
+- Use `"type": "editable_list"` for **"pick an existing one or type a new
+  one"** (a category, a tag, a product): free text with autocomplete from
+  its `values`, which can be a values script. The server never checks the
+  value against the list (only `list`, `multiselect` and `server_file`
+  are checked), so a new name goes straight through. Tested: `list`
+  rejects `Brand new`, `editable_list` accepts it.
+
+**Field width and rows.** The form is a grid of columns at least 200px
+wide (about 4-5 on an iPad in landscape, 1 on a phone). A field takes one
+column unless its `ui.width_weight` says more, capped at what fits, so
+`10` always means a full row. `ui.separator_before` starts a new row:
+`{"type": "new_line"}`, `{"type": "line"}` for a rule above, or
+`{"title": "Advanced"}` for a heading. `multiline_text` is always full
+width. Long lists (merchants, paths) are much easier to read full width:
+
+```json
+{"name": "Merchants", "type": "multiselect", "values": {"script": "..."},
+ "ui": {"width_weight": 10, "separator_before": {"type": "new_line"}}}
+```
 
 ### list example
 
@@ -567,6 +586,11 @@ except Exception as e:
 - A list's values must still contain the picked value when Execute
   re-runs the script, so don't put anything that changes by the second
   (times, counts) into the values themselves.
+- **A script that changes what its own dropdown lists** (it files the
+  ticked items, so they drop off the list) rejects an immediate re-run
+  with the same ticks: `has value X, but should be in [...]`. That's
+  correct, not a bug. Say in the output that the form needs a fresh pick,
+  or reload the page.
 
 Reported from ss_finance_management (2026-11-18).
 
@@ -621,6 +645,17 @@ the upstream value changes (no browser refresh needed):
 }
 ```
 
+- **A dependent list is empty while any field it uses is empty**, and
+  the script isn't even run. Give the controlling field a default.
+- **`${multiselect_field}` arrives as a Python list**: `['Tesco | groceries',
+  'Shell | fuel']`, not comma-separated (that's only for your main
+  script's own arguments and `PARAM_` variable). Wrap it in double
+  quotes and parse it, e.g. with `ast.literal_eval`. Confirmed in the
+  source and in a browser.
+- **Substitution is a plain text replace, with no quoting.** A value
+  containing `'` breaks a `'${field}'` in the command. Only substitute
+  values you control (fixed options, names from your own lists).
+
 **Sentinel pattern for optional levels** — emit a sentinel as the first
 line (e.g. `echo "-- skip --"`) so a user can stop early without
 breaking the main script; resolve the deepest non-sentinel selection in
@@ -630,6 +665,55 @@ the main script.
 dynamically. To add icons to dynamic entries, encode them into the value
 itself (`echo "📁 /app/data/reports/"`) and strip the prefix before use
 (`sed 's/^[^ ]* //'`).
+
+### Fields that follow an Action field
+
+There's no way to hide a field, but a field can **follow** another one.
+Both a list's `values` and **any field's `default`** can be a script that
+uses `${Action}`, and both re-run when Action changes. Then, in the form:
+- a list shows its new options and **drops a pick that isn't one of them**;
+- a field takes the new default **if it's empty or still holds the old
+  default**. Text the user typed is kept.
+
+So a field the chosen action doesn't use can offer and hold only a
+sentinel, e.g. `N/A (not used for this action)`. A text field can only
+follow through `default`. One helper can answer for every field:
+
+```json
+{"name": "Action", "type": "list", "default": "review",
+ "values": ["review", "recategorise", "note"],
+ "values_ui_mapping": {"review": "Review spending (read-only)",
+                       "recategorise": "Recategorise (changes the ledger)",
+                       "note": "Add a note (changes the ledger)"}},
+{"name": "Category", "type": "list",
+ "values":  {"script": "python3 /app/scripts/shared/finance_form.py values Category '${Action}'", "shell": true},
+ "default": {"script": "python3 /app/scripts/shared/finance_form.py default Category '${Action}'", "shell": true}},
+{"name": "Note", "type": "text",
+ "default": {"script": "python3 /app/scripts/shared/finance_form.py default Note '${Action}'", "shell": true}}
+```
+
+`finance_form.py values Category recategorise` prints the categories;
+for any other action it prints only the sentinel, and `default` prints
+the sentinel too. Tested in a browser:
+- Action review → recategorise → review: Category went from N/A to the
+  categories (default picked) and back to N/A.
+- Note followed too, **until the user typed in it**. After that it kept
+  the typed text through every switch, including to actions that don't
+  use it.
+
+So the **main script must ignore every field the chosen action doesn't
+use**, rather than relying on seeing the sentinel. Treat the sentinel as
+blank when it does arrive.
+
+Writing the form:
+- **Lead with "what do you want to do?"** (the Action field first, its
+  labels saying `(read-only)` or `(changes …)`), not with how the
+  mechanism works.
+- One runner with N/A fields suited the user better than splitting the
+  job into several runners.
+- Keep the helper fast. It runs on every Action change and again on
+  Execute (see above).
+- Real example: ss_finance_management `statement_categorise.json` 2.2.0.
 
 | Need | Use |
 |---|---|
@@ -893,6 +977,11 @@ Never hardcode secrets, paths, or IPs directly in a script.
   Script-Server sets this automatically for every parameter (v1.18+)
 - Default env var name: `PARAM_{CAPITALIZED_NAME_WITH_UNDERSCORES}`,
   override with `"env_var": "MY_CUSTOM_NAME"` in the runner
+- **A parameter's `name` is its label on the form**, so make it readable:
+  `"Current category"`. There's no separate `label` key. Every run of
+  characters that aren't letters, digits or `_` becomes one `_`, then
+  upper case: `PARAM_CURRENT_CATEGORY`. Another field's script refers to
+  it as `${Current category}`.
 - **A cleared field arrives as an empty `PARAM_X`; its flag is dropped.**
   Checked on a real server: clearing a field that has a default gives
   `PARAM_X=""` in the environment and no `--x` on the command line. A
