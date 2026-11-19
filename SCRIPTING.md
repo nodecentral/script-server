@@ -1,7 +1,7 @@
 # SCRIPTING.md — Script-Server Scripting Conventions (Focused)
 
-Version: 2.16.0
-Last updated: 2026-11-18
+Version: 2.17.0
+Last updated: 2026-11-19
 
 This is the **focused** convention doc for any Claude session writing
 scripts/runners destined for import into `nodecentral/script-server` —
@@ -481,8 +481,8 @@ mechanism for dropdowns whose content depends on live state.
 - **A failing values script can stop the whole runner loading** (below).
   Call it through its interpreter and always exit 0.
 - Keep helpers fast (a second or two): they run on form open, on every
-  upstream change, **and again on Execute**, which blocks the whole server
-  while they run (see below).
+  upstream change, **and again on Execute**, which can't start until they
+  finish (see below).
 - Return a sentinel first line (e.g. `-- skip --` or `-- error: <reason> --`)
   so a failure or an optional level is visible/selectable, never a
   silently empty dropdown.
@@ -518,12 +518,15 @@ that isn't valid JSON shows the file and the JSON error to admins.
 **Confirmed in the source and on a live server.** A values script runs
 when the form opens, when a field it depends on changes, **and again when
 you press Execute**: the server reloads the runner and checks each picked
-value is still in its list. The Execute pass runs on the server's single
-request thread, so while a slow helper runs, **the whole Script-Server
-waits**, for every user and page. In the test, a 3-second helper held up an
-unrelated request for 2.7 s. Slow enough, and Execute fails with
-"Connection error. Please contact the system administrator" before your
-script starts. Opening the form is slow too, but doesn't block anyone else.
+value is still in its list. So a slow helper makes the form slow to open
+and **Execute slow to start**: the run can't begin until every helper has
+answered again. Slow enough, and Execute fails with "Connection error.
+Please contact the system administrator" before your script starts.
+
+Before Script Server 2.8.0 it was worse: the Execute pass ran on the
+server's single request thread, so **the whole Script-Server waited** for
+every user and page (a 3-second helper held up an unrelated request for
+2.7 s). 2.8.0 runs it on a worker thread, so only that Execute waits.
 
 So:
 - **Fetch only what the list needs**, in as few requests as you can (one

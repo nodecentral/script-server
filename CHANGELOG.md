@@ -4,6 +4,14 @@ This is the nodecentral fork of [Script-Server](https://github.com/bugy/script-s
 running on the home NAS. The version number is the one in `version.txt`, shown at the bottom of
 the sidebar. Newest first.
 
+## 2.8.0 — 2026-11-19
+
+- **A slow script no longer freezes Script Server for everyone.** When a script's dropdowns are
+  slow to fill (for example, they ask an online service), pressing Execute or saving a schedule
+  used to hold up every other page until they finished. Now only that one Execute waits.
+- Updated scripting guide (SCRIPTING.md 2.17.0): keep dropdown scripts quick, because they run
+  again each time you press Execute.
+
 ## 2.7.0 — 2026-11-17
 
 - **A script that won't open now says why.** Instead of "Failed to connect to the server", the

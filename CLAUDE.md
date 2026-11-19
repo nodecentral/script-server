@@ -395,7 +395,7 @@ always exit 0, printing a sentinel or nothing when there are no values.
 Since 2.7.0 the page says which parameter failed and why (see Core
 Changes).
 
-### Dropdown scripts run again on Execute, blocking the server
+### Dropdown scripts run again on Execute (blocked the server before 2.8.0)
 
 Reported 2026-11-18 from ss_finance_management ("Connection error. Please
 contact the system administrator" on Execute, a slow form). `ScriptExecute.post`
@@ -411,10 +411,10 @@ usable response and `scriptExecutionManager.js` shows "Connection error".
 
 Rule (in SCRIPTING.md, with a tested cache helper): keep values scripts to
 a second or two, fetch only what's needed, cache remote answers for a few
-minutes in the temp folder, never cache errors. Possible Core fix (not done):
-run `ScriptExecute`'s model load off the IOLoop, like the websocket does.
-That would stop one slow helper from blocking everyone, but Execute would
-still wait for it.
+minutes in the temp folder, never cache errors. Since 2.8.0 the Execute
+and Add Schedule model loads run on a worker thread (see Core Changes), so
+a slow helper no longer blocks other requests; Execute itself still waits
+for it.
 
 ### shell option
 
@@ -2241,6 +2241,37 @@ capped at 123 bytes, too short for most errors.
   runner JSON each showed their real cause.
 
 **Still needs** a look on the NAS (iPad).
+
+### 2026-11-19 — v2.8.0: a slow dropdown script no longer freezes the server
+
+**Symptom:** with a slow values script (a remote API), pressing Execute
+froze Script-Server for everyone until the script finished, and could
+fail with "Connection error" (ss_finance_management, see "Dropdown
+scripts run again on Execute" above).
+
+**Cause:** `ScriptExecute.post` and `AddSchedule.post` were synchronous
+and loaded the runner (`load_config_model`, plus `set_all_param_values`)
+on the Tornado IOLoop thread. Each dropdown and default script is a
+blocking subprocess call.
+
+**Fix (`src/web/server.py`):** both handlers are now `async`, and run that
+work through `run_off_ioloop()` on `_model_load_executor`, a
+`ThreadPoolExecutor` with 4 threads. This is what `ScriptConfigSocket`
+already does for the form. `execution_service.start_script` still runs
+on the IOLoop after the await, so starting a run is unchanged. The
+scheduler already calls `load_config_model`/`start_script` from its own
+thread, which shows they're safe off the IOLoop; `IdGenerator` is locked.
+Execute itself still waits for the scripts, because it needs their
+values to check the picked ones.
+
+**Verified:**
+- Two new `server_test.py` tests: a 1.5 s values script no longer delays a
+  parallel `GET /conf` (fails without the fix: 1.2 s), and a value not in
+  the list still returns 422 through the new path.
+- Python suite: the same 23 sandbox-only failures.
+- Live server, 3 s values script: a parallel request took 9 ms during
+  Execute (2.7 s before) and 12 ms during Add Schedule. The run started
+  with its value, the schedule was created, and a bad value still got 422.
 
 ## Upstream Sync Status
 

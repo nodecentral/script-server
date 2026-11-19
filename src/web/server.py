@@ -7,6 +7,7 @@ import signal
 import ssl
 import time
 import urllib
+from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urlencode
 
 import tornado.concurrent
@@ -418,7 +419,7 @@ class ScriptExecute(StreamUploadRequestHandler):
         super().__init__(application, request, **kwargs)
 
     @inject_user
-    def post(self, user):
+    async def post(self, user):
         script_name = None
 
         audit_name = user.get_audit_name()
@@ -429,14 +430,6 @@ class ScriptExecute(StreamUploadRequestHandler):
 
             script_name = execution_info.script
 
-            config_model = self.application.config_service.load_config_model(script_name, user)
-
-            if not config_model:
-                message = 'Script with name "' + str(script_name) + '" not found'
-                LOGGER.error(message)
-                respond_error(self, 400, message)
-                return
-
             parameter_values = execution_info.param_values
 
             if self.form_reader.files:
@@ -446,7 +439,22 @@ class ScriptExecute(StreamUploadRequestHandler):
             all_audit_names = user.audit_names
             LOGGER.info('Calling script %s. User %s', script_name, all_audit_names)
 
-            config_model.set_all_param_values(parameter_values)
+            # Loading the runner re-runs every dropdown and default script. Do it on a
+            # worker thread (as the config websocket does), so a slow helper delays
+            # only this request, not every other page on the server.
+            def load_and_fill():
+                model = self.application.config_service.load_config_model(script_name, user)
+                if model:
+                    model.set_all_param_values(parameter_values)
+                return model
+
+            config_model = await run_off_ioloop(load_and_fill)
+
+            if not config_model:
+                message = 'Script with name "' + str(script_name) + '" not found'
+                LOGGER.error(message)
+                respond_error(self, 400, message)
+                return
 
             execution_id = self.application.execution_service.start_script(config_model, user)
 
@@ -790,7 +798,7 @@ class AddSchedule(StreamUploadRequestHandler):
         super().__init__(application, request, **kwargs)
 
     @inject_user
-    def post(self, user):
+    async def post(self, user):
         arguments = self.form_reader.values
         execution_info = external_model.to_execution_info(arguments)
         parameter_values = execution_info.param_values
@@ -803,7 +811,9 @@ class AddSchedule(StreamUploadRequestHandler):
         del parameter_values['__schedule_config']
 
         try:
-            id = self.application.schedule_service.create_job(
+            # loads the runner too (dropdown and default scripts), so off the IOLoop
+            id = await run_off_ioloop(
+                self.application.schedule_service.create_job,
                 execution_info.script,
                 parameter_values,
                 external_model.parse_external_schedule(schedule_config),
@@ -814,6 +824,17 @@ class AddSchedule(StreamUploadRequestHandler):
             raise tornado.web.HTTPError(422, reason=e.get_user_message())
 
         self.write(json.dumps({'id': id}))
+
+
+_model_load_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix='model-load')
+
+
+def run_off_ioloop(func, *args):
+    """Runs func(*args) on a worker thread and returns an awaitable for its result.
+
+    For work that runs runner scripts (dropdown values, defaults): those are plain
+    blocking subprocess calls, and on the IOLoop thread they stall every request."""
+    return tornado.ioloop.IOLoop.current().run_in_executor(_model_load_executor, func, *args)
 
 
 def pipe_output_to_http(output_stream, write_callback):

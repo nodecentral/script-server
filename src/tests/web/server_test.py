@@ -1,6 +1,7 @@
 import json
 import os
 import threading
+import time
 import traceback
 from asyncio import set_event_loop_policy
 from unittest import TestCase
@@ -153,6 +154,52 @@ class ServerTest(TestCase):
         )
         self.assertEqual(start_response.status_code, 200)
         self.assertEqual(start_response.content, b'3')
+
+    def test_execute_with_slow_values_script_does_not_block_other_requests(self):
+        self.start_server(12345, '127.0.0.1', xsrf_protection=XSRF_PROTECTION_HEADER)
+
+        test_utils.write_script_config({'name': 's1', 'script_path': 'ls', 'parameters': [
+            {'name': 'pick', 'type': 'list', 'values': {'script': 'sleep 1.5; echo a; echo b', 'shell': True}}
+        ]}, 's1', self.runners_folder)
+
+        results = {}
+
+        def execute():
+            results['response'] = self._user_session.post(
+                'http://127.0.0.1:12345/executions/start',
+                data={'__script_name': 's1', 'pick': 'a'},
+                files=[('notafile', None)],
+                headers={'X-Requested-With': 'XMLHttpRequest'})
+
+        thread = threading.Thread(target=execute)
+        thread.start()
+        time.sleep(0.3)
+
+        started = time.time()
+        self.check_server_running()
+        parallel_duration = time.time() - started
+
+        thread.join(timeout=10)
+
+        self.assertLess(parallel_duration, 0.8)
+        self.assertEqual(200, results['response'].status_code)
+        self.assertEqual(b'3', results['response'].content)
+
+    def test_execute_with_value_not_in_list(self):
+        self.start_server(12345, '127.0.0.1', xsrf_protection=XSRF_PROTECTION_HEADER)
+
+        test_utils.write_script_config({'name': 's1', 'script_path': 'ls', 'parameters': [
+            {'name': 'pick', 'type': 'list', 'values': {'script': 'echo a; echo b', 'shell': True}}
+        ]}, 's1', self.runners_folder)
+
+        response = self._user_session.post(
+            'http://127.0.0.1:12345/executions/start',
+            data={'__script_name': 's1', 'pick': 'zzz'},
+            files=[('notafile', None)],
+            headers={'X-Requested-With': 'XMLHttpRequest'})
+
+        self.assertEqual(422, response.status_code)
+        self.assertIn('pick', response.text)
 
     def test_get_script_code(self):
         self.start_server(12345, '127.0.0.1')
