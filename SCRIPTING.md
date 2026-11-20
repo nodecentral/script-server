@@ -1,6 +1,6 @@
 # SCRIPTING.md — Script-Server Scripting Conventions (Focused)
 
-Version: 2.19.0
+Version: 2.20.0
 Last updated: 2026-11-20
 
 This is the **focused** convention doc for any Claude session writing
@@ -922,6 +922,21 @@ in order of preference for most cases:
    learning anyway (see Learning & Sharing above) if it deserves a
    curated, hand-written description there.
 
+   **A curated default comes with a test (Script Server 2.9.0+).** Every
+   entry in `conf/secrets_defaults.json` must have a check in **Script
+   Server › Tools › Test a Secret**, which tries the key against its real
+   service and shows something back (an AI reply, a live price, your
+   library's size, a notification). A test in the main repo fails the
+   build if one is missing. So when you ask for a new curated entry, say
+   which **cheap call proves the key works** and what it could show (one
+   request, read-only, no paid tier), and the main repo adds both
+   together. The file is a platform file since 2.9.0, so new entries
+   reach every install on its next restart.
+
+   **Try a key before relying on it:** Test a Secret, pick the entry (or
+   "All secrets that are set"), Execute. Keys are never shown, even where
+   a provider echoes them in an error.
+
    **There is no central scanner that discovers what a script needs from
    its source** - that design was rejected (it could invent secrets no
    real script uses). Registration happens only through the script's own
@@ -1099,8 +1114,12 @@ command run the moment the page opens — before any parameter is set:
 - **Purely informational, never blocking** — cannot prevent the main
   script from running; re-check anything that actually matters in the
   main script too.
-- **Failure is visible** — non-zero exit shows as an error where the
-  banner would be.
+- **Failure is visible (Script Server 2.9.0+)** — a non-zero exit, or a
+  script that can't start at all (e.g. no execute bit), shows "The banner
+  script failed" and the reason where the banner would be. Before 2.9.0
+  nothing showed at all. Call the script through its interpreter
+  (`"script": "python3 /app/scripts/preload/name.py"`), so it doesn't
+  depend on the execute bit.
 
 **Where the preload script should live** — four cases, in order of how
 common they are:

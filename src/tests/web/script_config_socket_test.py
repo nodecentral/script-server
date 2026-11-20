@@ -150,6 +150,28 @@ class ScriptConfigSocketTest(testing.AsyncTestCase):
              }},
             event)
 
+    @testing.gen_test
+    def test_failing_preload_script_shows_why(self):
+        self.socket = yield self._connect('Failing preload')
+        self._assert_message_type((yield self.socket.read_message()), 'initialConfig')
+
+        event = json.loads((yield self.socket.read_message()))
+        self.assertEqual('preloadScript', event['event'])
+        self.assertEqual('terminal', event['data']['format'])
+        self.assertIn('The banner script failed', event['data']['output'])
+        self.assertIn('Code 3', event['data']['output'])
+        self.assertIn('oops', event['data']['output'])
+
+    @testing.gen_test
+    def test_unrunnable_preload_script_shows_why_and_a_hint(self):
+        self.socket = yield self._connect('Unrunnable preload')
+        self._assert_message_type((yield self.socket.read_message()), 'initialConfig')
+
+        event = json.loads((yield self.socket.read_message()))
+        self.assertIn('The banner script failed', event['data']['output'])
+        self.assertIn('Permission denied', event['data']['output'])
+        self.assertIn('call it through its interpreter', event['data']['output'])
+
     def assert_model(self, response, event_type, external_model_id=None, list2_values=None,
                      client_version=None):
         event = json.loads(response)
@@ -248,6 +270,17 @@ class ScriptConfigSocketTest(testing.AsyncTestCase):
                 test_utils.create_file(os.path.join('test1_files', dir, filename))
 
         test1_files_path = os.path.join(test_utils.temp_folder, 'test1_files')
+        test_utils.write_script_config(
+            {'name': 'Failing preload', 'script_path': 'ls',
+             'preload_script': {'script': 'sh -c "echo oops >&2; exit 3"'}},
+            'failing_preload')
+        unrunnable = test_utils.create_file('not_executable.sh', text='#!/bin/sh\necho hi\n')
+        os.chmod(unrunnable, 0o644)
+        test_utils.write_script_config(
+            {'name': 'Unrunnable preload', 'script_path': 'ls',
+             'preload_script': {'script': unrunnable}},
+            'unrunnable_preload')
+
         test_utils.write_script_config(
             {'name': 'Test script 1',
              'script_path': 'ls',

@@ -195,7 +195,7 @@ are logged and treated as "user view", so a typo hides nothing.
 Secrets Manager → `placement: settings`. Everything else → category
 **Script Server** (icon `dns`), in two groups:
 - **Tools:** Secrets Viewer, Secret Ingredients Check, MOTD, Disk Usage,
-  Backup, Send Notification and View Capabilities.
+  Backup, Send Notification, View Capabilities and Test a Secret.
 - **Demo:** Hello World, Progress Demo, Terminal Colors, Confirm Gate,
   Download Image, File Info and Disk Usage Chart.
 
@@ -1020,6 +1020,31 @@ script that calls `get_secret()` with a purpose registers itself either
 way. Whether self-registered entries should get a "promote to
 `secrets_defaults.json`" action is still open (see `ROADMAP.md`).
 
+**Every curated entry has a test, and the file is a platform file (2.9.0,
+the user's call).** `conf/secrets_defaults.json` used to be user content
+(fill-if-missing), so an existing NAS never saw new entries. It's now in
+`tools/PLATFORM_FILES` and refreshed on every start, so don't edit it on
+the NAS. The rule that came with it: each product in it needs a check in
+**Test a Secret** (`scripts/secret_test.py`, `CHECKS`), which makes one
+cheap, read-only call with the stored key and shows something real (AI
+reply, live price, CPI, Paperless counts, Gitea repos, a notification).
+`src/tests/secret_test_test.py` fails if a product has no check, or the
+check and the file list different keys. So adding a default means adding
+its check in the same commit.
+- `secret_test.py` and its preload are platform files too, so they stay in
+  step with the defaults file. Its runner is user content and never
+  refreshed, so the Secret dropdown comes from `secret_test.py --choices`
+  rather than a list in the runner.
+- Lookups use `register=False`: the tester only tries what's configured.
+- Keys are never shown: values are replaced, and so are masked fragments
+  some providers echo (`sk-proj-****abcd`, `****abcd`). URLs are not
+  secrets and stay readable.
+- Alpha Vantage returns a quote even for unknown keys (checked with
+  "dummy"), so its card says UNVERIFIED instead of OK.
+- Verified against every live endpoint with dummy keys (each one rejected
+  cleanly), and in a browser on a live server. A real success needs real
+  keys, so success cards were checked with canned replies only.
+
 Confirmed real integration (`notify.py` calls these directly):
 
 ```json
@@ -1550,9 +1575,12 @@ would otherwise bloat the `description` field.
 - **Purely informational, never blocking.** It cannot prevent the main script
   from running. If a precondition actually matters, the main script must
   re-check it itself rather than trusting the banner.
-- **Failure is visible, not silent.** A non-zero exit raises an exception,
-  shown as an error where the banner would be — write it as carefully as any
-  other script.
+- **Failure is visible, not silent (since 2.9.0).** A non-zero exit, or a
+  script that can't start (no execute bit), shows "The banner script
+  failed" and the reason where the banner would be. Before 2.9.0
+  `_send_preload_script` only logged an `ExecutionException` and let any
+  other error kill its thread, so the page just showed no banner. Write it
+  as carefully as any other script, and call it through its interpreter.
 
 ### Where the preload script should live
 
@@ -2341,6 +2369,23 @@ values to check the picked ones.
 - Live server, 3 s values script: a parallel request took 9 ms during
   Execute (2.7 s before) and 12 ms during Add Schedule. The run started
   with its value, the schedule was created, and a bad value still got 422.
+
+### 2026-11-20 — v2.9.0: a failed banner says why; secrets defaults are a platform file
+
+**Banner errors (`src/web/script_config_socket.py`):** `_send_preload_script`
+now catches any exception and sends a `preloadScript` event in `terminal`
+format: "The banner script failed: <reason>" (`describe_preload_error`,
+built on `describe_load_error`), plus a hint for `PermissionError`. Found
+while building Test a Secret, whose banner script had no execute bit and
+simply didn't appear. Two new tests in `script_config_socket_test.py`
+(a script exiting 3, and an unrunnable one), which fail on the old code.
+
+**Platform files:** `conf/secrets_defaults.json`, `scripts/secret_test.py`
+and `scripts/preload/secret_test.py` added to `tools/PLATFORM_FILES`; the
+entrypoint's comments updated. Checked by running the entrypoint through
+its `APP_ROOT`/`DEFAULTS_DIR` hooks against an old install: the 15-entry
+defaults file became 20, both scripts were installed, the runner seeded.
+See "Every curated entry has a test" under Secrets Store.
 
 ## Upstream Sync Status
 

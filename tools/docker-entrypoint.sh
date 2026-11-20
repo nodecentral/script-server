@@ -13,7 +13,8 @@
 #    install, and a shipped file you deleted comes back on the next start (a missing file can't
 #    be told apart from a never-seeded one).
 #  * PLATFORM files (the names listed in /app/defaults/PLATFORM_FILES: scripts/shared/*,
-#    scripts/preload/*, conf/logging.json): overwritten per individual file on every start, but
+#    scripts/preload/*, conf/logging.json, conf/secrets_defaults.json, scripts/secret_test.py):
+#    overwritten per individual file on every start, but
 #    only when their content differs from the image's copy, and each one is logged. The
 #    containing folder is never deleted or replaced, and files the image doesn't ship (your own
 #    scripts/shared/foo.py, an imported repo's preload) are never touched.
@@ -31,8 +32,8 @@
 #                            another instance (v2 next to v1): it gets everything it needs of its
 #                            own without adding files to the shared ones.
 #   PLATFORM_REFRESH=false   skip the per-file platform-file refresh.
-#   PLATFORM_REFRESH=conf    refresh only the conf/ platform files (logging.json), never the
-#                            shared scripts/shared + scripts/preload ones. Same use as above.
+#   PLATFORM_REFRESH=conf    refresh only the conf/ platform files (logging.json,
+#                            secrets_defaults.json), never the scripts/ ones. Same use as above.
 #   CHMOD_SCRIPTS=false      skip `chmod -R +x` on /app/scripts (see the note near the end).
 #   APP_ROOT / DEFAULTS_DIR  relocate /app and /app/defaults (a test hook, not for normal use).
 

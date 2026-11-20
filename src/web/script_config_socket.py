@@ -248,8 +248,21 @@ class ScriptConfigSocket(tornado.websocket.WebSocketHandler):
             format = self.config_model.get_preload_script_format()
 
             self.safe_write(self._create_event('preloadScript', {'output': text, 'format': format}))
-        except ExecutionException:
+        except Exception as e:
+            # Any failure, including a script that can't even start (no execute bit): show why
+            # where the banner would be, instead of an empty space and a server-log traceback.
             LOGGER.exception('Failed to execute preload script for ' + self.config_model.name)
+            self.safe_write(self._create_event('preloadScript', {
+                'output': describe_preload_error(e), 'format': 'terminal'}))
+
+
+def describe_preload_error(error):
+    """The banner shown instead of a preload script's output when it fails."""
+    text = '\x1b[1;31mThe banner script failed\x1b[0m: ' + describe_load_error(error, max_length=1500)
+    if isinstance(error, PermissionError):
+        text += ('\n\x1b[90mHint: call it through its interpreter in the runner\'s preload_script, '
+                 'e.g. python3 /app/scripts/preload/name.py, so it doesn\'t need the execute bit.\x1b[0m')
+    return text + '\n'
 
 
 def describe_load_error(error, max_length=2000):

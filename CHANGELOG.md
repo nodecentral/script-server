@@ -4,6 +4,19 @@ This is the nodecentral fork of [Script-Server](https://github.com/bugy/script-s
 running on the home NAS. The version number is the one in `version.txt`, shown at the bottom of
 the sidebar. Newest first.
 
+## 2.9.0 — 2026-11-20
+
+- **New: Test a Secret** (Script Server › Tools). Pick a secret, or all that are set, and see it
+  work for real: a short reply from an AI model, a live share price, the latest US inflation
+  figure, your Paperless library, your Gitea repos, or a test notification on your phone. Keys
+  are never shown. Every secret in the default list can be tested here, and new ones always will
+  be.
+- **The default list of secrets now updates itself.** New entries appear in Secrets Manager after
+  an update, instead of only on a fresh install. This includes the AI keys (Anthropic, OpenAI,
+  Gemini, xAI and DeepSeek) added last time.
+- **A script's banner that fails now says why**, instead of the banner just not appearing.
+- Updated scripting guide (SCRIPTING.md 2.20.0): Test a Secret, and how banner failures show.
+
 ## 2.8.0 — 2026-11-19
 
 - **A slow script no longer freezes Script Server for everyone.** When a script's dropdowns are

@@ -13,6 +13,14 @@
 # expected to edit.
 
 conf/logging.json
+# The curated "not set yet" checklist. Platform-owned since 2.9.0 so new defaults reach existing
+# installs; every entry must have a check in scripts/secret_test.py (src/tests/secret_test_test.py).
+conf/secrets_defaults.json
+
+# Test a Secret: its checks must stay in step with secrets_defaults.json above, so it's refreshed
+# with it. Its runner is user content, so the runner reads its Secret list from the script.
+scripts/secret_test.py
+scripts/preload/secret_test.py
 
 scripts/preload/import_from_gitea.py
 scripts/preload/motd.py
