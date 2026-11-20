@@ -1364,6 +1364,24 @@ one place.
 
 -----
 
+## Calling Ollama (local AI models)
+
+Reported 2026-11-20 from ss_document_file_management (reproduced on the
+live Ollama, not here: this sandbox has no Ollama). Always set
+`options.num_ctx` (and `num_predict`): Ollama truncates longer prompts to
+its small default context and only logs it server-side. Vision OCR:
+~150 dpi pages, `num_ctx` >= 16384 (a 300-dpi page overflows 4k, HTTP
+400). glm-ocr: prompt `Text Recognition:`, stop on ```` ``` ````, keep the
+first reading, or it repeats until `num_predict`. SCRIPTING.md has the
+example payload.
+
+Its cloud-AI fallbacks use one Secrets Store product per provider
+(`anthropic`, `openai`, `gemini`, `xai`, `deepseek`, each `API_KEY`),
+registered by `paperless_ai_analysis.py` and curated in
+`conf/secrets_defaults.json` since the same day.
+
+-----
+
 ## Network Scanning Scripts Need Host Networking
 
 A script that uses `nmap`, `arp-scan`, or reads the ARP cache to discover

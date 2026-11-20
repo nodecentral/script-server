@@ -1,7 +1,7 @@
 # SCRIPTING.md — Script-Server Scripting Conventions (Focused)
 
-Version: 2.18.0
-Last updated: 2026-11-19
+Version: 2.19.0
+Last updated: 2026-11-20
 
 This is the **focused** convention doc for any Claude session writing
 scripts/runners destined for import into `nodecentral/script-server` —
@@ -1380,6 +1380,35 @@ Lua/bash: `python3 /app/scripts/shared/notify_send.py --title 'Tariff Watch'
   every option on its form, and its banner shows which service is set up
   and your Pushover devices.
 - Standard library only: nothing to install.
+
+-----
+
+## Calling Ollama (local AI models)
+
+From ss_document_file_management (2026-11-20), reproduced against the
+live Ollama instance:
+- **Always set `options.num_ctx`**, sized to your prompt, and
+  `options.num_predict`. Ollama's default context is small (2k-4k tokens,
+  depending on version). A longer prompt is **cut silently**: the
+  truncation is only in Ollama's own log, and the model answers about
+  part of your input.
+- **Vision OCR:** render pages at about **150 dpi**, with
+  `num_ctx` of at least 16384. A 300-dpi page image alone overflows a 4k
+  context, and the request fails with HTTP 400.
+- **glm-ocr** reads the page over and over until `num_predict` runs out.
+  Use its own prompt, `Text Recognition:`, stop on `` ``` ``, and keep only
+  the first reading.
+
+```python
+payload = {'model': 'glm-ocr', 'prompt': 'Text Recognition:', 'images': [page_png_b64],
+           'stream': False,
+           'options': {'num_ctx': 16384, 'num_predict': 4096, 'stop': ['```']}}
+```
+
+Store Ollama's address in the Secrets Store like any other service URL:
+`http://<NAS IP>:11434`, not a container name (see Secrets).
+Cloud AI keys are one product per provider: `anthropic`, `openai`,
+`gemini`, `xai`, `deepseek`, each with `API_KEY`.
 
 -----
 
