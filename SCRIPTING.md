@@ -1,7 +1,7 @@
 # SCRIPTING.md — Script-Server Scripting Conventions (Focused)
 
-Version: 2.20.0
-Last updated: 2026-11-20
+Version: 2.21.0
+Last updated: 2026-11-21
 
 This is the **focused** convention doc for any Claude session writing
 scripts/runners destined for import into `nodecentral/script-server` —
@@ -1055,11 +1055,39 @@ registry, processed-jobs list) instead of just reporting a snapshot:
 3. **Viewer** renders the whole store as a table.
 
 **Lua has no JSON library by default** (Lua 5.1 via `apt install lua5.1`).
-Don't hand-roll one — either write the store logic in Python (stdlib
+Don't hand-roll one. Either write the store logic in Python (stdlib
 `json`) as a shared helper that a Lua collector calls via
-`os.execute`/`io.popen`, or install `lua-cjson` via luarocks.
+`os.execute`/`io.popen`, or use **`dkjson`, the standard Lua JSON library
+for every repo**, loaded through `ensure_module.lua`:
 
-**A Lua JSON library (`dkjson`, likely any pure-Lua one) silently loses
+```lua
+local SHARED_DIR = ((arg and arg[0] or ""):match("^(.*)/") or ".") .. "/shared/"
+local ensure_ok, ensure_mod = pcall(dofile, SHARED_DIR .. "ensure_module.lua")
+local json = ensure_ok and ensure_mod.ensure("dkjson", "luarocks install dkjson")
+    or require("dkjson")
+
+local function decode(text)
+    local data, pos, err = json.decode(text)   -- doesn't raise on bad input
+    if err then return nil, "bad JSON at character " .. pos .. ": " .. err end
+    return data
+end
+```
+
+- **Never a bare `require` of a JSON module.** Nothing installs it, so it
+  fails on the NAS with `module 'cjson' not found` (ss_finance_management's
+  daily price run, 2026-11-21). Load it with `ensure_module.lua` as above.
+- **`decode` returns `nil, pos, err` on bad input; it doesn't raise.** So
+  `pcall` alone reports success. Check `err`, as above.
+- **`null` decodes as `nil`**, so the key looks missing. Pass `json.null`
+  as the third argument (`json.decode(text, 1, json.null)`) when you need
+  to tell `null` from absent.
+- dkjson is pure Lua (no compiler needed); `lua-cjson` is a C build. Both
+  decode numbers as doubles, so cjson has no precision advantage (below).
+
+Checked here with dkjson under Lua 5.1, including that snippet loaded
+through the real `ensure_module.lua`.
+
+**A Lua JSON library (`dkjson`, and `lua-cjson` too) silently loses
 precision on large integer IDs** — JSON numbers decode as Lua
 floats/doubles, so a 64-bit value like an `mkvmerge -J` track UID
 (`17386562085573927355`) comes back as `1.7386562085574e+19`. Not
@@ -1457,6 +1485,8 @@ result overwrite a vendor already known for that MAC.
 
 - `"type": "select"` — use `"type": "list"`
 - `"labels": []` — use `"values_ui_mapping": {}` instead
+- A bare `require("cjson")` (or any JSON module) in Lua: nothing installs it.
+  Use `dkjson` through `ensure_module.lua` (see Persistent State)
 - A top-level `"env": [...]` block in the runner JSON for a DEBUG toggle
   (or anything else) — not a recognized field, silently ignored; use a
   normal `parameters` entry instead

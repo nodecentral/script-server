@@ -1512,10 +1512,32 @@ hand-roll a JSON encoder/decoder in Lua for this. Two options:
   `claude/ss_network_management` (`network_scan.lua` + `shared/network_inventory.py`),
   moved out of this repo; see SCRIPTING.md's "Network Scanning Scripts" for
   the parsing fixes made there.
-- Or install a Lua JSON library (e.g. `lua-cjson` via luarocks) if you want to
-  keep everything in Lua.
+- Or keep it in Lua with **`dkjson`, the standard Lua JSON library for every
+  repo** (2026-11-21), loaded through `ensure_module.lua`. Never a bare
+  `require("cjson")`: nothing installs it, and ss_finance_management's
+  daily price run failed on the NAS with `module 'cjson' not found`. Movie
+  and photo already used dkjson this way.
 
-**A Lua JSON library (`dkjson`, likely any pure-Lua one) silently loses
+```lua
+local SHARED_DIR = ((arg and arg[0] or ""):match("^(.*)/") or ".") .. "/shared/"
+local ensure_ok, ensure_mod = pcall(dofile, SHARED_DIR .. "ensure_module.lua")
+local json = ensure_ok and ensure_mod.ensure("dkjson", "luarocks install dkjson")
+    or require("dkjson")
+
+local function decode(text)
+    local data, pos, err = json.decode(text)   -- doesn't raise on bad input
+    if err then return nil, "bad JSON at character " .. pos .. ": " .. err end
+    return data
+end
+```
+
+  dkjson is pure Lua (no compiler); cjson is a C build, and both decode
+  numbers as doubles, so cjson gains nothing on precision. Two traps,
+  checked here under Lua 5.1: `decode` returns `nil, pos, err` on bad
+  input instead of raising (so `pcall` reports success), and `null`
+  decodes as `nil` unless `json.null` is passed as the third argument.
+
+**A Lua JSON library (`dkjson`, and `lua-cjson` too) silently loses
 precision on large integer IDs** — JSON numbers decode as Lua
 floats/doubles, so a 64-bit value like an `mkvmerge -J` track UID
 (`17386562085573927355`) comes back as `1.7386562085574e+19`. Not
@@ -2550,6 +2572,8 @@ Rules:
 
 - `"type": "select"` — use `"type": "list"`
 - `"labels": []` — use `"values_ui_mapping": {}` instead
+- A bare `require("cjson")` (or any JSON module) in Lua: nothing installs it.
+  Use `dkjson` through `ensure_module.lua` (see Persistent State)
 - A top-level `"env": [...]` block in the runner JSON for a DEBUG toggle
   (or anything else) — not a recognized field, silently ignored; use a
   normal `parameters` entry instead
