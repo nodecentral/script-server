@@ -1755,6 +1755,17 @@ such as `OK`, `WARN` or `ERROR` too, so it still reads in Copy/Download
 (plain text) and for anyone who can't tell red from green. Reset with `0`
 at the end of every coloured span (`\033[1;31mERROR\033[0m ...`).
 
+**Links from an `html_iframe` page to another runner** (2026-11-21, from
+ss_finance_management's Overview): `HtmlIFrameOutput.js` writes the output
+into the iframe's `srcdoc` and sets no `sandbox`, so the page is
+same-origin and `<a href="/#/<encodeURIComponent(name)>" target="_top">`
+navigates the top page to that runner (`/:scriptName` in the main-app
+router). Settings runners are `/admin.html#/settings/<name>`, the same
+form `secrets_store.secrets_manager_link()` has used since 2.0.0. If a
+future change adds a `sandbox` attribute to that iframe, it must keep
+`allow-top-navigation-by-user-activation` and `allow-same-origin`, or
+these links break.
+
 **Progress indicators in html_iframe:**
 CSS spinners never self-terminate. Pattern for live progress feedback:
 

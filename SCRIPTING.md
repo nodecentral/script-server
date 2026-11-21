@@ -1,6 +1,6 @@
 # SCRIPTING.md — Script-Server Scripting Conventions (Focused)
 
-Version: 2.21.0
+Version: 2.22.0
 Last updated: 2026-11-21
 
 This is the **focused** convention doc for any Claude session writing
@@ -1265,6 +1265,23 @@ Keep colour as a second signal, not the only one. Start a line with a word
 such as `OK`, `WARN` or `ERROR` too, so it still reads in Copy/Download
 (plain text) and for anyone who can't tell red from green. Reset with `0`
 at the end of every coloured span (`\033[1;31mERROR\033[0m ...`).
+
+**Linking to another runner from an `html_iframe` page.** The page can
+open any other script: the output is a same-origin iframe with no
+sandbox, so a link with `target="_top"` navigates the whole Script-Server
+page. Use the runner's `name`, URL-encoded:
+
+```python
+from urllib.parse import quote
+link = f'<a href="/#/{quote(name)}" target="_top">Import statements</a>'
+# A Settings runner ("placement": "settings") lives on the admin page:
+admin = f'<a href="/admin.html#/settings/{quote(name)}" target="_top">Secrets Manager</a>'
+```
+
+Without `target="_top"` the link tries to load inside the iframe and
+fails without any message. Use this for "Next action" links, e.g. from a
+category's Overview to the runner that fixes a missing source. Settings
+links only work for admins.
 
 **Progress indicators in html_iframe** (CSS spinners never self-terminate):
 1. Emit `<span class="spinner" id="spin-x"></span>` with the phase label
