@@ -1469,6 +1469,21 @@ Two kinds of storage, two places:
   different mount only needs a new value.
 - Never hardcode other paths.
 
+**Check a library is really there before comparing it with stored state**
+(2026-11-22, ss_photo_file_management 770f1ac, after the `/app/pictures` to
+`/app/media/pictures` move; movies and audiobooks face the same move). A
+moved or missing bind mount leaves an empty mount point, and
+`find … 2>/dev/null` against it, or against an unreadable library, lists
+nothing, exactly like a library whose files were all deleted (reproduced
+here as uid 65534). The catalogue update then wiped the catalogue. Rules,
+with the tested `library_problem()`/`list_files()` helpers, are in
+SCRIPTING.md's Storage section: check exists/readable/not empty and stop
+with "share not mounted?"; keep the listing's errors and never treat an
+unreadable folder's entries as deleted; rewrite stored paths when only the
+prefix moved. This complements the QNAP note above (check for a file that
+only arrives through the mount): that proves the mount, this protects the
+data when the check is skipped.
+
 -----
 
 ## Persistent State Across Runs (Inventories / Registries)

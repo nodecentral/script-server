@@ -1,7 +1,7 @@
 # SCRIPTING.md — Script-Server Scripting Conventions (Focused)
 
-Version: 2.22.0
-Last updated: 2026-11-21
+Version: 2.23.0
+Last updated: 2026-11-22
 
 This is the **focused** convention doc for any Claude session writing
 scripts/runners destined for import into `nodecentral/script-server` —
@@ -1038,6 +1038,54 @@ Two kinds of storage, two places:
   in the runner parameter's default and as the script's fallback, so a
   different mount only needs a new value.
 - Never hardcode other paths.
+
+### Check a library is really there before comparing it with stored state
+
+**A moved or missing bind mount usually leaves an empty folder behind**,
+not an error. A script that lists the library (`find … 2>/dev/null`,
+`os.walk`) and compares it with a catalogue then sees every file as
+deleted, and an "update" wipes the catalogue. This happened to
+ss_photo_file_management on 2026-11-22, after the move from
+`/app/pictures` to `/app/media/pictures`; the movie and audiobook moves
+have the same risk. Checked here: an empty mount point and an unreadable
+library both list zero files with the errors thrown away, the same as a
+library that really was emptied.
+
+So, before any comparison that can drop or rewrite entries:
+- **Check the folder exists, can be read and isn't empty.** If not, stop
+  with a "share not mounted?" message and change nothing.
+- **Don't throw away errors from the listing.** A folder that can't be
+  read isn't a folder of deleted files: leave its entries alone. In shell,
+  keep `find`'s stderr and its exit code (1 when anything was unreadable).
+- **When the library's path changes but the files are the same**, rewrite
+  the stored paths (old prefix to new) instead of rebuilding from scratch.
+- Worth adding: if a run would drop more than, say, half the catalogue,
+  ask first (a `confirm` parameter) rather than doing it.
+
+Tested here, including as a non-root user with an unreadable sub-folder:
+
+```python
+import os
+
+def library_problem(path):
+    """Why the library can't be trusted to list its files, or None if it can."""
+    if not os.path.isdir(path):
+        return f'{path} is missing. Is the NAS share mounted?'
+    try:
+        with os.scandir(path) as entries:
+            if next(entries, None) is None:
+                return f'{path} is empty. Is the NAS share mounted?'
+    except OSError as e:
+        return f"{path} can't be read ({e.strerror}). Check the share's permissions."
+    return None
+
+def list_files(root):
+    """(files, unreadable folders). Never mistake an unreadable folder for deleted files."""
+    files, unreadable = [], []
+    for folder, _dirs, names in os.walk(root, onerror=lambda e: unreadable.append(e.filename)):
+        files += [os.path.join(folder, n) for n in names]
+    return files, unreadable
+```
 
 -----
 
