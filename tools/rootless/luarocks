@@ -4,12 +4,26 @@
 #
 # Installs Lua modules into the persistent data folder (SCRIPT_DEPS_DIR, /app/data/.deps by
 # default) instead of /usr/local, so they need no root and survive the container being recreated
-# or the image being upgraded. LUA_PATH/LUA_CPATH (set in tools/Dockerfile) put that tree ahead
+# or the image being upgraded. LUA_PATH*/LUA_CPATH* (set in tools/Dockerfile) put that tree ahead
 # of the system one, so require() finds what's installed there. An explicit --tree or --local
 # is left alone.
+#
+# Script Server 3 has Lua 5.1 and 5.4, and a module built for one can't be loaded by the other.
+# Unless --lua-version is given, it installs for LUAROCKS_LUA_VERSION (ensure_module.lua 1.3.0+
+# sets it to the version running the script), or else for whatever plain `lua` runs.
 deps="${SCRIPT_DEPS_DIR:-/app/data/.deps}"
 case " $* " in
     *" --tree"* | *" --local "*) ;;
     *) set -- --tree="$deps/lua" "$@" ;;
+esac
+case " $* " in
+    *" --lua-version"*) ;;
+    *)
+        version="${LUAROCKS_LUA_VERSION:-}"
+        if [ -z "$version" ] && command -v lua >/dev/null 2>&1; then
+            version="$(lua -e 'io.write((_VERSION:gsub("^Lua ", "")))' 2>/dev/null)"
+        fi
+        [ -n "$version" ] && set -- --lua-version="$version" "$@"
+        ;;
 esac
 exec /usr/bin/luarocks "$@"

@@ -48,6 +48,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       libssl-dev \
       librsvg2-bin \
       lua5.1 \
+      lua5.4 \
+      liblua5.4-dev \
       luarocks \
       lua-sec \
       lua-socket \
@@ -68,8 +70,18 @@ RUN curl -fsSL -o /usr/local/bin/websocat \
 # Lua modules baked in ahead of time. Not required: since 2.3.0 a script's own ensure_module.lua
 # can luarocks-install what it needs at run time, as PUID, into /app/data/.deps/lua (see the
 # rootless wrappers below). This only saves a slow first run. lsqlite3: ss_photo_file_management
-# (Photo Dashboard), a C build against libsqlite3-dev + build-essential from the apt list above.
-RUN luarocks install lsqlite3
+# (Photo Dashboard), a C build against libsqlite3-dev + build-essential from the apt list above,
+# built once per Lua version.
+RUN luarocks --lua-version=5.1 install lsqlite3 \
+    && luarocks --lua-version=5.4 install lsqlite3
+
+# Script Server 3: `lua` (and `luac`) run Lua 5.4. Debian ranks lua5.1 above lua5.4, so this is set
+# explicitly. lua5.1 stays installed: a script whose first line is `#!/usr/bin/env lua5.1` keeps
+# running on 5.1, and LUA_DEFAULT=5.1 on the container switches plain `lua` back (entrypoint).
+RUN update-alternatives --set lua-interpreter /usr/bin/lua5.4 \
+    && update-alternatives --set lua-compiler /usr/bin/luac5.4 \
+    && lua -v 2>&1 | grep -q 'Lua 5\.4' \
+    && lua5.1 -v 2>&1 | grep -q 'Lua 5\.1'
 
 # Python packages used by scripts (spreadsheet/PDF handling, OCR, browser automation),
 # installed before the app code is copied so they cache independently of app changes.
@@ -154,7 +166,10 @@ RUN sed -i 's/\r$//' /usr/local/bin/docker-entrypoint.sh \
 #   - apt-get/apt: wrappers that go through sudo, allowed for apt-get only (ALLOW_APT=false on the
 #     container removes the rule). Lost when the container is recreated; ensure_binary.lua
 #     reinstalls on the next run.
-#   - luarocks: a wrapper that installs into /app/data/.deps/lua, found via LUA_PATH/LUA_CPATH.
+#   - luarocks: a wrapper that installs into /app/data/.deps/lua, for the Lua version that runs
+#     plain `lua` unless told otherwise (LUAROCKS_LUA_VERSION, set by ensure_module.lua 1.3.0+, or
+#     --lua-version). Found via LUA_PATH_5_4/LUA_CPATH_5_4 (Lua 5.4 reads these first) and
+#     LUA_PATH/LUA_CPATH (Lua 5.1), so the two versions' modules never mix.
 #   - pip: PIP_USER + PYTHONUSERBASE install into /app/data/.deps/python, which Python adds to
 #     sys.path itself. The server runs with `python3 -s` (no user site), so nothing a script
 #     installs there can replace the server's own packages.
@@ -175,7 +190,9 @@ ENV SCRIPT_DEPS_DIR=/app/data/.deps \
     PIP_USER=1 \
     PIP_BREAK_SYSTEM_PACKAGES=1 \
     LUA_PATH="/app/data/.deps/lua/share/lua/5.1/?.lua;/app/data/.deps/lua/share/lua/5.1/?/init.lua;;" \
-    LUA_CPATH="/app/data/.deps/lua/lib/lua/5.1/?.so;;"
+    LUA_CPATH="/app/data/.deps/lua/lib/lua/5.1/?.so;;" \
+    LUA_PATH_5_4="/app/data/.deps/lua/share/lua/5.4/?.lua;/app/data/.deps/lua/share/lua/5.4/?/init.lua;;" \
+    LUA_CPATH_5_4="/app/data/.deps/lua/lib/lua/5.4/?.so;;"
 
 EXPOSE 5000
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]

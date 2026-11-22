@@ -1,6 +1,6 @@
 # SCRIPTING.md — Script-Server Scripting Conventions (Focused)
 
-Version: 2.24.0
+Version: 2.25.0
 Last updated: 2026-11-22
 
 This is the **focused** convention doc for any Claude session writing
@@ -90,7 +90,8 @@ silent divergence that takes months to notice.
   for preload scripts (see below).
 - Prefer Lua for lightweight automation, Python where ecosystem matters
   (see Language Choice below).
-- Lua 5.1+ compatibility required.
+- **Lua: write for both 5.1 and 5.4.** Script Server 2 runs Lua 5.1 and
+  Script Server 3 runs 5.4, and both are in use (see "Which Lua" below).
 - Be conscious of QNAP OS limitations (limited shell utilities,
   non-standard paths).
 
@@ -1132,7 +1133,7 @@ registry, processed-jobs list) instead of just reporting a snapshot:
    dropdown sourced from the same JSON file.
 3. **Viewer** renders the whole store as a table.
 
-**Lua has no JSON library by default** (Lua 5.1 via `apt install lua5.1`).
+**Lua has no JSON library by default** (5.1 or 5.4).
 Don't hand-roll one. Either write the store logic in Python (stdlib
 `json`) as a shared helper that a Lua collector calls via
 `os.execute`/`io.popen`, or use **`dkjson`, the standard Lua JSON library
@@ -1162,8 +1163,8 @@ end
 - dkjson is pure Lua (no compiler needed); `lua-cjson` is a C build. Both
   decode numbers as doubles, so cjson has no precision advantage (below).
 
-Checked here with dkjson under Lua 5.1, including that snippet loaded
-through the real `ensure_module.lua`.
+Checked here with dkjson under Lua 5.1 and 5.4, including that snippet
+loaded through the real `ensure_module.lua`.
 
 **A Lua JSON library (`dkjson`, and `lua-cjson` too) silently loses
 precision on large integer IDs** — JSON numbers decode as Lua
@@ -1383,6 +1384,57 @@ scripts (read/patch/write JSON), lightweight automation.
 substantial HTML output, dispatching across provider SDKs, ecosystem
 libraries.
 
+### Which Lua: Script Server 2 and 3 are both supported
+
+Script Server 3 (image `v3`, 3.0.0+, 2026-11-22) is Script Server 2 with
+Lua 5.4. They run side by side on the NAS, each with its own folders, and
+your repo is imported into either, so **a script must run on both**:
+
+| | Script Server 2 | Script Server 3 |
+|---|---|---|
+| plain `lua` runs | 5.1 | 5.4 (`LUA_DEFAULT=5.1` on the container switches it back) |
+| `lua5.1` | yes | yes |
+| `lua5.4` | no | yes |
+
+- **First line `#!/usr/bin/env lua`**, and code that runs on 5.1 and 5.4
+  (the table below). It runs as 5.1 on v2 and as 5.4 on v3.
+- **Not ready for 5.4 yet? Pin it: `#!/usr/bin/env lua5.1`.** It then
+  runs on 5.1 on both. That's a stopgap, so fix the code when you can.
+- **Never `#!/usr/bin/env lua5.4`, or 5.4-only features**, while v2 is
+  supported: v2 has no Lua 5.4.
+- **Helpers loaded with `dofile`/`require`** run under whichever Lua
+  loaded them, so they must work on both.
+- **Check it:** `luac5.1 -p x.lua && luac5.4 -p x.lua` catches syntax.
+  Run it with `lua5.1` and with `lua5.4` and compare the output. On a v3
+  install, **Script Server › Tools › Lua Version Check** lists every
+  installed Lua file and its repo, with what to change.
+
+**What changed from 5.1 to 5.4, and what works on both** (checked under
+5.1.5 and 5.4.6):
+
+| In 5.1 | In 5.4 | Write instead (works on both) |
+|---|---|---|
+| `unpack(t)` | gone | `local unpack = table.unpack or unpack` at the top |
+| `loadstring(s)` | gone | `local loadstring = loadstring or load` at the top |
+| `module("x")` | gone | `local M = {} ... return M` |
+| `math.pow(x, y)`, `math.mod` | gone | `x ^ y`, `math.fmod(x, y)` |
+| `table.getn(t)` | gone | `#t` |
+| `setfenv`/`getfenv` | gone | no common form: pin the script to `lua5.1` |
+| `10/2` prints `5` | prints `5.0` | `math.floor(a / b)` when you mean a whole number |
+| `("%d"):format(2.5)` gives `2` | an error | `("%d"):format(math.floor(x))` |
+| numbers are all doubles | 64-bit integers too | big IDs: keep them as strings (JSON section) |
+
+Not in 5.1, so don't use them while v2 is supported: `//`, `goto`, the
+bitwise operators (`& | ~ << >>`), `<const>`/`<close>`, `utf8`,
+`table.pack`/`table.move`, `math.type`/`math.tointeger`, `string.pack`,
+and `load` with a string (use the `loadstring` line above).
+
+**Modules are installed per Lua version.** A C module built for 5.1
+can't load in 5.4, so v3 keeps them in separate folders.
+`ensure_module.lua` 1.3.0+ installs for the version running your script.
+A bare `luarocks install x` installs for plain `lua`; add
+`--lua-version=5.1` for a pinned script.
+
 -----
 
 ## Self-Installing Dependencies (Modules and Binaries)
@@ -1427,8 +1479,9 @@ the usual install commands work anyway, so a script needs nothing special:
   `/app/data/.deps/python` (`PIP_USER`/`PYTHONUSERBASE`), which Python
   finds automatically. It's kept when the container is recreated.
 - **Lua:** `luarocks install x` installs into `/app/data/.deps/lua`
-  (a `luarocks` wrapper adds `--tree`), found via `LUA_PATH`/`LUA_CPATH`.
-  Also kept.
+  (a `luarocks` wrapper adds `--tree`), found via `LUA_PATH`/`LUA_CPATH`
+  (and `LUA_PATH_5_4`/`LUA_CPATH_5_4` on Script Server 3, which keeps 5.1
+  and 5.4 modules apart). Also kept.
 - **Programs:** `apt-get install x` goes through `sudo`, which the image
   allows for apt-get only. These are lost when the container is
   recreated; `ensure_binary.lua` reinstalls on the script's next run.

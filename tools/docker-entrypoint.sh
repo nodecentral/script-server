@@ -35,6 +35,7 @@
 #   PLATFORM_REFRESH=conf    refresh only the conf/ platform files (logging.json,
 #                            secrets_defaults.json), never the scripts/ ones. Same use as above.
 #   CHMOD_SCRIPTS=false      skip `chmod -R +x` on /app/scripts (see the note near the end).
+#   LUA_DEFAULT=5.1|5.4      which Lua plain `lua`/`luac` run (Script Server 3; the image sets 5.4).
 #   APP_ROOT / DEFAULTS_DIR  relocate /app and /app/defaults (a test hook, not for normal use).
 
 set -e
@@ -356,6 +357,27 @@ if [ "$NEED_CHOWN" = true ]; then
         fi
     done
 fi
+
+# Script Server 3: which Lua plain `lua`/`luac` run. The image sets 5.4; LUA_DEFAULT=5.1 switches
+# back for scripts not yet checked on 5.4 (Script Server › Tools › Lua Version Check). lua5.1 and
+# lua5.4 are always both there, so a script can also name one in its first line.
+case "${LUA_DEFAULT:-}" in
+    "") ;;
+    5.1 | 5.4)
+        if [ "$CUR_UID" != 0 ]; then
+            warn "LUA_DEFAULT=$LUA_DEFAULT needs the container to start as root - left as it is"
+        elif [ ! -x "/usr/bin/lua$LUA_DEFAULT" ]; then
+            warn "LUA_DEFAULT=$LUA_DEFAULT, but this image has no /usr/bin/lua$LUA_DEFAULT"
+        elif update-alternatives --quiet --set lua-interpreter "/usr/bin/lua$LUA_DEFAULT" \
+                && update-alternatives --quiet --set lua-compiler "/usr/bin/luac$LUA_DEFAULT"; then
+            :
+        else
+            warn "couldn't switch plain lua to $LUA_DEFAULT"
+        fi
+        ;;
+    *) warn "LUA_DEFAULT=$LUA_DEFAULT not understood (use 5.1 or 5.4) - left as it is" ;;
+esac
+command -v lua >/dev/null 2>&1 && log "plain lua runs $(lua -v 2>&1 | cut -d' ' -f1-2)"
 
 if [ "$NEED_CHOWN" = true ]; then
     log "starting as uid $RUN_UID gid $RUN_GID"

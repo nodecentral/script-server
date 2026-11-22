@@ -4,6 +4,22 @@ This is the nodecentral fork of [Script-Server](https://github.com/bugy/script-s
 running on the home NAS. The version number is the one in `version.txt`, shown at the bottom of
 the sidebar. Newest first.
 
+## 3.0.0 — 2026-11-22
+
+**Script Server 3** is a new image (`script-server:v3`) that runs next to Script Server 2, each
+with its own folders. Script Server 2 carries on as it is.
+
+- **Lua 5.4.** Plain `lua` now runs Lua 5.4. Lua 5.1 is still installed, so a script whose first
+  line names `lua5.1` runs exactly as before. Scripts written for both work on v2 and v3.
+- **New: Lua Version Check** (Script Server › Tools). Lists every Lua script installed, says
+  whether it runs on v2 and v3, what to change if not, and which imported repo it came from.
+- **Something broke on 5.4?** Set `LUA_DEFAULT=5.1` on the container and restart: plain `lua`
+  goes back to 5.1 while the script is fixed.
+- Lua modules a script installs for itself are kept apart per Lua version, so a module installed
+  under 5.1 can't break a script running on 5.4.
+- Updated scripting guide (SCRIPTING.md 2.25.0): which Lua to write for while v2 and v3 are both
+  in use.
+
 ## 2.9.0 — 2026-11-20
 
 - **New: Test a Secret** (Script Server › Tools). Pick a secret, or all that are set, and see it

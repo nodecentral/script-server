@@ -13,7 +13,8 @@ for running scripts with structured parameter forms and live streaming output.
   dynamic-dropdown helpers, `scripts/preload/` for preload scripts (see
   Preload Scripts below)
 - Prefer Lua for lightweight automation, Python where ecosystem matters
-- Lua 5.1+ compatibility required
+- Lua: code must run on 5.1 and 5.4 - Script Server 2 runs 5.1, Script
+  Server 3 runs 5.4 (see Language Choice > Which Lua)
 - Be conscious of QNAP OS limitations (limited shell utilities, non-standard paths)
 - Confirmed version in use: v1.18
 
@@ -201,7 +202,8 @@ are logged and treated as "user view", so a typo hides nothing.
 Secrets Manager → `placement: settings`. Everything else → category
 **Script Server** (icon `dns`), in two groups:
 - **Tools:** Secrets Viewer, Secret Ingredients Check, MOTD, Disk Usage,
-  Backup, Send Notification, View Capabilities and Test a Secret.
+  Backup, Send Notification, View Capabilities, Test a Secret and Lua
+  Version Check (3.0.0).
 - **Demo:** Hello World, Progress Demo, Terminal Colors, Confirm Gate,
   Download Image, File Info and Disk Usage Chart.
 
@@ -1521,7 +1523,7 @@ scripts/
 
 ### Lua has no JSON library by default
 
-Lua 5.1 (as installed via `apt install lua5.1`) ships with no JSON support. Don't
+Neither Lua 5.1 nor 5.4 ships with JSON support. Don't
 hand-roll a JSON encoder/decoder in Lua for this. Two options:
 
 - Write the store read/write logic in Python (stdlib `json` module) as a small
@@ -1554,7 +1556,7 @@ end
 
   dkjson is pure Lua (no compiler); cjson is a C build, and both decode
   numbers as doubles, so cjson gains nothing on precision. Two traps,
-  checked here under Lua 5.1: `decode` returns `nil, pos, err` on bad
+  checked here under Lua 5.1 and 5.4: `decode` returns `nil, pos, err` on bad
   input instead of raising (so `pcall` reports success), and `null`
   decodes as `nil` unless `json.null` is passed as the third argument.
 
@@ -2441,6 +2443,50 @@ its `APP_ROOT`/`DEFAULTS_DIR` hooks against an old install: the 15-entry
 defaults file became 20, both scripts were installed, the runner seeded.
 See "Every curated entry has a test" under Secrets Store.
 
+### 2026-11-22 — v3.0.0: Script Server 3, Lua 5.4 next to 5.1
+
+A new major version, run next to v2 rather than replacing it (the user's
+call). The design is under Language Choice > Which Lua. Files:
+- `tools/Dockerfile`: `lua5.4` + `liblua5.4-dev`; `lsqlite3` built with
+  `--lua-version=5.1` and `5.4`; `update-alternatives --set` makes plain
+  `lua`/`luac` 5.4, checked at build; `LUA_PATH_5_4`/`LUA_CPATH_5_4`.
+- `tools/rootless/luarocks`: adds `--lua-version` (from
+  `LUAROCKS_LUA_VERSION`, else plain `lua`) unless one is given.
+- `tools/docker-entrypoint.sh`: `LUA_DEFAULT=5.1|5.4` (as root) re-points
+  the alternatives, and logs which Lua plain `lua` runs.
+- `scripts/shared/ensure_module.lua` 1.3.0: exports
+  `LUAROCKS_LUA_VERSION` from `_VERSION` around the install command.
+- `scripts/lua_version_check.py` + runner 1.0.0 (new; the script is a
+  platform file). The demo scripts' first line is now plain `lua` (1.2.1).
+- `tools/build_and_push.sh` refuses a tag whose major version differs
+  from `version.txt` (`v2` from 3.x source). `deploy/container-station-v3/`
+  is the v3 install: `/share/Container/script-server-v3`, container
+  `script-server-v3`, port 5014, image `:v3`.
+
+**Verified:**
+- The image was built here from `tools/Dockerfile`; only a sandbox copy
+  added this sandbox's proxy certificate. trixie has every package, and
+  the build-time checks passed: `lsqlite3` built for 5.1 and 5.4, plain
+  `lua` is 5.4.
+- Run as `PUID=1005` with empty folders:
+  - seeding installed Lua Version Check, and the log says `plain lua
+    runs Lua 5.4.7`;
+  - as uid 1005, `ensure_module` installed dkjson under 5.4 and 5.1 into
+    separate folders, and both versions loaded the image's `lsqlite3`;
+  - Lua Version Check ran through `executions/start`: 5 files, all OK;
+  - `LUA_DEFAULT=5.1` switched plain `lua` and luarocks to 5.1, and
+    `LUA_DEFAULT=6.0` warned and left 5.4.
+- The check was tested with fixtures for every case: unshimmed and
+  shimmed `unpack`, a pinned 5.1 script, a runner-pinned script, a
+  5.4-only file, and a `#!lua5.4` file.
+- Python suite: the same 23 sandbox-only failures.
+- **Not verified:** the push to the NAS registry (not reachable from
+  here), Container Station, and imported sibling repos' Lua on 5.4.
+
+**Supporting both:** v2 fixes are built from the last 2.x commit
+(`e9ab6bf`, 2.9.0 + docs), since this branch is now 3.x. Never point the
+two installs at the same folders (see v2.1.1's tug of war).
+
 ## Upstream Sync Status
 
 This fork was imported as a **snapshot, not a git fork**, so there is no
@@ -2519,6 +2565,48 @@ bug:
 - Dispatching across multiple provider SDKs
 - Needing ecosystem libraries (parsing, data processing, etc.)
 
+### Which Lua: Script Server 2 (5.1) and 3 (5.4), both supported
+
+Script Server 3.0.0 (2026-11-22, the user's call) is Script Server 2 plus
+Lua 5.4. The user wanted the 5.1 dependency lessened, and asked for the
+change to be a new major version that runs next to v2. Both are
+supported, so sibling repos write to the 5.1/5.4 common subset with
+`#!/usr/bin/env lua`. SCRIPTING.md has the rules and the difference
+table, checked under 5.1.5 and 5.4.6.
+
+Why 5.4: it's the current packaged release (Debian trixie, the
+`python:3.9-slim` base, has 5.4.7). Lua 5.5 isn't packaged, and LuaJIT is
+5.1. It adds 64-bit integers: dkjson keeps an ID up to 2^63 exact on 5.4
+(checked: `4611686018427387905` round-trips), but an mkvmerge UID above
+2^63 is still lost.
+
+How the image does it (internals in Core Changes, v3.0.0):
+- Debian ranks `lua5.1` (priority 110) above `lua5.4` (20), so
+  installing 5.4 leaves plain `lua` on 5.1. The Dockerfile sets the
+  `lua-interpreter`/`lua-compiler` alternatives to 5.4 explicitly, and
+  `LUA_DEFAULT=5.1` switches back at start-up.
+- A C module built for one version can't load in the other. Lua 5.4
+  reads `LUA_PATH_5_4`/`LUA_CPATH_5_4` ahead of `LUA_PATH`/`LUA_CPATH`,
+  so each version gets its own folders under `/app/data/.deps/lua`
+  (luarocks already lays a tree out by version).
+- A plain `luarocks` builds for 5.1 on Debian whatever runs the script,
+  so the wrapper passes `--lua-version`: `LUAROCKS_LUA_VERSION`, which
+  `ensure_module.lua` 1.3.0 sets from `_VERSION`, else plain `lua`'s
+  version.
+
+**Lua Version Check** (`scripts/lua_version_check.py`, a platform file)
+reports, per installed `.lua` file, its interpreter (from the `#!` line,
+or a runner `script_path` such as `lua5.1 x.lua`), `luac5.1 -p`/
+`luac5.4 -p` results, functions removed in 5.4 (with shims such as
+`table.unpack or unpack` recognised), 5.4-only functions, and `%d` with a
+division. It groups files by the repo that imported them (from
+`gitea_import_state.json`). It matches patterns, so it can miss things or
+raise false alarms; a real run under both versions is still the test.
+
+**Retiring v2** would allow 5.4-only code and `lua5.4` lines, after Lua
+Version Check is clean on every repo. That's the user's call, and is
+tracked in `ROADMAP.md`.
+
 -----
 
 ## Self-Installing Dependencies (Modules and Binaries)
@@ -2539,7 +2627,8 @@ the usual install commands work anyway, so a script needs nothing special:
   finds automatically. It's kept when the container is recreated.
 - **Lua:** `luarocks install x` installs into `/app/data/.deps/lua`
   (a `luarocks` wrapper adds `--tree`), found via `LUA_PATH`/`LUA_CPATH`.
-  Also kept.
+  Also kept. Script Server 3 keeps 5.1 and 5.4 modules apart (see Which
+  Lua).
 - **Programs:** `apt-get install x` goes through `sudo`, which the image
   allows for apt-get only. These are lost when the container is
   recreated; `ensure_binary.lua` reinstalls on the script's next run.
@@ -2576,7 +2665,8 @@ package does. `scripts/shared/ensure_binary.lua` and
 `ensure_module.lua` are **platform files shipped by this repo** since
 2026-11-12. They came from ss_movie_file_management, with the code
 unchanged; the usage comment now shows the arg[0]-relative `dofile`, and
-both were tested under Lua 5.1 here. `ensure_binary` checks
+both were tested under Lua 5.1 here (`ensure_module` 1.3.0 under 5.1 and
+5.4, installing dkjson and lsqlite3 into separate per-version folders). `ensure_binary` checks
 `command -v`; `ensure_module` checks `pcall(require)`, otherwise the same
 shape. Confirmed working end-to-end for real: forced
 `mkvtoolnix` to be absent, watched it self-install via `apt`, confirmed

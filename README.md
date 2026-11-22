@@ -84,16 +84,27 @@ For the usage please check [this ticket](https://github.com/bugy/script-server/i
 > ```
 > git clone --branch <branch> https://github.com/nodecentral/script-server.git script-server-src
 > cd script-server-src
-> tools/build_and_push.sh v2        # builds tools/Dockerfile, pushes 192.168.102.227:5011/script-server:v2
+> tools/build_and_push.sh v3        # builds tools/Dockerfile, pushes 192.168.102.227:5011/script-server:v3
+> tools/build_and_push.sh 3.0.0     # optional: the same image under its version number too
 > ```
 > `REGISTRY=host:port` overrides the registry. The script refuses to push `latest` (what an existing
-> install pulls) unless you add `--allow-latest`. To update later: `git pull`, run it again, then
+> install pulls) unless you add `--allow-latest`, and refuses a tag from another major version
+> (`v2` from this 3.x source), so a v3 build can't replace the v2 install's image. To update later: `git pull`, run it again, then
 > `docker compose pull && docker compose up -d` in the install folder.
+>
+> **Script Server 2 and 3** — this source is Script Server 3 (`version.txt` 3.x): the same app as 2,
+> but plain `lua` runs Lua 5.4 (5.1 is still installed; `LUA_DEFAULT=5.1` on the container switches
+> back). Script Server 2 carries on from its existing `v2` image. Both are supported: run them side
+> by side with separate folders, v3 from [`deploy/container-station-v3/`](deploy/container-station-v3)
+> on port 5014, and use **Script Server › Tools › Lua Version Check** on v3 to see which imported Lua
+> scripts need a change. A fix for v2 itself is built from the last 2.x commit (2.9.0, `e9ab6bf`).
 >
 > **Installing** — pick one of the ready-made setups in [`deploy/`](deploy):
 > - [`deploy/container-station/`](deploy/container-station) — for QNAP Container Station (Applications ›
 >   Create, paste the file). Absolute paths, since Container Station doesn't run compose from a folder.
->   This is how the NAS runs it.
+>   This is how the NAS runs Script Server 2.
+> - [`deploy/container-station-v3/`](deploy/container-station-v3) — the same for Script Server 3, next to
+>   v2: its own folder, container name (`script-server-v3`) and port (5014).
 > - [`deploy/standalone/`](deploy/standalone) — the same with `./` paths, for `docker compose up -d` over
 >   SSH from a copy of that folder. Everything lives next to the compose file (`./conf`, `./scripts`,
 >   `./data`, `./logs`), so nothing is written anywhere else on the NAS.

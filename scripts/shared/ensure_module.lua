@@ -20,8 +20,8 @@
 --                     sqlite3 = require("lsqlite3")  -- last resort, errors loudly if missing
 --                 end
 --
--- Version : 1.2.0
--- Date    : 2026-11-12
+-- Version : 1.3.0
+-- Date    : 2026-11-22
 --
 -- Platform file: shipped by the Script-Server image (tools/PLATFORM_FILES)
 -- and refreshed on every start - don't copy it into a sibling repo, and
@@ -61,7 +61,11 @@ function M.ensure(name, install_cmd)
         "[SETUP] Module '%s' not found -- attempting to install...\n", name))
     io.stderr:write("[SETUP]   $ " .. install_cmd .. "\n")
 
-    local handle = io.popen("(" .. install_cmd .. ") 2>&1")
+    -- Script Server 3 has Lua 5.1 and 5.4: a C module built for one can't be loaded by the other,
+    -- so tell its luarocks wrapper which version is running this script. Older images ignore it.
+    local lua_version = _VERSION:match("%d+%.%d+") or ""
+    local handle = io.popen("(LUAROCKS_LUA_VERSION=" .. lua_version .. "; export LUAROCKS_LUA_VERSION; " ..
+        install_cmd .. ") 2>&1")
     local log = handle and handle:read("*a") or ""
     if handle then handle:close() end
     if log ~= "" then io.stderr:write(log) end

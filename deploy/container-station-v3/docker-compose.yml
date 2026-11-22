@@ -1,0 +1,60 @@
+# Script Server 3 for QNAP Container Station: Applications > Create, paste this file.
+#
+# Runs NEXT TO Script Server 2 (deploy/container-station/), never sharing its folders: each image
+# puts its own platform files back on every start, so two instances on one scripts/ folder undo
+# each other's updates. v3 gets its own folder, container name and port (5014).
+#
+# Container Station doesn't run compose from a folder, so every bind mount is an absolute path.
+# Container Station keeps its own copy of this YAML - edit it there after creating the app.
+#
+# Before creating it:
+#   - build and push the image: tools/build_and_push.sh v3 (README, "Building the image")
+#   - EITHER start from a copy of the v2 install, so your imported scripts, secrets and history
+#     come along (stop v2 first so its files are quiet, then start it again afterwards):
+#         cp -a /share/Container/script-server-v2 /share/Container/script-server-v3
+#     OR make empty folders: conf, scripts, data, logs (they're seeded on first start)
+#   - put deploy/container-station-v3/conf/conf.json in conf/ (port 5014). With a copy of v2,
+#     change "port" in the copied conf/conf.json to 5014 instead - both can't listen on 5012.
+#   - then open http://<NAS IP>:5014 and run Script Server › Tools › Lua Version Check
+
+services:
+  script-server:
+    image: 192.168.102.227:5011/script-server:v3
+    container_name: script-server-v3
+    restart: unless-stopped
+
+    # Listens directly on the NAS on conf/conf.json's "port" (5014) - no ports: mapping. See
+    # deploy/standalone/docker-compose.yml and the README for why host networking.
+    network_mode: host
+    cap_add:
+      - NET_RAW
+      - NET_ADMIN
+    # Other containers' names don't resolve with host networking - store
+    # http://<NAS IP>:<published port> in the Secrets Store instead (e.g. http://10.0.0.41:8777).
+
+    environment:
+      - TZ=Europe/London
+      - PUID=1005      # owns seeded files; the app runs as this user (chown the folders to it)
+      - PGID=1000
+      # Scripts may apt-get install what they need (via sudo, apt-get only). false = never.
+      # - ALLOW_APT=false
+      # Plain `lua` runs Lua 5.4 in v3. 5.1 puts it back for scripts Lua Version Check says
+      # aren't ready yet (lua5.1 and lua5.4 are both always installed).
+      # - LUA_DEFAULT=5.1
+
+    volumes:
+      - /share/Container/script-server-v3/conf:/app/conf
+      - /share/Container/script-server-v3/scripts:/app/scripts
+      - /share/Container/script-server-v3/data:/app/data
+      - /share/Container/script-server-v3/logs:/app/logs
+      # Media libraries the ss_* repos work on - one bind per NAS share, under /app/media.
+      # Not :ro - the scripts write to them (tags, EXIF, conversions), so each share must be
+      # writable by PUID. Script-Server's own data goes in /app/data/<subject>, already mounted.
+      # - /share/Movies:/app/media/movies
+      # - /share/Music:/app/media/music
+      # - /share/Pictures:/app/media/pictures
+      # - /share/Audiobooks:/app/media/audiobooks
+      # Only if your scripts use organize / Docker:
+      # - /share/Container/script-server-v3/organize/logs:/var/log/organize/
+      # - /share/Container/script-server-v3/organize/config:/root/.config/organize
+      # - /var/run/docker.sock:/var/run/docker.sock

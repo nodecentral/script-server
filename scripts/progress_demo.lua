@@ -1,6 +1,6 @@
-#!/usr/bin/env lua5.1
+#!/usr/bin/env lua
 -- Name: progress_demo.lua
--- Version: 1.2.0
+-- Version: 1.2.1
 -- Description: Live-updating progress bar demonstrating Script-Server's
 --              streamed terminal output and carriage-return (\r) handling.
 --              Run standalone (lua5.1 progress_demo.lua --steps 20) or from

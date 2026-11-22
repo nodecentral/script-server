@@ -707,6 +707,12 @@ change is in this repo:
    gap on its own. Still worth doing eventually: run Secret Ingredients Check's scan as an extra
    step at the end of `import_from_gitea.py --apply` and append its findings to that run's output.
 
+5. **Retire Script Server 2, then Lua 5.4 only** — *Docs + Dockerfile*. v3 (3.0.0) runs next to
+   v2, so sibling repos write Lua that runs on 5.1 and 5.4. Once Lua Version Check is clean for
+   every repo on v3 and v3 has replaced v2 on the NAS (the user's call): allow `lua5.4` lines and
+   5.4-only code in SCRIPTING.md, then drop `lua5.1` and `LUA_DEFAULT` from the image. Also worth
+   doing in a 3.x release: move off `python:3.9-slim` (Python 3.9 is past end of life).
+
 ## Ideas / Backlog (need more design discussion before committing)
 
 - **Encrypted-at-rest secrets store** — *Core-adjacent*. The plaintext categorized store (Secrets

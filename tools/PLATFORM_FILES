@@ -22,6 +22,9 @@ conf/secrets_defaults.json
 scripts/secret_test.py
 scripts/preload/secret_test.py
 
+# Lua Version Check (Script Server 3): refreshed so its rules follow the image's Lua versions.
+scripts/lua_version_check.py
+
 scripts/preload/import_from_gitea.py
 scripts/preload/motd.py
 scripts/preload/notify.py

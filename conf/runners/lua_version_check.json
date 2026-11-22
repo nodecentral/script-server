@@ -1,0 +1,26 @@
+{
+  "_version": "1.0.0",
+  "name": "Lua Version Check",
+  "category": "Script Server",
+  "group": "Tools",
+  "description": "For every Lua script installed here: does it run on Script Server 2 (Lua 5.1) and Script Server 3 (Lua 5.4), what to change if not, and which imported repo it came from. Read-only.",
+  "script_path": "lua_version_check.py",
+  "working_directory": "/app/scripts",
+  "output_format": "terminal",
+  "requires_terminal": false,
+  "parameters": [
+    {
+      "name": "Show",
+      "param": "--show",
+      "env_var": "PARAM_SHOW",
+      "type": "list",
+      "values": ["problems", "all"],
+      "values_ui_mapping": {
+        "problems": "Only files to fix or check",
+        "all": "Every Lua file"
+      },
+      "default": "problems",
+      "pass_as": "env_variable"
+    }
+  ]
+}

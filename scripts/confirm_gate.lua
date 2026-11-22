@@ -1,6 +1,6 @@
-#!/usr/bin/env lua5.1
+#!/usr/bin/env lua
 -- Name: confirm_gate.lua
--- Version: 1.2.0
+-- Version: 1.2.1
 -- Description: Reusable "type to confirm" safety-gate template for
 --              destructive/impactful admin scripts. Demonstrates
 --              Script-Server's interactive stdin support and a
