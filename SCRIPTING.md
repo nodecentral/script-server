@@ -1,6 +1,6 @@
 # SCRIPTING.md — Script-Server Scripting Conventions (Focused)
 
-Version: 2.25.0
+Version: 2.26.0
 Last updated: 2026-11-22
 
 This is the **focused** convention doc for any Claude session writing
@@ -1120,6 +1120,49 @@ def list_files(root):
 
 -----
 
+### Writing to users' files: assured, but not painful
+
+From ss_photo_file_management (2026-11-22, `13e9d4f`, sabotage-tested;
+the exiftool points re-checked here with exiftool 12.76). It applies to
+every repo that changes a library: photo EXIF, movie tracks, music tags,
+audiobook `metadata.opf`. **Assured:** the user sees the real effect
+first, confirms once, and every file is read back afterwards, with
+nothing else changed. **Not painful:** a bulk job is one confirmation,
+and per-file control is there when asked for, never required.
+
+1. **Show the real effect first, on copies.** Write to a copy
+   (`exiftool -o trial.jpg -TAG=value original.jpg`), then diff every
+   tag of the original and the copy:
+   `exiftool -j -n -G1 -a FILE`. Only a full diff shows what the format
+   adds by itself. Setting just `GPSLatitude` on a plain JPEG also added
+   `GPS:GPSVersionID`, four `IFD0` resolution tags and
+   `File:ExifByteOrder`. Small job: trial every file. Bulk job: trial a
+   sample of each **kind** of change (e.g. "add GPS", "fix date"), and
+   show the diff per kind.
+2. **One confirmation for the whole job:** a `confirm` list parameter,
+   default `false` = preview (see Asking for Input). Offer narrowing as
+   optional fields: **only** these files, **except** these, **detail**
+   (show every file's diff). Leave them empty and the whole job runs.
+3. **Journal before writing.** Record each file's old values and its
+   modified time in `/app/data/<subject>/`, per run, so any run can be
+   undone, **including files that failed the check**. Those are the
+   ones most likely to need it.
+4. **Read back every file after writing.** Check that only the expected
+   tags changed, each to the value asked for (the trial's diff for its
+   kind is the expected list, so a bulk job checks every file without
+   copying the library), and that the modified time is exactly as before.
+   List each failure with what differs; summarise the successes in one
+   line.
+5. **Keep the modified time exactly.** `exiftool -P` keeps it only to the
+   whole second (`10:20:30.123456789` became `10:20:30.000000000`).
+   Save `stat -c %y FILE` before writing and `touch -d "<saved>" FILE`
+   afterwards; that restored it to the nanosecond.
+
+- **exiftool isn't in the image:** `ensure_binary("exiftool", "apt-get
+  install -y libimage-exiftool-perl")`.
+- A new script still needs its execute bit (Execute Permissions above).
+- Reference: ss_photo_file_management `scripts/shared/photo_write.lua`.
+
 ## Persistent State Across Runs (Inventories / Registries)
 
 A script can build up state *across* runs (device inventory, backup
@@ -1631,6 +1674,9 @@ result overwrite a vendor already known for that MAC.
 
 ## Avoid
 
+- Writing to a user's library without a trial, a journal and a read-back of
+  every file (see Writing to users' files under Storage), or trusting
+  `exiftool -P` to keep the modified time exactly
 - `"type": "select"` — use `"type": "list"`
 - `"labels": []` — use `"values_ui_mapping": {}` instead
 - A bare `require("cjson")` (or any JSON module) in Lua: nothing installs it.

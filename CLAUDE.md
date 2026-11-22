@@ -1492,6 +1492,20 @@ prefix moved. This complements the QNAP note above (check for a file that
 only arrives through the mount): that proves the mount, this protects the
 data when the check is skipped.
 
+**Writing to users' files: assured, but not painful** (2026-11-22,
+ss_photo_file_management `13e9d4f`, sabotage-tested there; SCRIPTING.md
+has the steps). Trial on copies (all files, or a sample per kind of
+change for bulk), one confirmation with optional only/except/detail
+narrowing, a journal of old values that can undo any run including
+failed files, then read back every file: only the expected tags
+changed, each to its value, modified time exact. Checked here (exiftool
+12.76): a full `-j -n -G1 -a` diff of an `-o` copy shows tags the format
+adds by itself (GPS write on a plain JPEG added `GPSVersionID`, IFD0
+resolution tags, `ExifByteOrder`). `-P` keeps the modified time only to
+the second, while `stat -c %y` plus `touch -d` restores it to the
+nanosecond. exiftool isn't in the image, so scripts install it with
+`ensure_binary` (`libimage-exiftool-perl`).
+
 -----
 
 ## Persistent State Across Runs (Inventories / Registries)
