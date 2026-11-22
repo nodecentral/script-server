@@ -1,6 +1,6 @@
 # SCRIPTING.md — Script-Server Scripting Conventions (Focused)
 
-Version: 2.23.0
+Version: 2.24.0
 Last updated: 2026-11-22
 
 This is the **focused** convention doc for any Claude session writing
@@ -185,21 +185,23 @@ Every runner should say where it belongs:
   Uncategorised, and it still shows up.
 - **A group named `Overview` is always listed first** in its category
   (Script Server 2.4.0+; any case, exact name). Use it for a category's
-  landing page, e.g. a summary runner with an `html_iframe` preload.
-  Optional: only add one when the category has a real summary to show.
+  landing page. **Every repo's category needs one** (see "What an
+  Overview runner should contain" below).
   Don't number or prefix group names (`(0) Overview`) to force an order;
   that text shows in the sidebar.
 
 #### What an Overview runner should contain
 
-Recommended for every category whose scripts keep data (anything under
-`/app/data/<subject>` or `/app/media/<library>`). It answers two
-questions in order: **is this category set up and up to date**, then
-**what does the data say**. Proven in ss_health_management (Health
-Overview, 2026-11-15), where the first half caught a data folder that
-wasn't mounted, an export left unimported and files nobody had filed.
-Reference: its `scripts/health_overview.py`, `preload/health_overview.py`
-and `shared/health_status.py`.
+**Required for every repo's category** (strongly recommended core
+requirement, the user's call, 2026-11-22): if your repo adds scripts to a
+category, it ships that category's Overview. It answers, in order: **what
+is set up and what isn't**, **what to do next**, and **what the data
+says**. Proven in ss_health_management (Health Overview, 2026-11-15),
+whose first live run caught a data folder that wasn't mounted, an export
+left unimported and files nobody had filed, and worked out in
+ss_finance_management's Finance Overview. Reference: health's
+`scripts/health_overview.py`, `preload/health_overview.py` and
+`shared/health_status.py`.
 
 One runner, group `Overview`, named `<Category> Overview`,
 `output_format: html_iframe`:
@@ -207,26 +209,54 @@ One runner, group `Overview`, named `<Category> Overview`,
 1. **Preload banner:** one line, e.g. `3 to do · newest data 2 days old`.
    Read-only, under a second, no network calls: it runs every time
    someone opens the script.
-2. **Tab 1, Data foundations: is everything here and current?**
-   - **Prerequisites:** each folder the category's scripts use (create it
-     if missing and allowed; if it can't be created, say why, e.g. not
-     mounted, see Storage), each secret (presence only, through
-     `get_secret()`, never the value), each package.
-   - **One tile per data source:** how fresh it is, with a `Stale` or
-     `Missing` badge.
-   - **Coverage by month**, so gaps show.
-   - **Next actions:** each names the runner that fixes it.
-3. **Tab 2, What the data tells us:** the category's key figures and
+2. **Tab 1, Status: one tile per area** of the category (e.g. Finance:
+   Accounts, Statements, Prices, Budgets). Each tile lists that area's
+   steps, each marked with one of five states:
+
+   | State | Means |
+   |---|---|
+   | `Done` | set up and current |
+   | `Next` | the next step to take, and it can be taken now |
+   | `Needs attention` | was working, now isn't: stale data, a missing folder or secret, a failed last run |
+   | `Not possible yet` | waiting on an earlier step (say which) |
+   | `Later` | planned, not built yet |
+
+   What a step checks: each folder the area uses (create it if missing
+   and allowed; if it can't be created, say why, e.g. not mounted, see
+   Storage), each secret (presence only, through `get_secret()`, never the
+   value), each package, each data source's freshness and its coverage by
+   month, so gaps show.
+3. **Every gap links to the runner that fixes it** (`target="_top"`, see
+   "Linking to another runner from an `html_iframe` page" under Output
+   Formats), or says plainly that the fix isn't built yet. Never a gap
+   with no way forward.
+4. **Next actions:** the `Next` and `Needs attention` steps from every
+   tile in one short ordered list at the top of Tab 1, each with its
+   link.
+5. **Tab 2, What the data tells us:** the category's key figures and
    trends, worked out from the same sources.
-4. **Optional, a "process new data" step** (a parameter, default on): file
+6. **Help tab:** the category's groups and what each is for, which runner
+   to use when ("new statement arrived → Import statements"), and a
+   glossary of the category's own terms.
+7. **Optional, a "process new data" step** (a parameter, default on): file
    and import whatever is waiting before drawing the page, with streamed
    progress (a spinner, then ✓ or ✗ per step, see Output Formats) and a
    "Just processed" summary.
-5. **Optional, an extra tab only while files need a decision** (e.g. an
+8. **Optional, an extra tab only while files need a decision** (e.g. an
    Inbox): what each file contains and what to do with it.
 
 The tabs are the page's own HTML/JS; Script-Server has no tab feature for
 output. Never block: a missing source is a Next action, not a failed run.
+
+#### Groups that check and fix: `Tools · <area>`
+
+Runners that check or repair one area (re-import, rebuild an index,
+repair tags, verify a mount) go in a group named `Tools · <area>`, one
+per area, matching the Overview's tile names: `Tools · Statements`,
+`Tools · Prices`. The `·` is U+00B7 with a space each side. Groups
+sort by name after `Overview` (`byGroupOrder`), so these sit together,
+and the Overview can name the group a fix lives in. A category with only one area can use plain
+`Tools`, as Script Server's own category does.
 
 ### Default categories (`conf/categories.json`)
 

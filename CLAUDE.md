@@ -152,15 +152,21 @@ category's optional landing page (2.4.0, `byGroupOrder` in
 had been naming its group `(0) Overview` to sort it first; that works,
 since punctuation sorts before letters, but shows the prefix.
 
-**What goes in an Overview** (SCRIPTING.md has the full list): one
-`html_iframe` runner, `<Category> Overview`, with a one-line preload
-banner, a "Data foundations" tab (prerequisites, freshness per source,
-coverage by month, Next actions naming the runner that fixes each) and a
-"What the data tells us" tab. Learned 2026-11-15 from
-ss_health_management's Health Overview, whose readiness tab caught an
-unmounted data folder, an unimported export and unfiled files on its
-first live use. Recommended, not required, for every category that keeps
-data; reconsider making it a rule once a second category has one.
+**What goes in an Overview** (SCRIPTING.md has the full list):
+**required for every repo's category** since 2026-11-22 (the user's
+call; it was "recommended, not required" after Health's). One
+`html_iframe` runner, `<Category> Overview`, in group `Overview`: a
+one-line preload banner; a Status tab with one tile per area, each step
+marked `Done` / `Next` / `Needs attention` / `Not possible yet` /
+`Later`, every gap linked (`target="_top"`) to the runner that fixes it
+or saying the fix isn't built yet, and Next actions on top; a "What the
+data tells us" tab; a Help tab (groups, what to run when, glossary).
+Check-and-fix runners go in `Tools · <area>` groups named after the
+tiles. Learned from ss_health_management's Health Overview (2026-11-15:
+its readiness tab caught an unmounted data folder, an unimported export
+and unfiled files on first use) and ss_finance_management's
+`docs/PRESENTATION.md`, which Photos had never seen because it lived
+only in that repo.
 
 **Icons are central, never per-runner** (`conf/categories.json`). Sibling
 repos import into one flat namespace, so per-runner icons would let two repos
