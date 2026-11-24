@@ -1408,6 +1408,12 @@ its small default context and only logs it server-side. Vision OCR:
 first reading, or it repeats until `num_predict`. SCRIPTING.md has the
 example payload.
 
+`POST /api/show` returns a `capabilities` list (`completion`, `vision`,
+`tools`, `thinking`, `audio`): filter model dropdowns by it and send
+`think` only to `thinking` models (ss_ollama_llm_experience, Ollama
+0.34.2, 2026-11-24; not reproduced here). That repo's category is **AI**
+(icon `memory`, checked in the bundled font's codepoints).
+
 Its cloud-AI fallbacks use one Secrets Store product per provider
 (`anthropic`, `openai`, `gemini`, `xai`, `deepseek`, each `API_KEY`),
 registered by `paperless_ai_analysis.py` and curated in

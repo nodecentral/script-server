@@ -1,7 +1,7 @@
 # SCRIPTING.md — Script-Server Scripting Conventions (Focused)
 
-Version: 2.26.0
-Last updated: 2026-11-22
+Version: 2.27.0
+Last updated: 2026-11-24
 
 This is the **focused** convention doc for any Claude session writing
 scripts/runners destined for import into `nodecentral/script-server` —
@@ -278,6 +278,7 @@ category can't disagree about its icon.
 | `Audiobooks` | `headset` | `ss_audiobook_file_management` |
 | `Energy` | `flash_on` | `ss_energy_management` |
 | `Docker` | `layers` | `ss_docker_registry` |
+| `AI` | `memory` | `ss_ollama_llm_experience` |
 | `Script Server` | `dns` | script-server's own scripts: group `Tools` (real utilities) and `Demo` (examples) |
 
 **There is no "Admin" group any more.** Genuinely administrative tools use
@@ -1642,6 +1643,13 @@ payload = {'model': 'glm-ocr', 'prompt': 'Text Recognition:', 'images': [page_pn
            'stream': False,
            'options': {'num_ctx': 16384, 'num_predict': 4096, 'stop': ['```']}}
 ```
+
+- **Ask the model what it can do: `POST /api/show` with `{"model": name}`**
+  returns a `capabilities` list (`completion`, `vision`, `tools`,
+  `thinking`, `audio`). Filter a model dropdown by it (only `vision`
+  models for OCR), and send the `think` option only to models that list
+  `thinking`. Reported from ss_ollama_llm_experience against Ollama
+  0.34.2; not reproduced here (no Ollama in this sandbox).
 
 Store Ollama's address in the Secrets Store like any other service URL:
 `http://<NAS IP>:11434`, not a container name (see Secrets).
