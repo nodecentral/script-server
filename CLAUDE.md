@@ -181,7 +181,8 @@ else `default_icon`. That covers Import from Gitea, the admin form and
 manual copies, with no hook in any of them. The service never changes or
 removes an existing entry. Before 3.1.0 a category the image knew
 (Energy, AI) still arrived on an older install with the generic icon,
-because the NAS file is user content and never refreshed.
+because the NAS file is user content and never refreshed. Names match case-insensitively and the file's spelling wins.
+Appends keep the one-entry-per-line layout, so the diff is one line.
 
 **Settings › Categories** (`scripts/manage_categories.py`, 3.1.0, a
 platform file; runner user content) is how the admin edits the file:
@@ -197,8 +198,7 @@ one or two characters (one glyph fits the 24px box). Writes keep the
 one-line-per-entry layout and a `.bak`. The table draws icons with the
 app's own font (`/fonts/MaterialIcons-Regular.*.woff2`, found by glob).
 **Runners and imported scripts never set icons**, the user's question
-on 2026-11-24 included: the central file exists so repos can't disagree. Names match case-insensitively and the file's spelling wins.
-Appends keep the one-entry-per-line layout, so the diff is one line.
+on 2026-11-24 included: the central file exists so repos can't disagree.
 
 **Icon values:** a lowercase Material Icons ligature name from the bundled
 `material-design-icons@3.0.1` font, or anything else (text/emoji), which
