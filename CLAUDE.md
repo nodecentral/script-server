@@ -2628,6 +2628,16 @@ bug:
 - Dispatching across multiple provider SDKs
 - Needing ecosystem libraries (parsing, data processing, etc.)
 
+### Which Python: 3.9 in both images
+
+`python:3.9-slim` (3.9.25), so scripts must avoid 3.10+ features.
+SCRIPTING.md has the table. Found 2026-11-26 when AI Overview
+(`llm_overview.py`, ss_ollama_llm_experience) failed at import with
+`str | None` in a signature; reproduced and both fixes
+(`from __future__ import annotations`, `Optional`) checked on the image.
+`py_compile` doesn't catch it (it's a runtime `TypeError`). Moving the
+base image off 3.9 is in ROADMAP.md; until then 3.9 is the rule.
+
 ### Which Lua: Script Server 2 (5.1) and 3 (5.4), both supported
 
 Script Server 3.0.0 (2026-11-22, the user's call) is Script Server 2 plus
