@@ -1,6 +1,6 @@
 # SCRIPTING.md — Script-Server Scripting Conventions (Focused)
 
-Version: 2.29.0
+Version: 2.30.0
 Last updated: 2026-11-26
 
 This is the **focused** convention doc for any Claude session writing
@@ -1433,12 +1433,14 @@ scripts (read/patch/write JSON), lightweight automation.
 substantial HTML output, dispatching across provider SDKs, ecosystem
 libraries.
 
-### Which Python: 3.9 (Script Server 2 and 3)
+### Which Python: write for 3.9 (Script Server 2 is 3.9, 3 is 3.12)
 
-Both images run **Python 3.9** (`python:3.9-slim` base; `python3 --version`
-gives 3.9.25). Newer syntax fails, often only when the line runs, so a
-quick test on a newer Python passes and the NAS breaks. Found
-2026-11-26: AI Overview (ss_ollama_llm_experience) stopped at load with
+Script Server 2 runs **Python 3.9**; Script Server 3 runs **Python 3.12**
+from 3.2.0 (3.9.25 and 3.12.16 today). While both are in use, a script must
+run on both, so write for 3.9, and avoid the modules 3.12 removed.
+Newer syntax fails on 3.9, often only when the line runs, so a quick test on
+a newer Python passes and the NAS breaks. Found 2026-11-26: AI Overview
+(ss_ollama_llm_experience) stopped at load with
 `TypeError: unsupported operand type(s) for |: 'type' and 'NoneType'`.
 
 | Newer feature | Fails on 3.9 | Write instead |
@@ -1450,12 +1452,32 @@ quick test on a newer Python passes and the NAS breaks. Found
 | `import tomllib` (3.11) | `ModuleNotFoundError` | `json`, or install `tomli` |
 | `zip(..., strict=True)` (3.10), `datetime.UTC` (3.11) | at run time | omit `strict`; `timezone.utc` |
 
-Checked on the image's 3.9.25: both fixes in the first row work. The
-`from __future__` line only helps annotations; `X | Y` outside one
-(in `isinstance`, or a type alias) still fails. `python3 -m py_compile`
+And for Script Server 3 (3.12):
+- **Removed modules:** `distutils`, `imp`, `asyncore`, `asynchat`, `smtpd`.
+  Use `shutil`/`sysconfig`, `importlib`, `asyncio`.
+- **Invalid escapes now warn in your output:** `"\d+"` prints
+  `SyntaxWarning: invalid escape sequence '\d'` on every run of the script
+  you run directly (it isn't cached). Write regexes as raw strings, `r"\d+"`.
+- **Packages a script installs for itself** live per Python version
+  (`/app/data/.deps/python/lib/python3.12`), so on v3 the first run installs
+  them again. The try/except pattern (Self-Installing Dependencies) does
+  that by itself.
+- **The image's packages are pinned to the same major versions on both:**
+  pandas 2, PyMuPDF 1, Pillow 11. Code written against those works on v2
+  and v3.
+
+Checked on the images: every row above and both fixes in the first row,
+the escape warning, and a per-user `pip install` on 3.12. The `from
+__future__` line only helps annotations; `X | Y` outside one (in
+`isinstance`, or a type alias) still fails. `python3 -m py_compile`
 catches the syntax rows only, so run the script once under 3.9
-(`docker run --rm -v "$PWD:/w" python:3.9-slim python3 /w/x.py`, or on the
-NAS) before you push.
+(`docker run --rm -v "$PWD:/w" python:3.9-slim python3 /w/x.py`), and
+under 3.12 to see any warnings, before you push.
+
+**Playwright works for scripts from 3.2.0.** Before, its browser was
+installed under root's home and a script (run as `PUID`) failed with
+`Executable doesn't exist at /tmp/.cache/ms-playwright/...`. Script
+Server 2 still has that problem: launch it only on v3.
 
 ### Which Lua: Script Server 2 and 3 are both supported
 

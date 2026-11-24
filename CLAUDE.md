@@ -2550,6 +2550,27 @@ image-icon action set `flash_on`; `local_florsit` was refused with
 category was removed; the sidebar rail showed the new icons; a `.bak`
 was kept. Python suite: the same 23 sandbox-only failures.
 
+### 2026-11-26 — v3.2.0: Python 3.12, and Playwright works for scripts
+
+- `tools/Dockerfile`: `FROM python:3.12-slim` (was 3.9); `'pandas<3'`,
+  `'pymupdf<2'`, `'pillow<12'`; `PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright`
+  with `chmod -R a+rX`. Before, `playwright install` put the browser in
+  `/root/.cache`, and scripts run as PUID with `HOME=/tmp` failed with
+  "Executable doesn't exist" (checked on the 3.9 image too, so v2 has it).
+- This repo's own Python compiles clean on 3.12 with `SyntaxWarning` and
+  `DeprecationWarning` as errors (the tests have some invalid escapes;
+  harmless).
+
+**Verified** (image built here, run as `PUID=1005`): Python 3.12.16 with
+pandas 2.3.3, PyMuPDF 1.28.2, Pillow 11.3.0, Playwright 1.65.2,
+paddlepaddle 3.3.1, paddleocr 3.7.0; all import. The suite on the
+image's 3.12: 20 failures, all in this sandbox's environment-only set
+(and the built-in crypt htpasswd tests pass there, unlike on the
+sandbox's 3.13). A user `pip install` landed in
+`.deps/python/lib/python3.12`; Lua Version Check, Categories and Test a
+Secret ran; Playwright launched Chromium 159 as uid 1005
+(`PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright`), which failed before the fix.
+
 ## Upstream Sync Status
 
 This fork was imported as a **snapshot, not a git fork**, so there is no
@@ -2628,15 +2649,23 @@ bug:
 - Dispatching across multiple provider SDKs
 - Needing ecosystem libraries (parsing, data processing, etc.)
 
-### Which Python: 3.9 in both images
+### Which Python: 3.9 (v2) and 3.12 (v3 from 3.2.0)
 
-`python:3.9-slim` (3.9.25), so scripts must avoid 3.10+ features.
-SCRIPTING.md has the table. Found 2026-11-26 when AI Overview
-(`llm_overview.py`, ss_ollama_llm_experience) failed at import with
-`str | None` in a signature; reproduced and both fixes
-(`from __future__ import annotations`, `Optional`) checked on the image.
-`py_compile` doesn't catch it (it's a runtime `TypeError`). Moving the
-base image off 3.9 is in ROADMAP.md; until then 3.9 is the rule.
+Scripts must still run on 3.9 while v2 is supported; SCRIPTING.md has the
+table. Found 2026-11-26 when AI Overview (`llm_overview.py`,
+ss_ollama_llm_experience) failed at import with `str | None` in a
+signature; reproduced and both fixes checked on the image. `py_compile`
+doesn't catch it (it's a runtime `TypeError`).
+
+Why 3.12 for v3 (the user asked for the best version, 2026-11-26): 3.9 is
+past end of life and was holding pandas, PyMuPDF and Playwright on old
+releases (their latest need 3.10/3.11+). paddlepaddle has wheels up to
+3.13 only. 3.13 also removed `crypt` (`auth_htpasswd.py`'s built-in crypt
+path) and modules sibling scripts may use (`imghdr`, `cgi`, `pipes`).
+3.12 is supported to October 2028, on the same Debian (trixie). pandas,
+PyMuPDF and Pillow are pinned to v2's major versions (`<3`, `<2`, `<12`),
+since 3.12 alone pulls pandas 3, PyMuPDF 2 and Pillow 13; lift the pins
+with v2's retirement.
 
 ### Which Lua: Script Server 2 (5.1) and 3 (5.4), both supported
 

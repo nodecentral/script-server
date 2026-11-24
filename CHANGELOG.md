@@ -4,6 +4,16 @@ This is the nodecentral fork of [Script-Server](https://github.com/bugy/script-s
 running on the home NAS. The version number is the one in `version.txt`, shown at the bottom of
 the sidebar. Newest first.
 
+## 3.2.0 — 2026-11-26
+
+- **Python 3.12.** Script Server 3 now runs Python 3.12 (was 3.9, which is no longer maintained).
+  The packages it ships (pandas, PyMuPDF, Pillow and others) stay on the same major versions as
+  Script Server 2, so scripts behave the same on both.
+- **Scripts can use Playwright (browser automation).** Its browser used to be installed where
+  scripts couldn't reach it, so launching one failed. Script Server 2 still has this problem.
+- Scripts that install their own Python packages reinstall them once on the first run.
+- Updated scripting guide (SCRIPTING.md 2.30.0): write Python that runs on 3.9 and 3.12.
+
 ## 3.1.0 — 2026-11-24
 
 - **New: Categories** (Settings page). See every sidebar category with its icon, how many

@@ -11,7 +11,11 @@ COPY web-src/ ./
 RUN npm run build
 
 # ---- Stage 2: runtime image ----
-FROM python:3.9-slim
+# Python 3.12 (Script Server 3.2.0; was 3.9, end of life in October 2025, which also held
+# pandas, PyMuPDF and Playwright back on old releases). 3.12 rather than 3.13: paddlepaddle has
+# no 3.14 wheels, and 3.13 removed crypt (auth_htpasswd.py) plus modules scripts may use (imghdr,
+# cgi, pipes...). Same Debian (trixie) as before, so the apt and Lua parts are unchanged.
+FROM python:3.12-slim
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -85,21 +89,28 @@ RUN update-alternatives --set lua-interpreter /usr/bin/lua5.4 \
 
 # Python packages used by scripts (spreadsheet/PDF handling, OCR, browser automation),
 # installed before the app code is copied so they cache independently of app changes.
+# Playwright's browser goes in a shared folder: by default it lands in root's home, and scripts
+# run as PUID (HOME=/tmp) then fail with "Executable doesn't exist" (true of every image before 3.2.0).
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
+# pandas, PyMuPDF and Pillow stay on the major versions Script Server 2 (Python 3.9) installs, so
+# a script behaves the same on v2 and v3. Python 3.12 alone would pull in pandas 3, PyMuPDF 2 and
+# Pillow 13, which change or remove APIs. Lift these pins when v2 is retired (ROADMAP.md).
 RUN pip install --no-cache-dir \
       openpyxl \
       requests \
-      pandas \
+      'pandas<3' \
       pdfplumber \
-      pymupdf \
+      'pymupdf<2' \
       pdf2image \
-      pillow \
+      'pillow<12' \
       pytesseract \
       paddlepaddle \
       paddleocr \
       playwright \
       plotly \
     && playwright install-deps chromium \
-    && playwright install chromium
+    && playwright install chromium \
+    && chmod -R a+rX "$PLAYWRIGHT_BROWSERS_PATH"
 
 WORKDIR /app
 
