@@ -9,9 +9,11 @@ never disagree about its icon.
 conf/categories.json is user content (seeded fill-if-missing by the Docker entrypoint, never
 overwritten by an image upgrade), and this service also writes to it: whenever a runner uses a
 category the file doesn't know yet - a script created through the admin form, a runner arriving
-via Import from Gitea, a file copied in by hand - the category is appended with the default icon
-the next time the script list is loaded. An admin can then change that icon in the file; nothing
-here ever changes or removes an entry that already exists.
+via Import from Gitea, a file copied in by hand - the category is appended the next time the script
+list is loaded. It gets the icon the image's own copy of categories.json has for it, if any (3.1.0;
+before, a category the image knew, like Energy, still arrived on an older install with the generic
+icon), else the default icon. An admin can then change it, in the file or with the Categories
+settings tab (scripts/manage_categories.py); nothing here ever changes or removes an existing entry.
 
 Category names match case-insensitively ("finance" in a runner lands in "Finance"), and the
 spelling in categories.json is the one shown, so a casing slip in one repo doesn't split a
@@ -63,9 +65,31 @@ def _serialize(content):
     return '\n'.join(lines) + '\n'
 
 
+def default_categories_file():
+    """The image's own copy of categories.json (the entrypoint's DEFAULTS_DIR, /app/defaults)."""
+    return os.path.join(os.environ.get('DEFAULTS_DIR', '/app/defaults'), 'conf', CATEGORIES_FILE)
+
+
+def _read_known_icons(path) -> dict:
+    """{lowercased name: icon} from a categories.json; {} if it's missing or unreadable."""
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            content = json.load(f)
+        icons = {}
+        for entry in content.get('categories') or []:
+            name = _normalize_name(entry.get('name')) if isinstance(entry, dict) else None
+            icon = _normalize_name(entry.get('icon')) if name else None
+            if icon:
+                icons.setdefault(name.lower(), icon)
+        return icons
+    except Exception:
+        return {}
+
+
 class CategoryService:
-    def __init__(self, conf_folder):
+    def __init__(self, conf_folder, defaults_file=None):
         self._path = os.path.join(conf_folder, CATEGORIES_FILE)
+        self._defaults_file = defaults_file
         self._lock = threading.Lock()
 
     def _read_file(self) -> Optional[dict]:
@@ -138,6 +162,7 @@ class CategoryService:
                 aliases.setdefault(name.lower(), name)
 
             added = []
+            known_icons = None
             for used in used_categories:
                 name = _normalize_name(used)
                 if (name is None) or (name.lower() in aliases):
@@ -146,17 +171,18 @@ class CategoryService:
                 if name.lower() == uncategorised['name'].lower():
                     continue
 
-                new_entry = {'name': name, 'icon': default_icon}
+                if known_icons is None:
+                    known_icons = _read_known_icons(self._defaults_file) if self._defaults_file else {}
+                new_entry = {'name': name, 'icon': known_icons.get(name.lower(), default_icon)}
                 valid_categories.append(new_entry)
                 categories.append(new_entry)
                 aliases[name.lower()] = name
-                added.append(name)
+                added.append(name + ' (icon "' + new_entry['icon'] + '")')
 
             if added and can_write:
                 content['categories'] = categories
                 if self._write_file(content):
-                    LOGGER.info('Added new categories to ' + self._path + ' with the default icon "'
-                                + default_icon + '": ' + ', '.join(added))
+                    LOGGER.info('Added new categories to ' + self._path + ': ' + ', '.join(added))
 
             result_categories = []
             for entry in valid_categories:

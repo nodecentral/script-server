@@ -131,6 +131,9 @@ RUN mkdir -p conf/runners
 # Every source path is spelled out (no `COPY conf/`) and .dockerignore drops runtime state, so a
 # checkout that has been run or used as a live mount can't leak conf/.htpasswd or
 # data/secrets.json into the image.
+# Every icon name in the bundled material-design-icons font, so Categories (manage_categories.py)
+# can refuse a name the font doesn't have - it would render as a blank square.
+COPY --from=web-builder /src/web-src/node_modules/material-design-icons/iconfont/codepoints /app/defaults/material-icons-codepoints
 COPY tools/default-conf.json /app/defaults/conf/conf.json
 COPY conf/logging.json conf/capabilities.json conf/secrets_defaults.json conf/categories.json /app/defaults/conf/
 COPY conf/runners/ /app/defaults/runners/

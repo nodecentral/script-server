@@ -24,6 +24,8 @@ scripts/preload/secret_test.py
 
 # Lua Version Check (Script Server 3): refreshed so its rules follow the image's Lua versions.
 scripts/lua_version_check.py
+# Categories (Settings tab, 3.1.0): edits conf/categories.json, which stays user content.
+scripts/manage_categories.py
 
 scripts/preload/import_from_gitea.py
 scripts/preload/motd.py

@@ -1,0 +1,64 @@
+{
+  "_version": "1.0.0",
+  "name": "Categories",
+  "placement": "settings",
+  "description": "Review the sidebar's categories and change them: add one, change its icon, move it, or remove one no script uses. 'Give generic-icon categories the image's icon' fixes categories that arrived with the plain tag icon. Changes go to conf/categories.json (the previous version is kept as categories.json.bak); reload the page to see them. A script joins a category with \"category\": \"Name\" in its runner, so to rename one, change the runners.",
+  "script_path": "manage_categories.py",
+  "working_directory": "/app/scripts",
+  "output_format": "html_iframe",
+  "requires_terminal": false,
+  "preload_script": {
+    "script": "python3 /app/scripts/manage_categories.py --html",
+    "output_format": "html_iframe"
+  },
+  "parameters": [
+    {
+      "name": "Action",
+      "env_var": "PARAM_ACTION",
+      "pass_as": "env_variable",
+      "type": "list",
+      "values": ["view", "icon", "add", "move", "remove", "defaults"],
+      "values_ui_mapping": {
+        "view": "List categories (read-only)",
+        "icon": "Change a category's icon (changes categories.json)",
+        "add": "Add a category (changes categories.json)",
+        "move": "Move a category (changes categories.json)",
+        "remove": "Remove an unused category (changes categories.json)",
+        "defaults": "Give generic-icon categories the image's icon (changes categories.json)"
+      },
+      "default": "view",
+      "ui": {"width_weight": 3}
+    },
+    {
+      "name": "Category",
+      "env_var": "PARAM_CATEGORY",
+      "pass_as": "env_variable",
+      "type": "list",
+      "values": {"script": "python3 /app/scripts/manage_categories.py --choices"},
+      "default": "-- pick a category --",
+      "description": "For change icon, move and remove"
+    },
+    {
+      "name": "New category",
+      "env_var": "PARAM_NEW_CATEGORY",
+      "pass_as": "env_variable",
+      "type": "text",
+      "description": "For add: its name, as scripts will write it in \"category\""
+    },
+    {
+      "name": "Icon",
+      "env_var": "PARAM_ICON",
+      "pass_as": "env_variable",
+      "type": "editable_list",
+      "values": {"script": "python3 /app/scripts/manage_categories.py --icons"},
+      "description": "For change icon and add: a Material Icons name (type to search, e.g. flash_on) or one character such as £. Names not in the font are refused."
+    },
+    {
+      "name": "Position",
+      "env_var": "PARAM_POSITION",
+      "pass_as": "env_variable",
+      "type": "text",
+      "description": "For move and add: 1 = top of the rail. Blank on add = at the end."
+    }
+  ]
+}

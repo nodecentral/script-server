@@ -1,6 +1,6 @@
 # SCRIPTING.md — Script-Server Scripting Conventions (Focused)
 
-Version: 2.27.0
+Version: 2.28.0
 Last updated: 2026-11-24
 
 This is the **focused** convention doc for any Claude session writing
@@ -289,11 +289,16 @@ else goes in a real category. Don't put new runners in a group called
 **A new category name is fine — it registers itself.** The first time the
 script list loads with a runner using a category `categories.json`
 doesn't have (whether added via Import from Gitea, the admin form or a
-manual copy), the server appends it with the default icon (`label`). Nothing
-breaks, but the icon is generic until someone picks a better one. Prefer an
-existing category, and if you do need a new one, raise it in the
-`nodecentral/script-server` session so it gets a proper icon in the
-shipped file. An icon is a Material Icons name **from the bundled
+manual copy), the server appends it: with the icon the image's own list
+(the table above) has for it, from Script Server 3.1.0, otherwise the
+default icon (`label`). Nothing breaks, but the icon is generic until
+someone picks a better one. Prefer an existing category, and if you do
+need a new one, raise it in the `nodecentral/script-server` session so it
+gets a proper icon in the shipped file. **Your runner and scripts must not
+set an icon or write `conf/categories.json`:** the admin owns it, and
+changes it in **Settings › Categories** (3.1.0+), which also gives any
+category stuck on the generic icon the image's icon. One character fits
+the icon box, so a text icon is a single character (£ or one emoji). An icon is a Material Icons name **from the bundled
 `material-design-icons@3.0.1` font** (newer names like `category` or
 `currency_pound` don't exist there), or any short text/emoji, which is
 rendered as-is (that's how £ works).

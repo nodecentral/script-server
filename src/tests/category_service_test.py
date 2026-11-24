@@ -37,6 +37,26 @@ class CategoryServiceTest(unittest.TestCase):
         self.assertEqual([{'name': 'Finance', 'icon': '£'}, {'name': 'Garden', 'icon': 'bookmark'}],
                          content['categories'])
 
+    def test_new_category_takes_the_images_icon_when_it_knows_one(self):
+        defaults = os.path.join(test_utils.temp_folder, 'image_categories.json')
+        with open(defaults, 'w', encoding='utf-8') as f:
+            json.dump({'categories': [{'name': 'Energy', 'icon': 'flash_on'},
+                                      {'name': 'Finance', 'icon': '£'}]}, f)
+        self._write_file({'default_icon': 'label',
+                          'categories': [{'name': 'Finance', 'icon': 'attach_money'}]})
+
+        service = CategoryService(test_utils.temp_folder, defaults)
+        resolved = service.resolve(['finance', 'energy', 'Garden'])
+
+        self.assertEqual([{'name': 'Finance', 'icon': 'attach_money'},
+                          {'name': 'energy', 'icon': 'flash_on'},
+                          {'name': 'Garden', 'icon': 'label'}], resolved['categories'])
+        self.assertEqual(resolved['categories'], self._read_file()['categories'])
+
+    def test_missing_image_categories_file_falls_back_to_default_icon(self):
+        service = CategoryService(test_utils.temp_folder, os.path.join(test_utils.temp_folder, 'nope.json'))
+        self.assertEqual([{'name': 'Energy', 'icon': 'label'}], service.resolve(['Energy'])['categories'])
+
     def test_case_insensitive_match_uses_file_spelling(self):
         self._write_file({'categories': [{'name': 'Finance', 'icon': '£'}]})
 

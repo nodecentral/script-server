@@ -24,7 +24,7 @@ from communications.alerts_service import AlertsService
 from config.config_service import ConfigService, ConfigNotAllowedException, InvalidAccessException, \
     CorruptConfigFileException
 from config.exceptions import InvalidConfigException
-from config.category_service import CategoryService, to_external as category_to_external
+from config.category_service import CategoryService, default_categories_file, to_external as category_to_external
 from execution.execution_service import ExecutionService
 from execution.logging import ExecutionLoggingService, InvalidCursorException
 from features import gitea_origin
@@ -975,7 +975,7 @@ def init(server_config: ServerConfig,
     application.schedule_service = schedule_service
     application.execution_logging_service = execution_logging_service
     application.config_service = config_service
-    application.category_service = CategoryService(conf_folder)
+    application.category_service = CategoryService(conf_folder, default_categories_file())
     application.alerts_service = alerts_service
     application.identification = identification
     application.max_request_size_mb = server_config.max_request_size_mb

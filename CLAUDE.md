@@ -175,10 +175,29 @@ disagree about the same category's icon. The file is user content: it is
 seeded fill-if-missing by the entrypoint and is *not* in `PLATFORM_FILES`,
 because an admin edits icons on the NAS. `src/config/category_service.py`
 also **writes** to it. When the script list loads and a runner uses a
-category the file doesn't have, the category is appended with
-`default_icon`. That covers Import from Gitea, the admin form and manual
-copies, with no hook in any of them. Existing entries are never changed or
-removed. Names match case-insensitively and the file's spelling wins.
+category the file doesn't have, the category is appended with the icon
+the image's own `/app/defaults/conf/categories.json` has for it (3.1.0),
+else `default_icon`. That covers Import from Gitea, the admin form and
+manual copies, with no hook in any of them. The service never changes or
+removes an existing entry. Before 3.1.0 a category the image knew
+(Energy, AI) still arrived on an older install with the generic icon,
+because the NAS file is user content and never refreshed.
+
+**Settings › Categories** (`scripts/manage_categories.py`, 3.1.0, a
+platform file; runner user content) is how the admin edits the file:
+list, change icon, add, move, remove (refused while a runner uses it,
+since the service would append it straight back), and "give
+generic-icon categories the image's icon". There is no rename: runners
+name their category, so a renamed entry would just be re-appended under
+the old name; change the runners instead. An icon matching the
+sidebar's ligature rule (`^[a-z0-9_]+$`, `isLigatureIcon`) must be in
+the font's `codepoints`, which the Dockerfile copies from the web build
+stage to `/app/defaults/material-icons-codepoints`; a text icon must be
+one or two characters (one glyph fits the 24px box). Writes keep the
+one-line-per-entry layout and a `.bak`. The table draws icons with the
+app's own font (`/fonts/MaterialIcons-Regular.*.woff2`, found by glob).
+**Runners and imported scripts never set icons**, the user's question
+on 2026-11-24 included: the central file exists so repos can't disagree. Names match case-insensitively and the file's spelling wins.
 Appends keep the one-entry-per-line layout, so the diff is one line.
 
 **Icon values:** a lowercase Material Icons ligature name from the bundled
@@ -198,8 +217,8 @@ UI. `GET /scripts` excludes these by default. `?mode=settings` (admin only)
 returns only these, and `?mode=edit` is unchanged. Unknown placement values
 are logged and treated as "user view", so a typo hides nothing.
 
-**This repo's own runners (v2.1.0):** Import from Gitea, Install Package and
-Secrets Manager → `placement: settings`. Everything else → category
+**This repo's own runners (v2.1.0):** Import from Gitea, Install Package,
+Secrets Manager and Categories (3.1.0) → `placement: settings`. Everything else → category
 **Script Server** (icon `dns`), in two groups:
 - **Tools:** Secrets Viewer, Secret Ingredients Check, MOTD, Disk Usage,
   Backup, Send Notification, View Capabilities, Test a Secret and Lua
@@ -2506,6 +2525,30 @@ call). The design is under Language Choice > Which Lua. Files:
 **Supporting both:** v2 fixes are built from the last 2.x commit
 (`e9ab6bf`, 2.9.0 + docs), since this branch is now 3.x. Never point the
 two installs at the same folders (see v2.1.1's tug of war).
+
+### 2026-11-24 — v3.1.0: Categories settings tab; new categories get the image's icon
+
+The user asked for a way to review and edit categories, and whether an
+import or script could set its own icon (no, by design; see "Icons are
+central"). Their NAS showed Energy and AI with the generic icon.
+- `src/config/category_service.py`: `CategoryService(conf_folder,
+  defaults_file)`; an appended category takes the icon from
+  `default_categories_file()` (`$DEFAULTS_DIR/conf/categories.json`) when
+  it lists the name. `server.py` passes it. Two new tests.
+- `scripts/manage_categories.py` + `conf/runners/manage_categories.json`
+  (new), `src/tests/manage_categories_test.py` (11 tests: every action,
+  font check, layout, backup, runner/script action lists in step).
+- `tools/Dockerfile`: copies the font's `codepoints` into
+  `/app/defaults`; `tools/PLATFORM_FILES` lists the script.
+
+**Verified:** image rebuilt here and run as `PUID=1005` against an older
+`categories.json` (Energy on `label`, no AI): AI was appended with
+`memory`, an unknown Garden with `label`, Energy untouched. In a browser,
+through the form: the banner drew real icons and flagged Energy; the
+image-icon action set `flash_on`; `local_florsit` was refused with
+`local_florist` suggested; `local_florist` was accepted; an unused
+category was removed; the sidebar rail showed the new icons; a `.bak`
+was kept. Python suite: the same 23 sandbox-only failures.
 
 ## Upstream Sync Status
 

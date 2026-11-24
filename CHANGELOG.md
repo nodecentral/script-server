@@ -4,6 +4,20 @@ This is the nodecentral fork of [Script-Server](https://github.com/bugy/script-s
 running on the home NAS. The version number is the one in `version.txt`, shown at the bottom of
 the sidebar. Newest first.
 
+## 3.1.0 — 2026-11-24
+
+- **New: Categories** (Settings page). See every sidebar category with its icon, how many
+  scripts use it and which repo they came from. Add a category, change its icon, move it, or
+  remove one no script uses. An icon name the icon font doesn't have is refused (it would show
+  as a blank square), with the closest real names suggested. The previous file is kept as
+  `categories.json.bak`.
+- **One tap for generic icons.** "Give generic-icon categories the image's icon" fixes categories
+  that arrived with the plain tag icon, such as Energy or AI on an older install.
+- **New categories get their proper icon.** A category this image already knows (Energy, AI,
+  Photos...) now arrives with its own icon instead of the plain tag.
+- Updated scripting guide (SCRIPTING.md 2.28.0): scripts never set icons; the admin uses
+  Categories.
+
 ## 3.0.0 — 2026-11-22
 
 **Script Server 3** is a new image (`script-server:v3`) that runs next to Script Server 2, each
