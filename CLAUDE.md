@@ -298,6 +298,14 @@ Consequences and fix:
 - After extracting a ZIP download on the NAS (which doesn't preserve the
   execute bit), run `chmod +x scripts/*.sh scripts/**/*.sh` once, natively,
   directly over SSH — before relying on the container to fix it for you.
+- **It can also happen inside `docker build` on the NAS.** 3.2.0's
+  `RUN ... && chmod -R a+rX /opt/ms-playwright` failed with "Bad address"
+  on every file of the just-unpacked browser and stopped the build
+  (2026-11-25); the same Dockerfile built cleanly off the NAS. Single-file
+  `chmod`s in the same Dockerfile (websocat, the entrypoint, the sudoers
+  file) have always built fine there, so the cause isn't pinned down.
+  Avoid recursive `chmod` in a build step that must succeed: rely on
+  umask 022 (already world-readable), or end it with `|| true`.
 - When a script needs to verify a bind mount is genuinely connected (as
   opposed to just an empty directory created inside the image), check for a
   file that only ever arrives via that mount and is never baked into the
@@ -2553,8 +2561,10 @@ was kept. Python suite: the same 23 sandbox-only failures.
 ### 2026-11-26 — v3.2.0: Python 3.12, and Playwright works for scripts
 
 - `tools/Dockerfile`: `FROM python:3.12-slim` (was 3.9); `'pandas<3'`,
-  `'pymupdf<2'`, `'pillow<12'`; `PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright`
-  with `chmod -R a+rX`. Before, `playwright install` put the browser in
+  `'pymupdf<2'`, `'pillow<12'`; `PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright`.
+  3.2.0 also ran `chmod -R a+rX` on it, which failed on the NAS with
+  "Bad address" and stopped the build; 3.2.1 removed it (see the QNAP
+  chmod note under Execute Permissions). Before, `playwright install` put the browser in
   `/root/.cache`, and scripts run as PUID with `HOME=/tmp` failed with
   "Executable doesn't exist" (checked on the 3.9 image too, so v2 has it).
 - This repo's own Python compiles clean on 3.12 with `SyntaxWarning` and

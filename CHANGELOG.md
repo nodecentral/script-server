@@ -4,6 +4,11 @@ This is the nodecentral fork of [Script-Server](https://github.com/bugy/script-s
 running on the home NAS. The version number is the one in `version.txt`, shown at the bottom of
 the sidebar. Newest first.
 
+## 3.2.1 — 2026-11-25
+
+- **The image builds on the NAS again.** 3.2.0 stopped near the end of the build on the QNAP
+  NAS with "Bad address" errors. Nothing else changes.
+
 ## 3.2.0 — 2026-11-26
 
 - **Python 3.12.** Script Server 3 now runs Python 3.12 (was 3.9, which is no longer maintained).

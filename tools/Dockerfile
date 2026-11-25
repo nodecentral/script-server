@@ -91,6 +91,8 @@ RUN update-alternatives --set lua-interpreter /usr/bin/lua5.4 \
 # installed before the app code is copied so they cache independently of app changes.
 # Playwright's browser goes in a shared folder: by default it lands in root's home, and scripts
 # run as PUID (HOME=/tmp) then fail with "Executable doesn't exist" (true of every image before 3.2.0).
+# Its files are already world-readable (umask 022). No chmod -R here: on the QNAP NAS it failed with
+# "Bad address" (EFAULT) on every file and stopped the 3.2.0 build.
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
 # pandas, PyMuPDF and Pillow stay on the major versions Script Server 2 (Python 3.9) installs, so
 # a script behaves the same on v2 and v3. Python 3.12 alone would pull in pandas 3, PyMuPDF 2 and
@@ -109,8 +111,7 @@ RUN pip install --no-cache-dir \
       playwright \
       plotly \
     && playwright install-deps chromium \
-    && playwright install chromium \
-    && chmod -R a+rX "$PLAYWRIGHT_BROWSERS_PATH"
+    && playwright install chromium
 
 WORKDIR /app
 
