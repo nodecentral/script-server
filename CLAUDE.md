@@ -1544,8 +1544,18 @@ ss_movie_file_management `movie_fix_default_audio.lua`, sabotage-tested
 there): compare each file's full metadata report before and after
 instead. Checked here with mkvtoolnix 82: after an in-place `mkvpropedit`,
 `mkvmerge -J` differed only in the edited flags. ffprobe also showed
-`format.size`/`format.bit_rate` changing, because the file grew 327 bytes,
-so those must be excluded.
+`format.size`/`format.bit_rate` changing on a file with no padding (it
+grew 327 bytes), so those must be excluded. A file mkvmerge wrote kept
+its size exactly (51,424 bytes over three edits).
+
+**Keeping the modified time hides the write from your own catalogue**
+(2026-11-26, ss_movie_file_management: Fix Default Audio changed ~560
+films, then Update Movie Catalogue reused all 697 entries). A catalogue
+that re-reads only files whose size or modified time changed sees
+nothing, since the size usually doesn't change either (the mkvmerge test
+above). Update the entry in the same run, or have the catalogue re-read
+the files in the change journal (`movie_fix_default_audio.lua` 2.1.0 /
+`ffprobe_movie_scan.lua` 2.1.0). SCRIPTING.md step 6.
 
 
 -----

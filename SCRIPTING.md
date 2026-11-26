@@ -1,6 +1,6 @@
 # SCRIPTING.md — Script-Server Scripting Conventions (Focused)
 
-Version: 2.31.0
+Version: 2.32.0
 Last updated: 2026-11-26
 
 This is the **focused** convention doc for any Claude session writing
@@ -1153,10 +1153,12 @@ and per-file control is there when asked for, never required.
    `mkvpropedit` that also renamed a track. Checked here (mkvtoolnix 82):
    - `mkvmerge -J` after an in-place `mkvpropedit` changing two default
      flags differed in exactly those two fields, so compare all of it.
-   - `ffprobe -show_streams -show_format` also showed `format.size` and
-     `format.bit_rate` changing: `mkvpropedit` grew the file (43,677 to
-     44,004 bytes), and `bit_rate` is derived from the size. Exclude those
-     two, or every file fails the check.
+   - `ffprobe -show_streams -show_format` can also show `format.size` and
+     `format.bit_rate` changing: `mkvpropedit` grew one test file (43,677
+     to 44,004 bytes, an ffmpeg-made file with no spare room), and
+     `bit_rate` is derived from the size. Exclude those two, or such files
+     fail the check. A file mkvmerge wrote has padding, and the same edit
+     left its size exactly the same (51,424 bytes, three edits running).
    - The modified time changed as well, so step 5 still applies; the
      journal (step 3) and the read-back (step 4) still do too.
 2. **One confirmation for the whole job:** a `confirm` list parameter,
@@ -1177,6 +1179,15 @@ and per-file control is there when asked for, never required.
    whole second (`10:20:30.123456789` became `10:20:30.000000000`).
    Save `stat -c %y FILE` before writing and `touch -d "<saved>" FILE`
    afterwards; that restored it to the nanosecond.
+6. **Tell your own catalogue.** Keeping the modified time hides the write
+   from any catalogue that re-reads only files whose size or modified
+   time changed: the size often stays the same too (step 1), so the
+   catalogue keeps the old values. In ss_movie_file_management, Fix
+   Default Audio changed about 560 films, and Update Movie Catalogue then
+   reused all 697 entries unchanged. Either update the catalogue entry in
+   the same run, or have the catalogue update re-read every file named
+   in the change journal (step 3). Reference: ss_movie_file_management
+   `movie_fix_default_audio.lua` 2.1.0 / `ffprobe_movie_scan.lua` 2.1.0.
 
 - **exiftool isn't in the image:** `ensure_binary("exiftool", "apt-get
   install -y libimage-exiftool-perl")`.
