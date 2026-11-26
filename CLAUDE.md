@@ -2701,6 +2701,12 @@ ss_ollama_llm_experience) failed at import with `str | None` in a
 signature; reproduced and both fixes checked on the image. `py_compile`
 doesn't catch it (it's a runtime `TypeError`).
 
+A package a script installs itself resolves per Python: pip picks the
+newest release that supports the interpreter, so mutagen (the
+Self-Installing Dependencies example) is 1.47.0 on v2 and 1.48.1 on v3
+(1.48 needs 3.10+; checked with `pip download --python-version`).
+Test against the 3.9 version (2026-11-26, from a sibling repo).
+
 Why 3.12 for v3 (the user asked for the best version, 2026-11-26): 3.9 is
 past end of life and was holding pandas, PyMuPDF and Playwright on old
 releases (their latest need 3.10/3.11+). paddlepaddle has wheels up to

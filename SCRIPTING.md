@@ -1,6 +1,6 @@
 # SCRIPTING.md — Script-Server Scripting Conventions (Focused)
 
-Version: 2.33.0
+Version: 2.34.0
 Last updated: 2026-11-26
 
 This is the **focused** convention doc for any Claude session writing
@@ -1518,6 +1518,15 @@ And for Script Server 3 (3.12):
   (`/app/data/.deps/python/lib/python3.12`), so on v3 the first run installs
   them again. The try/except pattern (Self-Installing Dependencies) does
   that by itself.
+- **A package a script installs can be a different version on each.**
+  pip installs the newest release that supports the Python it runs on.
+  mutagen 1.48 needs 3.10+, so on Script Server 2 the Self-Installing
+  Dependencies example gets **1.47.0**, and on Script Server 3 1.48.1
+  (checked here with `pip download --python-version 3.9` / `3.12`;
+  reported by a sibling repo, which installed it for real under 3.9).
+  Test against the version 3.9 gets, not the newest you have locally.
+  Pin it (`mutagen<1.48`) if the script relies on behaviour that differs
+  between the two.
 - **The image's packages are pinned to the same major versions on both:**
   pandas 2, PyMuPDF 1, Pillow 11. Code written against those works on v2
   and v3.
