@@ -1539,6 +1539,15 @@ the second, while `stat -c %y` plus `touch -d` restores it to the
 nanosecond. exiftool isn't in the image, so scripts install it with
 `ensure_binary` (`libimage-exiftool-perl`).
 
+For films, where a trial copy isn't practical (2026-11-26,
+ss_movie_file_management `movie_fix_default_audio.lua`, sabotage-tested
+there): compare each file's full metadata report before and after
+instead. Checked here with mkvtoolnix 82: after an in-place `mkvpropedit`,
+`mkvmerge -J` differed only in the edited flags. ffprobe also showed
+`format.size`/`format.bit_rate` changing, because the file grew 327 bytes,
+so those must be excluded.
+
+
 -----
 
 ## Persistent State Across Runs (Inventories / Registries)

@@ -1,6 +1,6 @@
 # SCRIPTING.md — Script-Server Scripting Conventions (Focused)
 
-Version: 2.30.0
+Version: 2.31.0
 Last updated: 2026-11-26
 
 This is the **focused** convention doc for any Claude session writing
@@ -1145,6 +1145,20 @@ and per-file control is there when asked for, never required.
    `File:ExifByteOrder`. Small job: trial every file. Bulk job: trial a
    sample of each **kind** of change (e.g. "add GPS", "fix date"), and
    show the diff per kind.
+   **Large media (films), where a trial copy isn't practical:** skip the
+   copy. Instead, show the planned change per file, then compare each
+   file's **complete** metadata report before and after the write; only
+   the intended fields may differ. From ss_movie_file_management
+   (`movie_fix_default_audio.lua`, 2026-11-26), where it caught a fake
+   `mkvpropedit` that also renamed a track. Checked here (mkvtoolnix 82):
+   - `mkvmerge -J` after an in-place `mkvpropedit` changing two default
+     flags differed in exactly those two fields, so compare all of it.
+   - `ffprobe -show_streams -show_format` also showed `format.size` and
+     `format.bit_rate` changing: `mkvpropedit` grew the file (43,677 to
+     44,004 bytes), and `bit_rate` is derived from the size. Exclude those
+     two, or every file fails the check.
+   - The modified time changed as well, so step 5 still applies; the
+     journal (step 3) and the read-back (step 4) still do too.
 2. **One confirmation for the whole job:** a `confirm` list parameter,
    default `false` = preview (see Asking for Input). Offer narrowing as
    optional fields: **only** these files, **except** these, **detail**
