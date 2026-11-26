@@ -1,6 +1,6 @@
 # SCRIPTING.md — Script-Server Scripting Conventions (Focused)
 
-Version: 2.32.0
+Version: 2.33.0
 Last updated: 2026-11-26
 
 This is the **focused** convention doc for any Claude session writing
@@ -1435,6 +1435,37 @@ Without `target="_top"` the link tries to load inside the iframe and
 fails without any message. Use this for "Next action" links, e.g. from a
 category's Overview to the runner that fixes a missing source. Settings
 links only work for admins.
+
+**Keep `html_iframe` pages small: the whole page is re-parsed on every
+output chunk.** The page does `srcdoc += text` for each chunk
+(`HtmlIFrameOutput.js`), and setting `srcdoc` reloads the iframe and
+re-parses everything sent so far. The server sends a chunk about every
+100 ms while a script prints. It reads at most 1 KB at a time, but
+groups everything read in each 100 ms window into one chunk
+(`TIME_BUFFER_MS`). So every `<script>` already received runs again on
+each chunk, and a big page costs far more than its size. Reported by
+ss_movie_file_management, which cut a 7 MB report to 3 MB. Measured here in
+Chromium (headless, one chunk every 100 ms):
+
+| Page | Extra time | A top-of-page `<script>` ran |
+|---|---|---|
+| 1 MB of table rows, 10 chunks | 1.6 s | 8 times |
+| 7 MB of table rows, 70 chunks | 7.5 s | 47 times |
+| 7 MB as one JSON block, 70 chunks | 2.9 s | 70 times |
+| 7 MB of table rows, 1 chunk | 1.7 s | once |
+
+- Stay well under a few MB. Send data as one compact JSON block
+  (`<script type="application/json" id="data">`), not one HTML row per
+  item, and build the table from it in a `<script>` placed **after** the
+  data, at the end of the page. A script at the end can only run once all
+  the data before it has arrived. Scripts must be safe to run more than
+  once.
+- Build the page first and print it in one go at the end, rather than a
+  little at a time over a long run. Fewer 100 ms windows means fewer
+  re-parses.
+- The spinner pattern below is fine for a few dozen steps. Each `<script>`
+  it emits re-runs on every later chunk, so don't use it per item on a
+  long list.
 
 **Progress indicators in html_iframe** (CSS spinners never self-terminate):
 1. Emit `<span class="spinner" id="spin-x"></span>` with the phase label

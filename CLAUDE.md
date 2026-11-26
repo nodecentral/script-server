@@ -1855,6 +1855,21 @@ future change adds a `sandbox` attribute to that iframe, it must keep
 `allow-top-navigation-by-user-activation` and `allow-same-origin`, or
 these links break.
 
+**`html_iframe` re-parses the whole page on every output chunk**
+(2026-11-26, from ss_movie_file_management, which cut a 7 MB report to
+3 MB). `HtmlIFrameOutput.write()` is `this.element.srcdoc += text`, and
+each `srcdoc` assignment reloads the iframe. `process_pty.py` reads at
+most 1 KB at a time (`max_read_bytes`); `executor.py` groups output into
+`TIME_BUFFER_MS = 100` windows. So a page is re-parsed, and its scripts
+re-run, about every 100 ms while it streams. Measured in headless Chromium:
+7 MB of table rows in 70 chunks took 7.5 s extra and re-ran a top-of-page
+script 47 times; the same in one chunk took 1.7 s; 7 MB as one JSON
+block took 2.9 s. SCRIPTING.md has the rules: small pages, one JSON
+block with a script at the end, print the page in one go. A real fix
+would append to the iframe's document instead of resetting `srcdoc`
+(e.g. `contentDocument.write`, or buffering until the run ends). That
+would be a Core change, and it isn't made. Tracked in `ROADMAP.md`.
+
 **Progress indicators in html_iframe:**
 CSS spinners never self-terminate. Pattern for live progress feedback:
 

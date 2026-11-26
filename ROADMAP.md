@@ -723,6 +723,13 @@ change is in this repo:
   management and how it interacts with script-server's own auth model before writing code. Only
   worth doing if the plaintext-on-disk risk tier (same as a Docker environment block) stops being
   acceptable.
+- **Stream `html_iframe` output without re-parsing the page** — *Core change* to
+  `HtmlIFrameOutput.js`. `write()` does `srcdoc += text`, so the whole page reloads on every
+  ~100 ms output chunk (7 MB of rows in 70 chunks: 7.5 s extra in Chromium, scripts re-run 47
+  times). Options: `contentDocument.open()` once, then `document.write(chunk)` per chunk; or
+  buffer and set `srcdoc` once the run ends, or every second or so. Either needs care with
+  Copy/Download (`getText`/`getHtml`) and history replay. Until then, SCRIPTING.md says to keep
+  pages small (2026-11-26, from ss_movie_file_management).
 - **Form-first UI, terminal minimized** — *partly already possible* by designing runners around
   rich parameter forms (chained dropdowns, `server_file`, `html`/`html_iframe` output) rather than
   raw terminal text — Network Device Labelling/Network Scanner already lean this way. *Fully*
